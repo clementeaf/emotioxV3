@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { ZoneRegistry, generateGrid, type ZoneRect, type Zone } from '../zoneRegistry';
 import { HYBRID_AOI_GRID } from '../hybridZoneGrid';
 
@@ -593,3 +593,356 @@ function expectNoInteriorOverlap(a: Zone, b: Zone): void {
   const tolerance = a.rect.width * a.rect.height * 0.001;
   expect(overlapArea).toBeLessThanOrEqual(tolerance);
 }
+
+// ---------------------------------------------------------------------------
+// Zone boundaries — which zone owns a gaze landing exactly on an edge
+//
+// This is the pipeline's central claim: given a point, name the zone. Every
+// assertion below pins a decision that was previously left to insertion order.
+// ---------------------------------------------------------------------------
+
+describe('ZoneRegistry — edge containment', () => {
+  let registry: ZoneRegistry;
+
+  beforeEach(() => {
+    registry = new ZoneRegistry();
+    registry.register('solo', 'Solo', rect(100, 100, 200, 200));
+  });
+
+  it('a point on the left edge belongs to the zone', () => {
+    expect(registry.getZoneAt(100, 200)?.zone.id).toBe('solo');
+  });
+
+  it('a point on the right edge belongs to the zone', () => {
+    // Right edge = x + width = 300. Excluding it would drop every gaze landing
+    // on the far edge of the last column of a grid.
+    expect(registry.getZoneAt(300, 200)?.zone.id).toBe('solo');
+  });
+
+  it('a point on the top edge belongs to the zone', () => {
+    expect(registry.getZoneAt(200, 100)?.zone.id).toBe('solo');
+  });
+
+  it('a point on the bottom edge belongs to the zone', () => {
+    expect(registry.getZoneAt(200, 300)?.zone.id).toBe('solo');
+  });
+
+  it('all four corners belong to the zone', () => {
+    expect(registry.getZoneAt(100, 100)?.zone.id).toBe('solo');
+    expect(registry.getZoneAt(300, 100)?.zone.id).toBe('solo');
+    expect(registry.getZoneAt(100, 300)?.zone.id).toBe('solo');
+    expect(registry.getZoneAt(300, 300)?.zone.id).toBe('solo');
+  });
+
+  it('a point one pixel past each edge belongs to no zone', () => {
+    expect(registry.getZoneAt(99, 200)).toBeNull();
+    expect(registry.getZoneAt(301, 200)).toBeNull();
+    expect(registry.getZoneAt(200, 99)).toBeNull();
+    expect(registry.getZoneAt(200, 301)).toBeNull();
+  });
+
+  it('a sub-pixel offset past an edge belongs to no zone', () => {
+    expect(registry.getZoneAt(300.01, 200)).toBeNull();
+    expect(registry.getZoneAt(200, 300.01)).toBeNull();
+  });
+});
+
+describe('ZoneRegistry — shared-edge tie-breaking', () => {
+  // Adjacent zones both contain a point on the edge they share. Which one is
+  // reported must be deterministic, or the same gaze yields different zones
+  // across runs.
+  it('resolves a shared vertical edge to the first-registered zone', () => {
+    const registry = new ZoneRegistry();
+    registry.register('left', 'Left', rect(0, 0, 200, 400));
+    registry.register('right', 'Right', rect(200, 0, 200, 400));
+
+    expect(registry.getZoneAt(200, 200)?.zone.id).toBe('left');
+  });
+
+  it('resolves a shared horizontal edge to the first-registered zone', () => {
+    const registry = new ZoneRegistry();
+    registry.register('upper', 'Upper', rect(0, 0, 400, 200));
+    registry.register('lower', 'Lower', rect(0, 200, 400, 200));
+
+    expect(registry.getZoneAt(200, 200)?.zone.id).toBe('upper');
+  });
+
+  it('priority still outranks registration order on a shared edge', () => {
+    const registry = new ZoneRegistry();
+    registry.register('left', 'Left', rect(0, 0, 200, 400));
+    registry.register('right', 'Right', rect(200, 0, 200, 400), 5);
+
+    expect(registry.getZoneAt(200, 200)?.zone.id).toBe('right');
+  });
+
+  it('a gaze on an internal grid line resolves to the earlier cell', () => {
+    const registry = new ZoneRegistry();
+    for (const zone of generateGrid(3, 3, rect(0, 0, 300, 300))) {
+      registry.register(zone.id, zone.label, zone.rect);
+    }
+
+    // x=100 is the r0c0 / r0c1 boundary, y=100 is the r0 / r1 boundary
+    expect(registry.getZoneAt(100, 50)?.zone.id).toBe('r0c0');
+    expect(registry.getZoneAt(50, 100)?.zone.id).toBe('r0c0');
+    expect(registry.getZoneAt(100, 100)?.zone.id).toBe('r0c0');
+  });
+});
+
+describe('ZoneRegistry — getNearestZone tie-breaking', () => {
+  it('returns the first-registered zone when two are equidistant', () => {
+    const registry = new ZoneRegistry();
+    registry.register('a', 'A', rect(0, 0, 100, 100));
+    registry.register('b', 'B', rect(200, 0, 100, 100));
+
+    // x=150 sits 50px from both zones
+    const match = registry.getNearestZone(150, 50);
+    expect(match?.zone.id).toBe('a');
+    expect(match?.distance).toBe(50);
+  });
+
+  it('keeps the tie-break stable regardless of registration count', () => {
+    const registry = new ZoneRegistry();
+    registry.register('a', 'A', rect(0, 0, 100, 100));
+    registry.register('b', 'B', rect(200, 0, 100, 100));
+    registry.register('c', 'C', rect(150, 200, 100, 100));
+
+    expect(registry.getNearestZone(150, 50)?.zone.id).toBe('a');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Grid labels — the zone names a researcher reads in the results panel
+// ---------------------------------------------------------------------------
+
+describe('generateGrid — labels', () => {
+  const labelOf = (zones: Zone[], row: number, col: number): string =>
+    zones.find(z => z.id === `r${row}c${col}`)!.label;
+
+  it('names every row and column of a 10×10 grid', () => {
+    const zones = generateGrid(10, 10, rect(0, 0, 1000, 1000));
+
+    const expected = [
+      'Superior izquierda',
+      'Centro superior centro izquierda',
+      'Centro centro',
+      'Centro inferior centro derecha',
+      'Inferior derecha',
+      'Fila 5 col 5',
+      'Fila 6 col 6',
+      'Fila 7 col 7',
+      'Fila 8 col 8',
+      'Fila 9 col 9',
+    ];
+
+    expected.forEach((label, i) => {
+      expect(labelOf(zones, i, i)).toBe(label);
+    });
+  });
+
+  it('names the corners of a 5×5 grid', () => {
+    const zones = generateGrid(5, 5, rect(0, 0, 500, 500));
+
+    expect(labelOf(zones, 0, 0)).toBe('Superior izquierda');
+    expect(labelOf(zones, 0, 4)).toBe('Superior derecha');
+    expect(labelOf(zones, 4, 0)).toBe('Inferior izquierda');
+    expect(labelOf(zones, 4, 4)).toBe('Inferior derecha');
+    expect(labelOf(zones, 2, 2)).toBe('Centro centro');
+  });
+
+  it('uses the HYBRID_AOI_GRID wording only for a true 3×3 grid', () => {
+    expect(labelOf(generateGrid(3, 3, rect(0, 0, 300, 300)), 1, 1)).toBe('Centro');
+  });
+
+  it('does not apply 3×3 wording to a 3-row grid with other column counts', () => {
+    expect(labelOf(generateGrid(3, 5, rect(0, 0, 500, 300)), 1, 1))
+      .toBe('Centro superior centro izquierda');
+  });
+
+  it('does not apply 3×3 wording to a 3-column grid with other row counts', () => {
+    expect(labelOf(generateGrid(5, 3, rect(0, 0, 300, 500)), 1, 1))
+      .toBe('Centro superior centro izquierda');
+  });
+
+  it('falls back to numbered rows beyond the named set', () => {
+    const zones = generateGrid(11, 11, rect(0, 0, 1100, 1100));
+
+    expect(labelOf(zones, 0, 0)).toBe('Fila 0 Col 0');
+    expect(labelOf(zones, 10, 10)).toBe('Fila 10 Col 10');
+  });
+
+  it('falls back per axis — named rows with numbered columns', () => {
+    const zones = generateGrid(5, 11, rect(0, 0, 1100, 500));
+
+    expect(labelOf(zones, 0, 0)).toBe('Superior Col 0');
+    expect(labelOf(zones, 4, 10)).toBe('Inferior Col 10');
+  });
+
+  it('never produces an empty label', () => {
+    for (const [rows, cols] of [[1, 1], [3, 3], [5, 5], [10, 10], [12, 12]]) {
+      for (const zone of generateGrid(rows, cols, rect(0, 0, 600, 600))) {
+        expect(zone.label.trim()).not.toBe('');
+      }
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ResizeObserver lifecycle
+//
+// jsdom ships no ResizeObserver, so the registry silently runs with
+// `observer === null` and none of this wiring executes under test. Stubbing it
+// is the only way these paths are exercised at all.
+// ---------------------------------------------------------------------------
+
+class MockResizeObserver {
+  static instances: MockResizeObserver[] = [];
+  readonly observed: Element[] = [];
+  readonly unobserved: Element[] = [];
+  disconnected = false;
+
+  constructor(private readonly callback: () => void) {
+    MockResizeObserver.instances.push(this);
+  }
+
+  observe(el: Element): void { this.observed.push(el); }
+  unobserve(el: Element): void { this.unobserved.push(el); }
+  disconnect(): void { this.disconnected = true; }
+  /** Simulate the browser reporting a size change. */
+  fire(): void { this.callback(); }
+}
+
+describe('ZoneRegistry — ResizeObserver wiring', () => {
+  beforeEach(() => {
+    MockResizeObserver.instances = [];
+    vi.stubGlobal('ResizeObserver', MockResizeObserver);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const observerOf = (): MockResizeObserver => MockResizeObserver.instances[0];
+
+  it('observes element-backed zones', () => {
+    const registry = new ZoneRegistry();
+    const el = mockElement(rect(0, 0, 100, 100));
+
+    registry.register('el', 'Element', el);
+
+    expect(observerOf().observed).toContain(el);
+  });
+
+  it('does not observe zones backed by a manual rect', () => {
+    const registry = new ZoneRegistry();
+
+    registry.register('manual', 'Manual', rect(0, 0, 100, 100));
+
+    expect(observerOf().observed).toHaveLength(0);
+  });
+
+  it('stops observing an element when its zone is unregistered', () => {
+    const registry = new ZoneRegistry();
+    const el = mockElement(rect(0, 0, 100, 100));
+    registry.register('el', 'Element', el);
+
+    registry.unregister('el');
+
+    expect(observerOf().unobserved).toContain(el);
+  });
+
+  it('stops observing the previous element when an ID is re-registered', () => {
+    const registry = new ZoneRegistry();
+    const first = mockElement(rect(0, 0, 100, 100));
+    const second = mockElement(rect(0, 0, 200, 200));
+    registry.register('el', 'Element', first);
+
+    registry.register('el', 'Element', second);
+
+    expect(observerOf().unobserved).toContain(first);
+    expect(observerOf().observed).toContain(second);
+  });
+
+  it('does not attempt to unobserve a manual-rect zone', () => {
+    const registry = new ZoneRegistry();
+    registry.register('manual', 'Manual', rect(0, 0, 100, 100));
+
+    registry.unregister('manual');
+
+    expect(observerOf().unobserved).toHaveLength(0);
+  });
+
+  it('stops observing every element on clear', () => {
+    const registry = new ZoneRegistry();
+    const a = mockElement(rect(0, 0, 100, 100));
+    const b = mockElement(rect(100, 0, 100, 100));
+    registry.register('a', 'A', a);
+    registry.register('b', 'B', b);
+    registry.register('manual', 'Manual', rect(0, 200, 100, 100));
+
+    registry.clear();
+
+    expect(observerOf().unobserved).toEqual([a, b]);
+  });
+
+  it('disconnects the observer on destroy', () => {
+    const registry = new ZoneRegistry();
+    registry.register('el', 'Element', mockElement(rect(0, 0, 100, 100)));
+
+    registry.destroy();
+
+    expect(observerOf().disconnected).toBe(true);
+  });
+
+  it('refreshes zone rects when the observer reports a resize', () => {
+    const registry = new ZoneRegistry();
+    let width = 100;
+    const el = {
+      getBoundingClientRect: () => ({
+        x: 0, y: 0, width, height: 100,
+        top: 0, left: 0, right: width, bottom: 100,
+        toJSON: () => ({}),
+      }),
+    } as unknown as HTMLElement;
+
+    registry.register('el', 'Element', el);
+    expect(registry.getZones()[0].rect.width).toBe(100);
+
+    width = 250;
+    // Cache still holds the stale value until the observer fires.
+    expect(registry.getZones()[0].rect.width).toBe(100);
+
+    observerOf().fire();
+
+    expect(registry.getZones()[0].rect.width).toBe(250);
+  });
+});
+
+describe('ZoneRegistry — without ResizeObserver support', () => {
+  beforeEach(() => {
+    vi.stubGlobal('ResizeObserver', undefined);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('still registers and resolves element-backed zones', () => {
+    const registry = new ZoneRegistry();
+    const el = mockElement(rect(0, 0, 100, 100));
+
+    expect(() => registry.register('el', 'Element', el)).not.toThrow();
+    expect(registry.getZoneAt(50, 50)?.zone.id).toBe('el');
+  });
+
+  it('unregister, clear and destroy stay safe with no observer', () => {
+    const registry = new ZoneRegistry();
+    registry.register('el', 'Element', mockElement(rect(0, 0, 100, 100)));
+
+    expect(() => {
+      registry.unregister('el');
+      registry.register('el2', 'Element 2', mockElement(rect(0, 0, 50, 50)));
+      registry.clear();
+      registry.destroy();
+    }).not.toThrow();
+  });
+});

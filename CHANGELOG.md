@@ -1,3 +1,40 @@
+## v0.90.1 — Test gauntlet: coverage, repaired suites, mutation testing (2026-07-27)
+
+### tooling
+- **Coverage instrumentation in all 3 subprojects.** `@vitest/coverage-v8` + `coverage` block in each `vitest.config.ts` (`reportOnFailure: true` so a red suite still reports). New `test:coverage` script in backend and participant-frontend. Baseline measured: backend 4.37%, research-frontend 6.89%, participant-frontend 14.34% lines.
+- **Mutation testing.** Stryker (`@stryker-mutator/core` + `vitest-runner`) in backend and participant-frontend, `npm run test:mutation`. Scoped to `tracking-emotion.analytics.ts` and the Eye Tracking V2 zone pipeline. No global threshold set — coverage today would fail any meaningful gate.
+- **`participant-frontend` `test` script ran vitest in watch mode**, so it never terminated in CI. Now `vitest run`; watch moved to `test:watch`.
+- **.gitignore**: `coverage/`, `reports/mutation/`, `.stryker-tmp/`.
+
+### fixes — emotion analytics (found by the new tests)
+- **Empty study reported `joy` as the dominant emotion.** With zero samples every count ties at 0 and the sort returned the first-listed emotion. Now returns `neutral`.
+- **Unrecognized emotion labels polluted the figures.** Samples arrive from an uncontrolled browser; a label outside the 7 Ekman emotions was counted in `totalSamples` and could surface as `dominantEmotion` despite never appearing in the distribution. Added `isValidSample` boundary validation (known emotion + finite confidence + finite timestamp).
+- **Distribution did not sum to 100%** whenever junk samples were present (consequence of the above). Now guarded by an explicit test.
+- Non-numeric `confidence` (`NaN`, strings) entered the average. Rejected by the same guard.
+
+### tests — repaired suites (45 failures, all stale assertions)
+- **backend `tracking.service.test.ts` (3).** `createSession` now issues 3 queries, not 4 (a SELECT was replaced by `INSERT IGNORE` to close a race). `getTrackingConfig` deliberately no longer checks status — `script.js` must be servable in draft to verify snippet installation, and `createSession` enforces active status independently; the test now pins that contract. `getScrollDepthData` derives its total by summing buckets (one bucket per session after the `MAX`), so 20 was the correct answer.
+- **research-frontend `heatmapPalette.test.ts` (32).** Asserted a blue→violet palette reverted in v0.84.2, and imported `VIDEO_HEATMAP_COLORS` — a symbol removed in v0.85.0. Rewritten against the real contract: images use the warm ramp (blue channel 0 in every stop, green→red monotonic), videos use the FLIR thermal gradient. 85 tests.
+- **research-frontend `renderGridComposite.test.ts` (8).** Canvas mock lacked `measureText` and `roundRect`, both used by the renderer. `measureText` approximates 0.6em per character since the renderer drops labels that overflow their cell.
+- **research-frontend `thermalContrast.test.ts` (1).** `REBALANCED_THERMAL_STOPS` deliberately ends at dark red `#b40000`; the test demanded literal `#ff0000`.
+- **research-frontend `attentionPrediction.p6.test.ts` (1).** The Original tab now enables no overlays — the bare stimulus. Contradicts the P6 spec from v0.81.0, which asked for a composite view; test updated to the implemented behavior.
+
+### tests — emotion pipeline (new)
+- `tracking-emotion.analytics.test.ts`: 43 tests covering query construction, malformed input, distribution percentages, per-session summaries, 1-second timeline bucketing and Russell circumplex mapping. Coverage 0% → 100% lines, mutation score 92.64% (remaining survivors are equivalent mutants on unreachable guards).
+
+### tests — Eye Tracking V2 `zoneRegistry` (mutation-driven)
+- Mutation score **67.96% → 99.45%** (51 survivors → 1), 54 → 85 tests. Line coverage was already 98.7% — the gap was invisible to coverage.
+- **Edge containment.** The existing boundary test asserted only `not.toBeNull()`, so `px <= r.x + r.width` could flip to `<` unnoticed — silently reassigning every gaze landing on a stimulus's far edge. Now pins all four edges, corners, one-pixel-outside and sub-pixel-outside.
+- **Shared-edge tie-breaking.** Adjacent zones both contain a point on their shared edge; which one wins was left to insertion order and never asserted. Now pinned (first registered wins; priority still outranks it), including internal grid lines.
+- **Grid labels.** All 21 zone label strings could be blanked to `""` with the suite still green. A 10×10 grid now pins every row and column name, plus numbered fallbacks and the 3×3 special case — which had no test distinguishing a 3×5 grid from a 3×3.
+- **ResizeObserver wiring.** jsdom ships no `ResizeObserver`, so the registry always ran with `observer === null` and none of the observe/unobserve/disconnect paths executed under test. Added a stubbed observer plus coverage of the no-support environment.
+- V2 pipeline mutation score overall: 83.33% → 93.89%.
+
+### refactor
+- `THERMAL_GRADIENT` moved from `VideoAccumulatedHeatmapOverlay.tsx` to `utils/thermalContrast.ts`. Exporting constants from a component file breaks fast refresh, and the other thermal palettes already live there.
+
+---
+
 ## v0.90.0 — Website Tracking: Emotion Recognition (2026-07-25)
 
 ### backend

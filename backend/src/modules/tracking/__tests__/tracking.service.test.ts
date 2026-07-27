@@ -44,8 +44,7 @@ describe('createSession', () => {
         mockQuery
             .mockResolvedValueOnce({ rows: [{ id: 'r1', status: 'active', config: '{}' }] })  // research check
             .mockResolvedValueOnce({ rows: [] })   // INSERT session
-            .mockResolvedValueOnce({ rows: [] })   // SELECT tracking_pages
-            .mockResolvedValueOnce({ rows: [] });  // INSERT tracking_pages
+            .mockResolvedValueOnce({ rows: [] });  // INSERT IGNORE tracking_pages
 
         const result = await createSession({
             researchId: 'r1',
@@ -56,7 +55,7 @@ describe('createSession', () => {
         });
 
         expect(result.sessionId).toBe('mock-uuid-1234');
-        expect(mockQuery).toHaveBeenCalledTimes(4);
+        expect(mockQuery).toHaveBeenCalledTimes(3);
     });
 
     it('throws when research not found', async () => {
@@ -154,9 +153,13 @@ describe('getTrackingConfig', () => {
         await expect(getTrackingConfig('bad')).rejects.toThrow('Research not found');
     });
 
-    it('throws when research not active', async () => {
+    // Deliberate: script.js must be servable while the research is still a draft so
+    // researchers can verify the snippet installation. createSession enforces the
+    // active-status requirement independently, so no data is collected early.
+    it('returns config regardless of research status', async () => {
         mockQuery.mockResolvedValueOnce({ rows: [{ config: '{}', status: 'paused' }] });
-        await expect(getTrackingConfig('r1')).rejects.toThrow('Research is not active');
+        const config = await getTrackingConfig('r1');
+        expect(config.captureClicks).toBe(true);
     });
 });
 
@@ -223,23 +226,26 @@ describe('getOverviewMetrics', () => {
 
 describe('getScrollDepthData', () => {
     it('returns cumulative scroll depth buckets', async () => {
-        mockQuery
-            .mockResolvedValueOnce({
-                rows: [
-                    { depth_bucket: 0, session_count: 10 },
-                    { depth_bucket: 50, session_count: 7 },
-                    { depth_bucket: 100, session_count: 3 },
-                ],
-            })
-            .mockResolvedValueOnce({ rows: [{ total: 10 }] });
+        // Each session lands in exactly one bucket (the query takes MAX depth per
+        // session), so the total is the sum of the buckets: 10 + 7 + 3 = 20.
+        mockQuery.mockResolvedValueOnce({
+            rows: [
+                { depth_bucket: 0, session_count: 10 },
+                { depth_bucket: 50, session_count: 7 },
+                { depth_bucket: 100, session_count: 3 },
+            ],
+        });
 
         const result = await getScrollDepthData('r1');
 
-        expect(result.totalSessions).toBe(10);
+        expect(result.totalSessions).toBe(20);
         expect(result.depths.length).toBe(11); // 0, 10, 20, ..., 100
         expect(result.depths[0].depthPct).toBe(0);
-        // Bucket 0% sums all buckets >= 0: 10+7+3=20, percentage capped or calculated
-        expect(result.depths[0].sessions).toBeGreaterThanOrEqual(10);
+        // Cumulative: everyone who scrolled at all reached 0%
+        expect(result.depths[0].sessions).toBe(20);
+        // Half the buckets sit at or above 50%: 7 + 3 = 10
+        expect(result.depths[5].depthPct).toBe(50);
+        expect(result.depths[5].sessions).toBe(10);
         // 100% bucket: only sessions at depth_bucket >= 100
         const last = result.depths[result.depths.length - 1];
         expect(last.depthPct).toBe(100);

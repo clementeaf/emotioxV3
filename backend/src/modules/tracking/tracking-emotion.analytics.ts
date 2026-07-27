@@ -44,6 +44,24 @@ const VA_MAP: Record<EkmanEmotion, { v: number; a: number }> = {
     disgust:  { v: -0.7, a:  0.2 },
 };
 
+/**
+ * Samples come straight from a browser we do not control, so anything that is
+ * not a known emotion with a usable confidence is dropped before it can reach
+ * the reported figures. Counting an unrecognized label would inflate
+ * totalSamples (pushing the distribution below 100%) and could even surface it
+ * as the dominant emotion, which the distribution never lists.
+ */
+function isValidSample(raw: unknown): raw is EmotionSample {
+    if (!raw || typeof raw !== 'object') return false;
+    const s = raw as Record<string, unknown>;
+    // Number.isFinite already rejects non-numbers, so no typeof check is needed.
+    return (
+        (ALL_EMOTIONS as string[]).includes(s.emotion as string) &&
+        Number.isFinite(s.confidence) &&
+        Number.isFinite(s.timestamp)
+    );
+}
+
 function computeVA(samples: EmotionSample[]): { valence: number; arousal: number } {
     if (samples.length === 0) return { valence: 0, arousal: 0 };
     let v = 0, a = 0, w = 0;
@@ -95,7 +113,7 @@ export async function getTrackingEmotionData(
             const raw = typeof session.emotion_samples === 'string'
                 ? JSON.parse(session.emotion_samples)
                 : session.emotion_samples;
-            samples = Array.isArray(raw) ? raw : [];
+            samples = Array.isArray(raw) ? raw.filter(isValidSample) : [];
         } catch { samples = []; }
 
         if (samples.length === 0) continue;
@@ -128,8 +146,11 @@ export async function getTrackingEmotionData(
         ALL_EMOTIONS.map(e => [e, totalSamples > 0 ? Math.round(counts[e] / totalSamples * 1000) / 10 : 0])
     ) as Record<EkmanEmotion, number>;
 
-    const dominantEmotion = Object.entries(counts)
-        .sort((a, b) => b[1] - a[1])[0]?.[0] as EkmanEmotion || 'neutral';
+    // With no samples every count is tied at 0, and picking the highest would
+    // just return whichever emotion is listed first. Report neutral instead.
+    const dominantEmotion: EkmanEmotion = totalSamples === 0
+        ? 'neutral'
+        : (Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] as EkmanEmotion) || 'neutral';
 
     // Timeline: downsample to 1-second buckets
     const timeline: TrackingEmotionData['timeline'] = [];

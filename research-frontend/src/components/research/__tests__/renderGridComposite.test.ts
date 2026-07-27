@@ -12,7 +12,14 @@ function createMockCtx() {
         calls.push({ method, args });
     };
 
-    return {
+    const ctx = {
+        // jsdom has no text metrics, so approximate: ~0.6em per character at the
+        // font size currently set on the context. renderGridComposite drops labels
+        // that overflow their cell, so this has to be roughly proportional.
+        measureText(text: string) {
+            const fontSize = parseFloat(ctx.font) || 12;
+            return { width: text.length * fontSize * 0.6 } as TextMetrics;
+        },
         drawImage: track('drawImage'),
         beginPath: track('beginPath'),
         moveTo: track('moveTo'),
@@ -21,6 +28,8 @@ function createMockCtx() {
         fillText: track('fillText'),
         fillRect: track('fillRect'),
         arc: track('arc'),
+        roundRect: track('roundRect'),
+        closePath: track('closePath'),
         fill: track('fill'),
         save: track('save'),
         restore: track('restore'),
@@ -37,6 +46,8 @@ function createMockCtx() {
         fillStyle: '',
         calls,
     } as unknown as CanvasRenderingContext2D & { calls: TrackedCall[] };
+
+    return ctx;
 }
 
 const VIDEO = { width: 1920, height: 1080 } as unknown as CanvasImageSource;

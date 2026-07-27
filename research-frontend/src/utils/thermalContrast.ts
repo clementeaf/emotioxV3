@@ -190,3 +190,22 @@ export const REBALANCED_THERMAL_STOPS: ColorStop[] = [
     { t: 0.85, r: 255, g: 60,  b: 0   },  // red-orange
     { t: 1.00, r: 180, g: 0,   b: 0   },  // dark red
 ];
+
+/**
+ * simpleheat gradient for the accumulated video attention overlay.
+ * Full FLIR-style ramp: unviewed regions must read as cold, so this spans
+ * dark blue → blue → green → yellow → red rather than the warm-only gradient
+ * used for image heatmaps (HEATMAP_GRADIENTS).
+ */
+export const THERMAL_GRADIENT: Record<number, string> = {
+    0.0: '#000033',
+    0.15: '#000066',
+    0.3: '#0000cc',
+    0.45: '#0088ff',
+    0.55: '#00cc44',
+    0.65: '#88dd00',
+    0.75: '#ffff00',
+    0.85: '#ff8800',
+    0.95: '#ff0000',
+    1.0: '#ff0000',
+};

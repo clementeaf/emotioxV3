@@ -227,9 +227,14 @@ describe('LEGACY_THERMAL_STOPS vs REBALANCED_THERMAL_STOPS', () => {
         // Start: dark
         expect(legacyLUT[0][0] + legacyLUT[0][1] + legacyLUT[0][2]).toBeLessThan(200);
         expect(rebalancedLUT[0][0] + rebalancedLUT[0][1] + rebalancedLUT[0][2]).toBeLessThan(200);
-        // End: red
+        // End: red-dominant. Legacy peaks at pure red; rebalanced deliberately
+        // lands on dark red (#b40000) so the hottest zone still reads as hot
+        // without blowing out against light stimuli.
         expect(legacyLUT[255]).toEqual([255, 0, 0]);
-        expect(rebalancedLUT[255]).toEqual([255, 0, 0]);
+        const [rr, rg, rb] = rebalancedLUT[255];
+        expect(rr).toBeGreaterThanOrEqual(180);
+        expect(rg).toBe(0);
+        expect(rb).toBe(0);
     });
 });
 

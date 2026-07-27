@@ -9,12 +9,14 @@ const fullContext = {
 };
 
 describe('attentionPrediction P6 — composite visualization', () => {
-    it('enables all available overlays on Original tab', () => {
+    // The Original tab shows the bare stimulus: every overlay off, regardless of
+    // what data exists. Composite views live on the Gaze Paths tab below.
+    it('disables every overlay on Original tab', () => {
         expect(buildAttentionLayerPreset('original', fullContext)).toEqual({
-            heatmap: true,
-            aiAois: true,
-            manualAois: true,
-            gaze: true,
+            heatmap: false,
+            aiAois: false,
+            manualAois: false,
+            gaze: false,
         });
     });
 

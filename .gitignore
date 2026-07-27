@@ -89,3 +89,8 @@ docs/video-ejemplo.mp4
 
 # Serena MCP config
 .serena/
+
+# Test coverage and mutation reports
+coverage/
+reports/mutation/
+.stryker-tmp/

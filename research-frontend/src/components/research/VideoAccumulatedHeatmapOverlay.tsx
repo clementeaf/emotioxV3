@@ -16,6 +16,7 @@ import {
     renderSaliencyMapDirect,
     sigmoidContrast,
     REBALANCED_THERMAL_STOPS,
+    THERMAL_GRADIENT,
 } from '../../utils/thermalContrast';
 
 interface HeatmapPoint {
@@ -42,21 +43,6 @@ interface VideoAccumulatedHeatmapOverlayProps {
     thermalMapWidth?: number;
     thermalMapHeight?: number;
 }
-
-/* ─── Thermal blue gradient for simpleheat ─── */
-
-const THERMAL_GRADIENT = {
-    0.0: '#000033',
-    0.15: '#000066',
-    0.3: '#0000cc',
-    0.45: '#0088ff',
-    0.55: '#00cc44',
-    0.65: '#88dd00',
-    0.75: '#ffff00',
-    0.85: '#ff8800',
-    0.95: '#ff0000',
-    1.0: '#ff0000',
-};
 
 const GRID_OPTIONS = [
     { label: '2×2', cols: 2, rows: 2 },

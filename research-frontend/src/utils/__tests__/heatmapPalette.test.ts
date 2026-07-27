@@ -3,8 +3,8 @@ import {
     HEATMAP_GRADIENTS,
     OVERLAY_DIM_FACTORS,
 } from '../../components/results/cognitive-task/components/HeatmapRenderer';
-import { VIDEO_HEATMAP_COLORS } from '../../components/research/VideoAccumulatedHeatmapOverlay';
 import { COLD_MAP_GRADIENT } from '../coldMapRender';
+import { THERMAL_GRADIENT } from '../thermalContrast';
 import type { HeatmapVisualProfile } from '../attentionPrediction.utils';
 
 /* ─── Helpers ─── */
@@ -26,13 +26,6 @@ function relativeLuminance(r: number, g: number, b: number): number {
         c => (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4)),
     );
     return 0.2126 * rs + 0.7152 * gs + 0.0722 * bs;
-}
-
-/** WCAG contrast ratio between two luminances */
-function contrastRatio(l1: number, l2: number): number {
-    const lighter = Math.max(l1, l2);
-    const darker = Math.min(l1, l2);
-    return (lighter + 0.05) / (darker + 0.05);
 }
 
 function sortedKeys(obj: Record<number, string>): number[] {
@@ -91,62 +84,79 @@ describe('HEATMAP_GRADIENTS — completeness & structure', () => {
 });
 
 /* ═══════════════════════════════════════════════════════════════
-   2. PALETTE COLOR SCIENCE — blue→violet, no warm leaks
+   2. PALETTE COLOR SCIENCE — warm green→yellow→red, no cool leaks
+
+   Image heatmaps use the warm gradient (v0.84.2). A blue→violet
+   palette was tried and reverted: it reads as "cold/inactive" to
+   researchers, the opposite of what a hotspot means. Videos use the
+   thermal gradient instead — see section 4.
    ═══════════════════════════════════════════════════════════════ */
 
-describe('HEATMAP_GRADIENTS — blue→violet color science', () => {
-    const WARM_HEX = ['#ff0', '#ff00', '#0f0', '#8f0', '#f80', '#f00', '#c00', '#e00', '#ff0000', '#00ff00', '#ffff00'];
-
-    it.each(ALL_PROFILES)('%s — zero warm-palette colors (no yellow, green, red)', (profile) => {
-        for (const hex of Object.values(HEATMAP_GRADIENTS[profile])) {
-            expect(WARM_HEX).not.toContain(hex.toLowerCase());
-        }
-    });
-
-    it.each(ALL_PROFILES)('%s — blue channel >= 0x99 in every stop', (profile) => {
-        for (const hex of Object.values(HEATMAP_GRADIENTS[profile])) {
-            const { b } = hexToRgb(hex);
-            expect(b).toBeGreaterThanOrEqual(0x99);
-        }
-    });
-
-    it.each(ALL_PROFILES)('%s — green channel never dominates (g < b always)', (profile) => {
-        for (const hex of Object.values(HEATMAP_GRADIENTS[profile])) {
-            const { g, b } = hexToRgb(hex);
-            expect(g).toBeLessThan(b);
-        }
-    });
-
-    it.each(ALL_PROFILES)('%s — highest-intensity stop has violet hue (r > 0x80)', (profile) => {
-        const keys = sortedKeys(HEATMAP_GRADIENTS[profile]);
-        const topHex = HEATMAP_GRADIENTS[profile][keys[keys.length - 1]];
-        const { r } = hexToRgb(topHex);
-        expect(r).toBeGreaterThanOrEqual(0x80);
-    });
-
-    it.each(ALL_PROFILES)('%s — lowest-intensity stop has blue hue (r < 0x80)', (profile) => {
-        const keys = sortedKeys(HEATMAP_GRADIENTS[profile]);
-        const lowHex = HEATMAP_GRADIENTS[profile][keys[0]];
-        const { r } = hexToRgb(lowHex);
-        expect(r).toBeLessThan(0x80);
-    });
-
-    it.each(ALL_PROFILES)('%s — contrast ratio vs white >= 1.5 (visible on white bg)', (profile) => {
-        const whiteLum = 1.0;
+describe('HEATMAP_GRADIENTS — warm color science', () => {
+    it.each(ALL_PROFILES)('%s — no blue-dominant stop (never reads as cold)', (profile) => {
         for (const hex of Object.values(HEATMAP_GRADIENTS[profile])) {
             const { r, g, b } = hexToRgb(hex);
-            const lum = relativeLuminance(r, g, b);
-            const ratio = contrastRatio(whiteLum, lum);
-            expect(ratio).toBeGreaterThanOrEqual(1.5);
+            expect(b).toBeLessThanOrEqual(Math.max(r, g));
         }
     });
 
-    it('all profiles share the same blue anchor (#5599ff or #3377cc family)', () => {
+    it.each(ALL_PROFILES)('%s — blue channel stays off (b === 0 in every stop)', (profile) => {
+        for (const hex of Object.values(HEATMAP_GRADIENTS[profile])) {
+            expect(hexToRgb(hex).b).toBe(0);
+        }
+    });
+
+    it.each(ALL_PROFILES)('%s — lowest-intensity stop is green (g dominates)', (profile) => {
+        const keys = sortedKeys(HEATMAP_GRADIENTS[profile]);
+        const { r, g } = hexToRgb(HEATMAP_GRADIENTS[profile][keys[0]]);
+        expect(g).toBeGreaterThan(r);
+    });
+
+    it.each(ALL_PROFILES)('%s — highest-intensity stop is red (r dominates)', (profile) => {
+        const keys = sortedKeys(HEATMAP_GRADIENTS[profile]);
+        const { r, g } = hexToRgb(HEATMAP_GRADIENTS[profile][keys[keys.length - 1]]);
+        expect(r).toBeGreaterThan(g);
+    });
+
+    it.each(ALL_PROFILES)('%s — red rises monotonically with intensity', (profile) => {
+        const keys = sortedKeys(HEATMAP_GRADIENTS[profile]);
+        for (let i = 1; i < keys.length; i++) {
+            const prev = hexToRgb(HEATMAP_GRADIENTS[profile][keys[i - 1]]).r;
+            const curr = hexToRgb(HEATMAP_GRADIENTS[profile][keys[i]]).r;
+            expect(curr).toBeGreaterThanOrEqual(prev);
+        }
+    });
+
+    // `smooth` brightens before it warms (#00cc00 → #66ff00), so green peaks a
+    // stop or two in. What must hold is that green only falls after that peak
+    // and reaches zero at full intensity.
+    it.each(ALL_PROFILES)('%s — green falls monotonically after its peak', (profile) => {
+        const greens = sortedKeys(HEATMAP_GRADIENTS[profile])
+            .map(k => hexToRgb(HEATMAP_GRADIENTS[profile][k]).g);
+        const peakIdx = greens.indexOf(Math.max(...greens));
+        for (let i = peakIdx + 1; i < greens.length; i++) {
+            expect(greens[i]).toBeLessThanOrEqual(greens[i - 1]);
+        }
+    });
+
+    it.each(ALL_PROFILES)('%s — green is fully off at peak intensity', (profile) => {
+        const keys = sortedKeys(HEATMAP_GRADIENTS[profile]);
+        expect(hexToRgb(HEATMAP_GRADIENTS[profile][keys[keys.length - 1]]).g).toBe(0);
+    });
+
+    // The heatmap sits over a dimmed stimulus (OVERLAY_DIM_FACTORS), not over
+    // white — so the guard is saturation, not WCAG contrast against a white bg.
+    it.each(ALL_PROFILES)('%s — every stop is saturated (peak channel >= 0xcc)', (profile) => {
+        for (const hex of Object.values(HEATMAP_GRADIENTS[profile])) {
+            const { r, g, b } = hexToRgb(hex);
+            expect(Math.max(r, g, b)).toBeGreaterThanOrEqual(0xcc);
+        }
+    });
+
+    it('all profiles share the same red anchor at full intensity', () => {
         for (const profile of ALL_PROFILES) {
             const keys = sortedKeys(HEATMAP_GRADIENTS[profile]);
-            const firstHex = HEATMAP_GRADIENTS[profile][keys[0]];
-            const { r, b } = hexToRgb(firstHex);
-            expect(b).toBeGreaterThan(r * 2);
+            expect(HEATMAP_GRADIENTS[profile][keys[keys.length - 1]].toLowerCase()).toBe('#ff0000');
         }
     });
 });
@@ -184,59 +194,78 @@ describe('OVERLAY_DIM_FACTORS — completeness & ordering', () => {
 });
 
 /* ═══════════════════════════════════════════════════════════════
-   4. VIDEO HEATMAP COLORS — RGB tuples, blue→violet progression
+   4. THERMAL GRADIENT (video) — FLIR-style cold→hot progression
+
+   Videos use a full thermal ramp (dark blue → blue → green → yellow
+   → red) rather than the image warm gradient: accumulated video
+   attention needs to show the cold end explicitly, since "never
+   looked at" is a meaningful result across a timeline.
    ═══════════════════════════════════════════════════════════════ */
 
-describe('VIDEO_HEATMAP_COLORS — RGB tuples & blue→violet progression', () => {
-    const STOPS = ['center', 'mid', 'edge'] as const;
-
-    it.each(STOPS)('%s — is a 3-element tuple', (stop) => {
-        expect(VIDEO_HEATMAP_COLORS[stop]).toHaveLength(3);
+describe('THERMAL_GRADIENT — FLIR cold→hot progression', () => {
+    it('has at least 4 gradient stops', () => {
+        expect(Object.keys(THERMAL_GRADIENT).length).toBeGreaterThanOrEqual(4);
     });
 
-    it.each(STOPS)('%s — all channels in 0-255 range', (stop) => {
-        for (const ch of VIDEO_HEATMAP_COLORS[stop]) {
-            expect(ch).toBeGreaterThanOrEqual(0);
-            expect(ch).toBeLessThanOrEqual(255);
+    it('stops are ascending and within [0, 1]', () => {
+        const keys = sortedKeys(THERMAL_GRADIENT);
+        for (const key of keys) {
+            expect(key).toBeGreaterThanOrEqual(0);
+            expect(key).toBeLessThanOrEqual(1);
+        }
+        for (let i = 1; i < keys.length; i++) {
+            expect(keys[i]).toBeGreaterThan(keys[i - 1]);
         }
     });
 
-    it('center is violet: red > green, blue > green', () => {
-        const [r, g, b] = VIDEO_HEATMAP_COLORS.center;
+    it('last stop is exactly 1.0', () => {
+        const keys = sortedKeys(THERMAL_GRADIENT);
+        expect(keys[keys.length - 1]).toBe(1.0);
+    });
+
+    it('all hex values are valid 6-digit', () => {
+        for (const hex of Object.values(THERMAL_GRADIENT)) {
+            expect(hex).toMatch(/^#[0-9a-fA-F]{6}$/);
+        }
+    });
+
+    it('coldest stop is blue-dominant (unviewed regions read as cold)', () => {
+        const keys = sortedKeys(THERMAL_GRADIENT);
+        const { r, g, b } = hexToRgb(THERMAL_GRADIENT[keys[0]]);
+        expect(b).toBeGreaterThan(r);
+        expect(b).toBeGreaterThan(g);
+    });
+
+    it('hottest stop is red (peak attention reads as hot)', () => {
+        const keys = sortedKeys(THERMAL_GRADIENT);
+        const { r, g, b } = hexToRgb(THERMAL_GRADIENT[keys[keys.length - 1]]);
         expect(r).toBeGreaterThan(g);
-        expect(b).toBeGreaterThan(g);
+        expect(r).toBeGreaterThan(b);
     });
 
-    it('mid is blue-violet: blue dominates', () => {
-        const [r, , b] = VIDEO_HEATMAP_COLORS.mid;
-        expect(b).toBeGreaterThan(r);
-    });
-
-    it('edge is blue: blue channel is max', () => {
-        const [r, g, b] = VIDEO_HEATMAP_COLORS.edge;
-        expect(b).toBeGreaterThan(r);
-        expect(b).toBeGreaterThan(g);
-    });
-
-    it('blue channel never below red in any stop (no warm leaks)', () => {
-        for (const stop of STOPS) {
-            const [r, , b] = VIDEO_HEATMAP_COLORS[stop];
-            expect(b).toBeGreaterThanOrEqual(r);
+    it('red rises monotonically with intensity', () => {
+        const keys = sortedKeys(THERMAL_GRADIENT);
+        for (let i = 1; i < keys.length; i++) {
+            expect(hexToRgb(THERMAL_GRADIENT[keys[i]]).r)
+                .toBeGreaterThanOrEqual(hexToRgb(THERMAL_GRADIENT[keys[i - 1]]).r);
         }
     });
 
-    it('red channel increases from edge to center (intensity progression)', () => {
-        expect(VIDEO_HEATMAP_COLORS.center[0]).toBeGreaterThan(VIDEO_HEATMAP_COLORS.mid[0]);
-        expect(VIDEO_HEATMAP_COLORS.mid[0]).toBeGreaterThan(VIDEO_HEATMAP_COLORS.edge[0]);
+    it('blue fades out before the hot end (no violet tail)', () => {
+        const keys = sortedKeys(THERMAL_GRADIENT);
+        const topHalf = keys.filter(k => k >= 0.6);
+        for (const key of topHalf) {
+            const { r, b } = hexToRgb(THERMAL_GRADIENT[key]);
+            expect(b).toBeLessThan(r);
+        }
     });
 
-    it('contrast vs white bg >= 1.3 (visible on white packaging)', () => {
-        const whiteLum = 1.0;
-        for (const stop of STOPS) {
-            const [r, g, b] = VIDEO_HEATMAP_COLORS[stop];
-            const lum = relativeLuminance(r, g, b);
-            expect(contrastRatio(whiteLum, lum)).toBeGreaterThanOrEqual(1.3);
-        }
+    it('luminance rises from cold to hot (dark blue → bright red)', () => {
+        const keys = sortedKeys(THERMAL_GRADIENT);
+        const first = hexToRgb(THERMAL_GRADIENT[keys[0]]);
+        const last = hexToRgb(THERMAL_GRADIENT[keys[keys.length - 1]]);
+        expect(relativeLuminance(last.r, last.g, last.b))
+            .toBeGreaterThan(relativeLuminance(first.r, first.g, first.b));
     });
 });
 
@@ -294,15 +323,10 @@ describe('COLD_MAP_GRADIENT — green→cyan differentiation', () => {
         }
     });
 
-    it('zero overlap with video heatmap RGB values', () => {
-        const videoHexes = [
-            `#${VIDEO_HEATMAP_COLORS.center.map(c => c.toString(16).padStart(2, '0')).join('')}`,
-            `#${VIDEO_HEATMAP_COLORS.mid.map(c => c.toString(16).padStart(2, '0')).join('')}`,
-            `#${VIDEO_HEATMAP_COLORS.edge.map(c => c.toString(16).padStart(2, '0')).join('')}`,
-        ].map(h => h.toLowerCase());
-        const coldColors = Object.values(COLD_MAP_GRADIENT).map(c => c.toLowerCase());
-        for (const cold of coldColors) {
-            expect(videoHexes).not.toContain(cold);
+    it('zero overlap with the thermal (video) gradient', () => {
+        const thermalHexes = Object.values(THERMAL_GRADIENT).map(h => h.toLowerCase());
+        for (const cold of Object.values(COLD_MAP_GRADIENT)) {
+            expect(thermalHexes).not.toContain(cold.toLowerCase());
         }
     });
 
@@ -341,25 +365,18 @@ describe('cross-mode color isolation', () => {
         }
     });
 
-    it('cold and video use distinct hex values', () => {
-        const videoHexes = new Set([
-            `#${VIDEO_HEATMAP_COLORS.center.map(c => c.toString(16).padStart(2, '0')).join('')}`,
-            `#${VIDEO_HEATMAP_COLORS.mid.map(c => c.toString(16).padStart(2, '0')).join('')}`,
-            `#${VIDEO_HEATMAP_COLORS.edge.map(c => c.toString(16).padStart(2, '0')).join('')}`,
-        ].map(h => h.toLowerCase()));
-        const coldHexes = Object.values(COLD_MAP_GRADIENT).map(c => c.toLowerCase());
-
-        for (const cold of coldHexes) {
-            expect(videoHexes.has(cold)).toBe(false);
+    it('cold and thermal use distinct hex values', () => {
+        const thermalHexes = new Set(Object.values(THERMAL_GRADIENT).map(h => h.toLowerCase()));
+        for (const cold of Object.values(COLD_MAP_GRADIENT)) {
+            expect(thermalHexes.has(cold.toLowerCase())).toBe(false);
         }
     });
 
-    it('classic is blue→violet, cold is green→cyan, video is violet→blue (semantically distinct)', () => {
-        // Classic: lowest stop (by key) is blue-dominant
+    it('classic is warm, cold is green→cyan, thermal spans cold→hot (semantically distinct)', () => {
+        // Classic: warm ramp — never blue, ends red
         const labKeys = sortedKeys(HEATMAP_GRADIENTS.lab);
-        const classicFirst = hexToRgb(HEATMAP_GRADIENTS.lab[labKeys[0]]);
-        expect(classicFirst.b).toBeGreaterThan(classicFirst.r);
-        expect(classicFirst.b).toBeGreaterThan(classicFirst.g);
+        expect(hexToRgb(HEATMAP_GRADIENTS.lab[labKeys[0]]).b).toBe(0);
+        expect(hexToRgb(HEATMAP_GRADIENTS.lab[labKeys[labKeys.length - 1]]).r).toBe(255);
 
         // Cold: all stops have g >= r
         for (const hex of Object.values(COLD_MAP_GRADIENT)) {
@@ -367,9 +384,11 @@ describe('cross-mode color isolation', () => {
             expect(g).toBeGreaterThanOrEqual(r);
         }
 
-        // Video center: violet (r and b both high, g low)
-        const [vr, vg, vb] = VIDEO_HEATMAP_COLORS.center;
-        expect(vr).toBeGreaterThan(vg);
-        expect(vb).toBeGreaterThan(vg);
+        // Thermal: starts blue-dominant, ends red-dominant
+        const thermalKeys = sortedKeys(THERMAL_GRADIENT);
+        const tFirst = hexToRgb(THERMAL_GRADIENT[thermalKeys[0]]);
+        const tLast = hexToRgb(THERMAL_GRADIENT[thermalKeys[thermalKeys.length - 1]]);
+        expect(tFirst.b).toBeGreaterThan(tFirst.r);
+        expect(tLast.r).toBeGreaterThan(tLast.b);
     });
 });
