@@ -180,8 +180,8 @@
     "checkMobile3": "Estoy en un ambiente tranquilo sin distracciones.",
     "checkMobile4": "Entiendo que mis toques serán registrados como puntos de atención.",
     "gazePointsRecorded": "{{count}} muestras de mirada registradas.",
-    "validationHint": "Mira el punto amarillo y haz clic en cualquier lugar para verificar la precisión.",
-    "validationFailed": "La precisión de la calibración es baja. ¿Deseas recalibrar?",
+    "validationHint": "Mira el punto amarillo y haz clic en cualquier lugar para verificar la calibración.",
+    "validationFailed": "La calidad de la calibración es baja. ¿Deseas recalibrar?",
     "recalibrate": "Recalibrar",
     "continueAnyway": "Continuar de todos modos"
   },

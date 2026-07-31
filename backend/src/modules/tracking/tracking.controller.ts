@@ -35,6 +35,7 @@ import {
     appendRrwebEvents,
     getRrwebEvents,
     appendEmotionSamples,
+    appendGazeSamples,
     saveEmotionVideo,
 } from './tracking.service';
 import { generateTrackingSnippet, generateEmbedSnippet } from './tracking-snippet';
@@ -262,6 +263,21 @@ export const handlePublicTrackingRoutes = async (
             }
             if (samples.length > 1000) return trackingError('Too many samples (max 1000)', 413);
             const result = await appendEmotionSamples(sessionId, samples);
+            return trackingSuccess(result, 201);
+        }
+
+        // POST /public/tracking/:researchId/gaze — append gaze attention samples
+        const gazeMatch = path.match(/^\/public\/tracking\/([^/]+)\/gaze$/);
+        if (gazeMatch && httpMethod === 'POST') {
+            let body: Record<string, unknown>;
+            try { body = JSON.parse(event.body || '{}'); } catch { return trackingError('Invalid JSON'); }
+            const sessionId = body.sessionId as string;
+            const samples = body.samples as unknown[];
+            if (!sessionId || !Array.isArray(samples)) {
+                return trackingError('Missing sessionId or samples array');
+            }
+            if (samples.length > 2000) return trackingError('Too many samples (max 2000)', 413);
+            const result = await appendGazeSamples(sessionId, samples);
             return trackingSuccess(result, 201);
         }
 
@@ -738,6 +754,18 @@ export const handleTrackingRoutes = async (
                 : undefined;
             const { getTrackingEmotionData } = await import('./tracking-emotion.analytics');
             const data = await getTrackingEmotionData(researchId, pageUrl);
+            return success(data, 200, undefined, origin);
+        }
+
+        // GET /tracking/:researchId/gaze — aggregated gaze attention analytics
+        const gazeAuthMatch = path.match(/^\/tracking\/([^/]+)\/gaze$/);
+        if (gazeAuthMatch && httpMethod === 'GET') {
+            const researchId = gazeAuthMatch[1];
+            const pageUrl = event.queryStringParameters?.page
+                ? decodeURIComponent(event.queryStringParameters.page)
+                : undefined;
+            const { getTrackingGazeData } = await import('./tracking-gaze.analytics');
+            const data = await getTrackingGazeData(researchId, pageUrl);
             return success(data, 200, undefined, origin);
         }
 

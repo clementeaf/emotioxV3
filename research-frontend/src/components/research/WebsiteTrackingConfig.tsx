@@ -241,7 +241,10 @@ export const WebsiteTrackingConfig = ({ research }: WebsiteTrackingConfigProps) 
                         <CompactToggle label="Consent" enabled={config.consentRequired} onToggle={() => handleToggle('consentRequired')} />
                         <CompactToggle label="Emotions" enabled={config.captureEmotions} onToggle={() => handleToggle('captureEmotions')} />
                         {config.captureEmotions && (
-                            <CompactToggle label="Record Video" enabled={config.emotionVideoEnabled} onToggle={() => handleToggle('emotionVideoEnabled')} />
+                            <>
+                                <p className="text-[10px] text-gray-400 ml-9">Webcam-based facial expression estimation. Requires camera permission from visitors. Best for aggregate trends across sessions.</p>
+                                <CompactToggle label="Record Video" enabled={config.emotionVideoEnabled} onToggle={() => handleToggle('emotionVideoEnabled')} />
+                            </>
                         )}
                     </div>
                 </div>

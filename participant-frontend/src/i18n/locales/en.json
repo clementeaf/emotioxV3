@@ -180,8 +180,8 @@
     "checkMobile3": "I am in a quiet environment without distractions.",
     "checkMobile4": "I understand my taps will be recorded as attention points.",
     "gazePointsRecorded": "{{count}} gaze samples recorded.",
-    "validationHint": "Look at the yellow dot and click anywhere to verify accuracy.",
-    "validationFailed": "Calibration accuracy is low. Would you like to re-calibrate?",
+    "validationHint": "Look at the yellow dot and click anywhere to verify calibration.",
+    "validationFailed": "Calibration quality is low. Would you like to re-calibrate?",
     "recalibrate": "Re-calibrate",
     "continueAnyway": "Continue anyway"
   },

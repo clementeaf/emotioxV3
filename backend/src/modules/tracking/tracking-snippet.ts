@@ -399,7 +399,7 @@ function startCapture(){
             // Flush pending data before going to background
             flush(true);
             flushRrweb(true);
-            flushEmotions(true);
+            flushEmotions(true);flushGaze(true);
         }else{
             // Tab regained focus
             var away=Date.now()-hiddenAt;
@@ -479,13 +479,77 @@ function startSession(){
     createSession();
 }
 
-// ─── Emotion Recognition ─────────────────────────────────────────────
+// ─── Emotion + Gaze Recognition (MediaPipe FaceLandmarker) ──────────
 
-var emoBuf=[],emoRunning=false,emoVideo=null,emoStream=null;
+var emoBuf=[],gazeBuf=[],emoRunning=false,emoVideo=null,emoStream=null;
 var emoChunks=[],emoActiveMs=0,emoStartTime=0;
 var EMO_MAX_MS=300000; // 5 min cap
 var emoInterval=null;
+var mpLandmarker=null;
 var EXPRESSION_MAP={happy:"joy",sad:"sadness",angry:"anger",surprised:"surprise",disgusted:"disgust",fearful:"fear",neutral:"neutral"};
+
+// Gaze logic (inlined from tracking-gaze-logic.ts)
+var GAZE_H_THRESH=0.08,GAZE_V_THRESH=0.06,HEAD_DIST_DEG=30;
+function irisDisp(ix,iy,ox,oy,nx,ny,ty,by){
+    var ew=Math.abs(nx-ox),eh=Math.abs(ty-by);
+    if(ew<1e-5||eh<1e-5)return{rx:0,ry:0};
+    return{rx:(ix-(nx+ox)/2)/ew,ry:(iy-(ty+by)/2)/eh};
+}
+function gazeDir(l,r){
+    var ax=(l.rx+r.rx)/2,ay=(l.ry+r.ry)/2;
+    return{
+        h:ax<-GAZE_H_THRESH?"left":ax>GAZE_H_THRESH?"right":"center",
+        v:ay<-GAZE_V_THRESH?"up":ay>GAZE_V_THRESH?"down":"center"
+    };
+}
+function attnState(vis,yaw,pitch){
+    if(!vis)return"away";
+    if(Math.abs(yaw)>HEAD_DIST_DEG||Math.abs(pitch)>HEAD_DIST_DEG)return"distracted";
+    return"engaged";
+}
+function gazeQuad(d){
+    if(d.v==="center"&&d.h==="center")return"center";
+    var vp=d.v==="up"?"top":d.v==="down"?"bottom":"center";
+    return vp+"-"+d.h;
+}
+function cursorMatch(g,cx,cy,vw,vh){
+    if(g.h==="center"&&g.v==="center")return true;
+    var ch=cx<vw/3?"left":cx>vw*2/3?"right":"center";
+    var cv=cy<vh/3?"up":cy>vh*2/3?"down":"center";
+    return(g.h==="center"||g.h===ch)&&(g.v==="center"||g.v===cv);
+}
+function attnScore(st,match){return st==="away"?0:st==="distracted"?0.3:match?1:0.7;}
+
+// FACS AU extraction from MediaPipe 478 landmarks
+var FACS_IDX={liB:107,riB:336,lmB:105,rmB:334,leI:133,leO:33,leT:159,leB:145,reI:362,reO:263,reT:386,reB:374,mL:61,mR:291,mUT:0,mLB:17,chin:152,nB:2};
+function extractAUs(lm){
+    if(!lm||lm.length<474)return null;
+    var d=function(a,b){return Math.sqrt((a.x-b.x)*(a.x-b.x)+(a.y-b.y)*(a.y-b.y));};
+    var rd=d(lm[FACS_IDX.leI],lm[FACS_IDX.reI])||1e-5;
+    var clamp=function(v){return Math.max(0,Math.min(1,v));};
+    var au1=clamp(((d(lm[FACS_IDX.liB],lm[FACS_IDX.leT])+d(lm[FACS_IDX.riB],lm[FACS_IDX.reT]))/2/rd-0.35)/0.15);
+    var au4=clamp((0.75-d(lm[FACS_IDX.lmB],lm[FACS_IDX.rmB])/rd)/0.15);
+    var au6=clamp((0.12-(d(lm[FACS_IDX.leT],lm[FACS_IDX.leB])+d(lm[FACS_IDX.reT],lm[FACS_IDX.reB]))/2/rd)/0.06);
+    var mw=d(lm[FACS_IDX.mL],lm[FACS_IDX.mR])/rd;
+    var au12=clamp((mw-0.50)/0.20);
+    var au15=clamp((d(lm[FACS_IDX.mLB],lm[FACS_IDX.chin])/rd-0.55)/0.15);
+    var mh=d(lm[FACS_IDX.mUT],lm[FACS_IDX.mLB])/rd;
+    var au25=clamp((mh-0.03)/0.08);
+    var au26=clamp((d(lm[FACS_IDX.nB],lm[FACS_IDX.chin])/rd-0.90)/0.20);
+    return{AU1:au1,AU4:au4,AU6:au6,AU12:au12,AU15:au15,AU25:au25,AU26:au26};
+}
+function classifyEmo(a){
+    var sc={joy:a.AU6*0.6+a.AU12*0.4,sadness:a.AU1*0.2+a.AU4*0.3+a.AU15*0.5,surprise:a.AU1*0.25+a.AU25*0.2+a.AU26*0.3,anger:a.AU4*0.6+a.AU25*0.2,disgust:a.AU15*0.5+a.AU4*0.2,fear:a.AU1*0.2+a.AU4*0.35+a.AU25*0.1,neutral:0};
+    var mx=Math.max(a.AU1,a.AU4,a.AU6,a.AU12,a.AU15,a.AU25,a.AU26);
+    sc.neutral=mx<0.15?1-mx:0.1;
+    var be="neutral",bs=sc.neutral;
+    for(var e in sc){if(sc[e]>bs){bs=sc[e];be=e;}}
+    return{emotion:be,confidence:Math.min(1,bs)};
+}
+
+// Last known cursor position
+var lastCursorX=0,lastCursorY=0;
+document.addEventListener("mousemove",function(e){lastCursorX=e.clientX;lastCursorY=e.clientY;},true);
 
 function startEmotionCapture(){
     if(!C.emotions||emoRunning)return;
@@ -498,13 +562,11 @@ function startEmotionCapture(){
         v.srcObject=stream;
         document.body.appendChild(v);
         emoVideo=v;
-        loadFaceApi(function(){
-            loadEmoModels(function(){
-                emoRunning=true;
-                emoStartTime=Date.now();
-                emoInterval=setInterval(sampleEmotion,500);
-                if(C.emoVideo)startEmoRecording(stream);
-            });
+        loadMediaPipe(function(){
+            emoRunning=true;
+            emoStartTime=Date.now();
+            emoInterval=setInterval(sampleFrame,500);
+            if(C.emoVideo)startEmoRecording(stream);
         });
     })
     .catch(function(e){
@@ -512,40 +574,111 @@ function startEmotionCapture(){
     });
 }
 
-function loadFaceApi(cb){
+function loadMediaPipe(cb){
+    if(mpLandmarker){cb();return;}
+    var base="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.32";
+    // Dynamic import() works in all modern browsers and handles ES modules correctly
+    import(base+"/vision_bundle.mjs")
+    .then(function(vision){
+        return vision.FilesetResolver.forVisionTasks(base+"/wasm")
+        .then(function(fs){
+            return vision.FaceLandmarker.createFromOptions(fs,{
+                baseOptions:{modelAssetPath:"https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",delegate:"GPU"},
+                runningMode:"VIDEO",numFaces:1,outputFaceBlendshapes:false,outputFacialTransformationMatrixes:true
+            });
+        });
+    })
+    .then(function(lm){mpLandmarker=lm;cb();})
+    .catch(function(){
+        // MediaPipe failed — fall back to face-api.js for emotions only
+        loadFaceApiFallback(cb);
+    });
+}
+
+// Fallback: face-api.js if MediaPipe fails (older browsers)
+var useFaceApiFallback=false;
+function loadFaceApiFallback(cb){
+    useFaceApiFallback=true;
     if(window.faceapi){cb();return;}
     var sc=document.createElement("script");
     sc.src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.14/dist/face-api.js";
-    sc.onload=function(){cb();};
+    sc.onload=function(){
+        Promise.all([
+            faceapi.nets.tinyFaceDetector.loadFromUri(C.emoModelUrl),
+            faceapi.nets.faceExpressionNet.loadFromUri(C.emoModelUrl)
+        ]).then(cb).catch(function(){});
+    };
     sc.onerror=function(){};
     document.head.appendChild(sc);
 }
 
-function loadEmoModels(cb){
-    if(!window.faceapi)return;
-    Promise.all([
-        faceapi.nets.tinyFaceDetector.loadFromUri(C.emoModelUrl),
-        faceapi.nets.faceExpressionNet.loadFromUri(C.emoModelUrl)
-    ]).then(cb).catch(function(){});
-}
-
-function sampleEmotion(){
+function sampleFrame(){
     if(!emoRunning||paused||!emoVideo||emoVideo.readyState<2)return;
     var elapsed=emoActiveMs+(Date.now()-emoStartTime);
     if(elapsed>EMO_MAX_MS){stopEmotionCapture();return;}
-    faceapi.detectSingleFace(emoVideo,new faceapi.TinyFaceDetectorOptions({inputSize:224,scoreThreshold:0.4}))
-    .withFaceExpressions()
-    .then(function(det){
-        if(!det||!emoRunning)return;
-        var expr=det.expressions;
-        var best="neutral",bestScore=0;
-        for(var k in expr){
-            if(expr[k]>bestScore){bestScore=expr[k];best=k;}
+    var ts=Date.now()-emoStartTime;
+
+    if(useFaceApiFallback){
+        // Legacy face-api.js path (no gaze)
+        faceapi.detectSingleFace(emoVideo,new faceapi.TinyFaceDetectorOptions({inputSize:224,scoreThreshold:0.4}))
+        .withFaceExpressions()
+        .then(function(det){
+            if(!det||!emoRunning)return;
+            var expr=det.expressions;
+            var best="neutral",bestScore=0;
+            for(var k in expr){if(expr[k]>bestScore){bestScore=expr[k];best=k;}}
+            var mapped=EXPRESSION_MAP[best]||"neutral";
+            var ex={};for(var e in EXPRESSION_MAP){if(expr[e]!=null)ex[EXPRESSION_MAP[e]]=Math.round(expr[e]*1000)/1000;}
+            emoBuf.push({timestamp:ts,emotion:mapped,confidence:Math.round(bestScore*1000)/1000,expressions:ex});
+        }).catch(function(){});
+        return;
+    }
+
+    // MediaPipe path — emotions via FACS + gaze via iris
+    if(!mpLandmarker)return;
+    try{
+        var res=mpLandmarker.detectForVideo(emoVideo,performance.now());
+        if(!res.faceLandmarks||!res.faceLandmarks.length)return;
+        var lm=res.faceLandmarks[0];
+
+        // Emotion from FACS
+        var aus=extractAUs(lm);
+        if(aus){
+            var emo=classifyEmo(aus);
+            emoBuf.push({timestamp:ts,emotion:emo.emotion,confidence:Math.round(emo.confidence*1000)/1000});
         }
-        var mapped=EXPRESSION_MAP[best]||"neutral";
-        emoBuf.push({timestamp:Date.now()-emoStartTime,emotion:mapped,confidence:Math.round(bestScore*1000)/1000});
-    })
-    .catch(function(){});
+
+        // Gaze from iris (468=left iris, 473=right iris)
+        if(lm.length>473){
+            var li=lm[468],ri=lm[473];
+            var ld=irisDisp(li.x,li.y,lm[33].x,lm[33].y,lm[133].x,lm[133].y,lm[159].y,lm[145].y);
+            var rd=irisDisp(ri.x,ri.y,lm[263].x,lm[263].y,lm[362].x,lm[362].y,lm[386].y,lm[374].y);
+            var gd=gazeDir(ld,rd);
+            var irisVis=li.x>0&&ri.x>0;
+
+            // Head pose from facial transformation matrix
+            var yaw=0,pitch=0;
+            if(res.facialTransformationMatrixes&&res.facialTransformationMatrixes.length){
+                var m=res.facialTransformationMatrixes[0];
+                yaw=Math.asin(Math.max(-1,Math.min(1,m[2]||0)))*180/Math.PI;
+                pitch=Math.atan2(-(m[6]||0),m[10]||1)*180/Math.PI;
+            }
+
+            var st=attnState(irisVis,yaw,pitch);
+            var vw=window.innerWidth,vh=window.innerHeight;
+            var cm=cursorMatch(gd,lastCursorX,lastCursorY,vw,vh);
+            var score=attnScore(st,cm);
+
+            gazeBuf.push({
+                timestamp:ts,
+                quadrant:gazeQuad(gd),
+                attention:st,
+                score:Math.round(score*100)/100,
+                cursorX:Math.round(lastCursorX),
+                cursorY:Math.round(lastCursorY)
+            });
+        }
+    }catch(e){}
 }
 
 function startEmoRecording(stream){
@@ -571,6 +704,19 @@ function flushEmotions(sync){
     var batch=emoBuf.splice(0,emoBuf.length);
     var body=JSON.stringify({sessionId:sid,samples:batch});
     var url=C.api+"/public/tracking/"+C.rid+"/emotions";
+    try{
+        var xhr=new XMLHttpRequest();
+        xhr.open("POST",url,!sync);
+        xhr.setRequestHeader("Content-Type","application/json");
+        xhr.send(body);
+    }catch(e){}
+}
+
+function flushGaze(sync){
+    if(!gazeBuf.length||!sid)return;
+    var batch=gazeBuf.splice(0,gazeBuf.length);
+    var body=JSON.stringify({sessionId:sid,samples:batch});
+    var url=C.api+"/public/tracking/"+C.rid+"/gaze";
     try{
         var xhr=new XMLHttpRequest();
         xhr.open("POST",url,!sync);

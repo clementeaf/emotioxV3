@@ -10,11 +10,23 @@
     "src/lib/eyeTracking/zoneEventEmitter.ts",
     "src/lib/eyeTracking/zoneRegistry.ts",
     "src/lib/eyeTracking/v2ResponseBuilder.ts",
-    "src/lib/eyeTracking/deviceProfile.ts"
+    "src/lib/eyeTracking/deviceProfile.ts",
+    "src/lib/eyeTracking/ridgeRegression.ts",
+    "src/lib/eyeTracking/facsClassifier.ts",
+    "src/lib/eyeTracking/fixationDetector.ts",
+    "src/lib/eyeTracking/oneEuroFilter.ts",
+    "src/lib/eyeTracking/gazeGapFill.ts",
+    "src/lib/eyeTracking/calibrationStore.ts",
+    "src/lib/eyeTracking/hybridCalibrationField.ts",
+    "src/lib/eyeTracking/hybridZoneGrid.ts",
+    "src/lib/eyeTracking/attention/uncertaintyEstimator.ts",
+    "src/lib/eyeTracking/attention/probabilisticHeatmap.ts",
+    "src/lib/eyeTracking/featureExtraction.ts",
+    "src/lib/eyeTracking/microExpressionDetector.ts"
   ],
   "thresholds": {
     "high": 80,
     "low": 60,
-    "break": null
+    "break": 50
   }
 }

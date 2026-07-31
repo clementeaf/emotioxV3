@@ -1434,6 +1434,37 @@ export const appendEmotionSamples = async (
     return { saved: samples.length };
 };
 
+// ─── Gaze Attention Samples ─────────────────────────────────────────
+
+export const appendGazeSamples = async (
+    sessionId: string,
+    samples: unknown[]
+): Promise<{ saved: number }> => {
+    if (samples.length === 0) return { saved: 0 };
+
+    const session = await pool.query(
+        'SELECT id, gaze_samples FROM tracking_sessions WHERE id = ?',
+        [sessionId]
+    );
+    if (session.rows.length === 0) throw new Error('Session not found');
+
+    let existing: unknown[] = [];
+    const raw = session.rows[0].gaze_samples;
+    if (raw) {
+        try { existing = typeof raw === 'string' ? JSON.parse(raw) : raw; } catch { existing = []; }
+    }
+
+    const merged = [...existing, ...samples].slice(-2000);
+    const json = JSON.stringify(merged);
+
+    await pool.query(
+        'UPDATE tracking_sessions SET gaze_samples = ?, ended_at = NOW() WHERE id = ?',
+        [json, sessionId]
+    );
+
+    return { saved: samples.length };
+};
+
 // ─── Emotion Video Storage ───────────────────────────────────────────
 
 /**

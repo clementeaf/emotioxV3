@@ -245,7 +245,7 @@ export const SessionQualityGate: React.FC<SessionQualityGateProps> = ({
                     {t('eyeTracking.qg.title', 'Checking session quality...')}
                 </h2>
                 <p className="text-sm text-gray-500 text-center">
-                    {t('eyeTracking.qg.subtitle', 'Verifying your environment for accurate tracking.')}
+                    {t('eyeTracking.qg.subtitle', 'Verifying your environment for attention tracking.')}
                 </p>
 
                 <div className="space-y-3 mt-6">

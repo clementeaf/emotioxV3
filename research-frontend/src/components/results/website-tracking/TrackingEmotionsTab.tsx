@@ -81,7 +81,8 @@ export const TrackingEmotionsTab = ({ researchId, selectedPageUrl }: TrackingEmo
             <div className="flex gap-3">
                 {/* Distribution bars */}
                 <div className="bg-white rounded-xl border border-gray-200 p-4 flex-1">
-                    <h3 className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-3">Expression Intensity</h3>
+                    <h3 className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Expression Distribution</h3>
+                    <p className="text-[10px] text-gray-300 mb-3">Webcam-based estimation. Best for relative comparisons across pages, not absolute measurement.</p>
                     <div className="space-y-2">
                         {ALL_EMOTIONS.map(e => (
                             <div key={e} className="flex items-center gap-2">
@@ -100,7 +101,7 @@ export const TrackingEmotionsTab = ({ researchId, selectedPageUrl }: TrackingEmo
 
                 {/* Circumplex */}
                 <div className="bg-white rounded-xl border border-gray-200 p-4" style={{ width: 280 }}>
-                    <h3 className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-3">Circumplex Model</h3>
+                    <h3 className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-3">Affect Space</h3>
                     <CircumplexCanvas data={data} />
                 </div>
             </div>

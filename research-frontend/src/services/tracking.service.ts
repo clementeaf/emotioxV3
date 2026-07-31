@@ -444,6 +444,40 @@ export const getTrackingEmotions = async (
     return apiClient.get<TrackingEmotionData>(`/tracking/${researchId}/emotions`, { params });
 };
 
+// ─── Gaze Attention Analytics ────────────────────────────────────────
+
+type GazeQuadrant =
+    | 'top-left' | 'top-center' | 'top-right'
+    | 'center-left' | 'center' | 'center-right'
+    | 'bottom-left' | 'bottom-center' | 'bottom-right';
+
+type AttentionState = 'engaged' | 'distracted' | 'away';
+
+export interface TrackingGazeData {
+    totalSessions: number;
+    totalSamples: number;
+    quadrantDistribution: Record<GazeQuadrant, number>;
+    dominantQuadrant: GazeQuadrant;
+    attentionDistribution: Record<AttentionState, number>;
+    avgAttentionScore: number;
+    timeline: Array<{ timestampS: number; quadrant: GazeQuadrant; attention: AttentionState; score: number }>;
+    perSession: Array<{
+        sessionId: string; visitorId: string; pageUrl: string;
+        dominantQuadrant: GazeQuadrant; avgScore: number; sampleCount: number;
+    }>;
+}
+
+export const getTrackingGaze = async (
+    researchId: string,
+    pageUrl?: string
+): Promise<TrackingGazeData> => {
+    const params: Record<string, string> = {};
+    if (pageUrl) params.page = pageUrl;
+    return apiClient.get<TrackingGazeData>(`/tracking/${researchId}/gaze`, { params });
+};
+
+// ─── Emotion Video ──────────────────────────────────────────────────
+
 export const getEmotionVideoUrl = (researchId: string, sessionId: string): string => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const cfg = (window as any).__RUNTIME_CONFIG__ as { apiBaseUrl?: string } | undefined;

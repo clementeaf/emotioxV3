@@ -649,10 +649,10 @@ export const ModuleContentEditor = ({
                                 All Eye Tracking tasks include Emotion and Attention measurement.
                             </p>
                             <p className="text-xs text-gray-600">
-                                <strong>Eye Tracking</strong> shows what engages people visually. This uncovers nonconscious reactions to visual stimuli that oftentimes is not articulated in survey data alone.
+                                <strong>Webcam-based attention tracking</strong> identifies which zones of a stimulus attract attention. Best suited for comparing broad regions (left vs right, top vs bottom) across participants at scale.
                             </p>
                             <p className="text-xs text-gray-600">
-                                <strong>Gaze tracking</strong> reveals what is noticed, what is engaging, and what is not. This allows brands to optimize marketing concepts and assets for both conscious and nonconscious impact.
+                                <strong>Zone-level accuracy.</strong> Results show relative attention distribution, not pixel-precise fixations. Use large AOIs for reliable metrics. Combine with Emotion Recognition for richer insights.
                             </p>
                         </div>
                     </aside>

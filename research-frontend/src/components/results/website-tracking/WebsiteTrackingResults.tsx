@@ -21,6 +21,7 @@ import { FunnelChart } from './FunnelChart';
 import { PageFlowDiagram } from './PageFlowDiagram';
 import { resolveMediaUrl } from '../../../services/media.service';
 import { TrackingEmotionsTab } from './TrackingEmotionsTab';
+import { TrackingAttentionTab } from './TrackingAttentionTab';
 
 const formatDateTime = (iso: string): string => {
     const d = new Date(iso);
@@ -28,7 +29,7 @@ const formatDateTime = (iso: string): string => {
         + ' ' + d.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
 };
 
-type ResultTab = 'funnels' | 'heatmaps' | 'sessions' | 'live' | 'emotions';
+type ResultTab = 'funnels' | 'heatmaps' | 'sessions' | 'live' | 'emotions' | 'attention';
 type HeatmapSubTab = 'click' | 'scroll' | 'attention' | 'density';
 type FunnelSubTab = 'custom-funnels' | 'page-flow' | 'comparison';
 
@@ -149,6 +150,7 @@ export const WebsiteTrackingResults = ({ researchId }: WebsiteTrackingResultsPro
         { id: 'sessions', label: 'Sessions', icon: <Users className="h-4 w-4" />, tooltip: 'Visitor journeys with session replay' },
         { id: 'live', label: 'Live', icon: <Activity className="h-4 w-4" />, tooltip: 'Currently active visitors on your site' },
         { id: 'emotions', label: 'Emotions', icon: <SmilePlus className="h-4 w-4" />, tooltip: 'Visitor facial emotion analysis' },
+        { id: 'attention', label: 'Attention', icon: <Eye className="h-4 w-4" />, tooltip: 'Webcam-based gaze zone attention tracking' },
     ];
 
     return (
@@ -354,6 +356,10 @@ export const WebsiteTrackingResults = ({ researchId }: WebsiteTrackingResultsPro
 
             {activeTab === 'emotions' && (
                 <TrackingEmotionsTab researchId={researchId} selectedPageUrl={selectedPageUrl} />
+            )}
+
+            {activeTab === 'attention' && (
+                <TrackingAttentionTab researchId={researchId} selectedPageUrl={selectedPageUrl} />
             )}
 
             {activeTab === 'funnels' && (

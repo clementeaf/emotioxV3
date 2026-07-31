@@ -685,3 +685,111 @@ describe('getTrackingEmotionData — valence & arousal', () => {
         expect(result.valenceArousal[0]).toMatchObject({ valence: 0, arousal: 0 });
     });
 });
+
+// ─── Expression-weighted V/A (v0.91+ samples with expressions vector) ──
+
+/** Build a session row with expression vectors (new format). */
+function sessionRowWithExpressions(
+    id: string,
+    samples: Array<{
+        timestamp: number;
+        emotion: string;
+        confidence: number;
+        expressions: Record<string, number>;
+    }>,
+) {
+    return {
+        id,
+        visitor_id: `visitor-${id}`,
+        page_url: 'https://example.com/',
+        emotion_samples: JSON.stringify(samples),
+        emotion_video_path: null,
+    };
+}
+
+describe('getTrackingEmotionData — expression-weighted V/A', () => {
+    it('uses expression probabilities for continuous V/A when available', async () => {
+        // 60% joy + 30% neutral + 10% surprise → V/A should be intermediate, not fixed at joy's point
+        mockQuery.mockResolvedValueOnce({
+            rows: [sessionRowWithExpressions('s1', [{
+                timestamp: 0, emotion: 'joy', confidence: 0.6,
+                expressions: { joy: 0.6, neutral: 0.3, surprise: 0.1 },
+            }])],
+        });
+
+        const result = await getTrackingEmotionData('r1');
+        const va = result.valenceArousal[0];
+
+        // Weighted: V = (0.8*0.6 + 0*0.3 + 0.2*0.1) / 1.0 = 0.50
+        // A = (0.5*0.6 + 0*0.3 + 0.8*0.1) / 1.0 = 0.38
+        expect(va.valence).toBeGreaterThan(0);
+        expect(va.valence).toBeLessThan(0.8); // NOT at joy's fixed point
+        expect(va.arousal).toBeGreaterThan(0);
+    });
+
+    it('falls back to dominant-emotion lookup when expressions is absent', async () => {
+        // Pre-v0.91 data without expressions field
+        mockQuery.mockResolvedValueOnce({
+            rows: [sessionRow('s1', [{ timestamp: 0, emotion: 'joy', confidence: 1 }])],
+        });
+
+        const result = await getTrackingEmotionData('r1');
+
+        // Same as before: joy fixed at V=0.8, A=0.5
+        expect(result.valenceArousal[0].valence).toBe(0.8);
+        expect(result.valenceArousal[0].arousal).toBe(0.5);
+    });
+
+    it('mixed expressions produce intermediate V/A (not jumping between 7 points)', async () => {
+        // 50% joy + 50% sadness → should land near origin, not at either extreme
+        mockQuery.mockResolvedValueOnce({
+            rows: [sessionRowWithExpressions('s1', [{
+                timestamp: 0, emotion: 'joy', confidence: 0.5,
+                expressions: { joy: 0.5, sadness: 0.5 },
+            }])],
+        });
+
+        const result = await getTrackingEmotionData('r1');
+        const va = result.valenceArousal[0];
+
+        // V = (0.8*0.5 + -0.6*0.5) / 1.0 = 0.10
+        // A = (0.5*0.5 + -0.4*0.5) / 1.0 = 0.05
+        expect(va.valence).toBeCloseTo(0.1, 1);
+        expect(va.arousal).toBeCloseTo(0.05, 1);
+    });
+
+    it('ignores zero-probability emotions in expressions', async () => {
+        mockQuery.mockResolvedValueOnce({
+            rows: [sessionRowWithExpressions('s1', [{
+                timestamp: 0, emotion: 'anger', confidence: 1,
+                expressions: { anger: 1, joy: 0, neutral: 0, sadness: 0, surprise: 0, fear: 0, disgust: 0 },
+            }])],
+        });
+
+        const result = await getTrackingEmotionData('r1');
+
+        // Pure anger: V=-0.7, A=0.7 (same as lookup since only anger has weight)
+        expect(result.valenceArousal[0].valence).toBe(-0.7);
+        expect(result.valenceArousal[0].arousal).toBe(0.7);
+    });
+
+    it('handles mixed old and new format samples in same bucket', async () => {
+        // One old-format + one new-format in the same second
+        const samples = [
+            { timestamp: 0, emotion: 'joy', confidence: 0.8 },
+            { timestamp: 200, emotion: 'neutral', confidence: 0.5, expressions: { neutral: 0.5, joy: 0.3, sadness: 0.2 } },
+        ];
+        mockQuery.mockResolvedValueOnce({
+            rows: [{
+                id: 's1', visitor_id: 'v1', page_url: 'https://example.com/',
+                emotion_samples: JSON.stringify(samples),
+                emotion_video_path: null,
+            }],
+        });
+
+        const result = await getTrackingEmotionData('r1');
+        expect(result.valenceArousal).toHaveLength(1);
+        expect(Number.isFinite(result.valenceArousal[0].valence)).toBe(true);
+        expect(Number.isFinite(result.valenceArousal[0].arousal)).toBe(true);
+    });
+});
