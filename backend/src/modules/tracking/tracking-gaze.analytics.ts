@@ -23,6 +23,7 @@ const ALL_ATTENTION: AttentionState[] = ['engaged', 'distracted', 'away'];
 interface GazeSample {
     timestamp: number;
     quadrant: GazeQuadrant;
+    quadrantProbs?: Partial<Record<GazeQuadrant, number>>;
     attention: AttentionState;
     score: number;
     cursorX: number;
@@ -117,13 +118,19 @@ export async function getTrackingGazeData(
         const sessionQuadrants: Record<string, number> = {};
         let sessionScore = 0;
         for (const s of samples) {
-            if ((ALL_QUADRANTS as string[]).includes(s.quadrant)) {
+            if (s.quadrantProbs && typeof s.quadrantProbs === 'object') {
+                for (const q of ALL_QUADRANTS) {
+                    const p = s.quadrantProbs[q] || 0;
+                    quadrantCounts[q] += p;
+                    sessionQuadrants[q] = (sessionQuadrants[q] || 0) + p;
+                }
+            } else if ((ALL_QUADRANTS as string[]).includes(s.quadrant)) {
                 quadrantCounts[s.quadrant as GazeQuadrant]++;
+                sessionQuadrants[s.quadrant] = (sessionQuadrants[s.quadrant] || 0) + 1;
             }
             attentionCounts[s.attention]++;
             totalScore += s.score;
             sessionScore += s.score;
-            sessionQuadrants[s.quadrant] = (sessionQuadrants[s.quadrant] || 0) + 1;
         }
         totalSamples += samples.length;
         allSamples.push(...samples);

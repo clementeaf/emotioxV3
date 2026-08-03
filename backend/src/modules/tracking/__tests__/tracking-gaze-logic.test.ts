@@ -12,9 +12,11 @@ import {
   gazeMatchesCursorArea,
   classifyGazeQuadrant,
   computeAttentionScore,
+  computeQuadrantProbabilities,
   type IrisDisplacement,
   type GazeDirection,
   type AttentionState,
+  type QuadrantProbabilities,
 } from '../tracking-gaze-logic';
 
 // ---------------------------------------------------------------------------
@@ -369,5 +371,77 @@ describe('computeAttentionScore', () => {
         expect(score).toBeLessThanOrEqual(1);
       }
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// computeQuadrantProbabilities
+// ---------------------------------------------------------------------------
+
+describe('computeQuadrantProbabilities', () => {
+  const center: IrisDisplacement = { rx: 0, ry: 0 };
+
+  it('sums to 1.0 (±0.01 rounding)', () => {
+    const p = computeQuadrantProbabilities(center, center);
+    const sum = Object.values(p).reduce((a, b) => a + b, 0);
+    expect(sum).toBeCloseTo(1, 1);
+  });
+
+  it('center gaze gives highest probability to center quadrant', () => {
+    const p = computeQuadrantProbabilities(center, center);
+    expect(p['center']).toBeGreaterThan(p['top-left']);
+    expect(p['center']).toBeGreaterThan(p['bottom-right']);
+    expect(p['center']).toBeGreaterThan(p['center-left']);
+  });
+
+  it('gaze looking left shifts mass toward left quadrants', () => {
+    const left: IrisDisplacement = { rx: -0.16, ry: 0 };
+    const p = computeQuadrantProbabilities(left, left);
+    expect(p['center-left']).toBeGreaterThan(p['center-right']);
+    expect(p['center-left']).toBeGreaterThan(p['center']);
+  });
+
+  it('gaze looking top-right shifts mass to top-right', () => {
+    const tr: IrisDisplacement = { rx: 0.16, ry: -0.12 };
+    const p = computeQuadrantProbabilities(tr, tr);
+    expect(p['top-right']).toBeGreaterThan(p['bottom-left']);
+    expect(p['top-right']).toBeGreaterThan(p['center']);
+  });
+
+  it('spreads probability — no single quadrant gets 100%', () => {
+    const p = computeQuadrantProbabilities(center, center);
+    expect(p['center']).toBeLessThan(1);
+    expect(p['center']).toBeGreaterThan(0.1);
+  });
+
+  it('adjacent quadrants get more than opposite quadrants', () => {
+    const p = computeQuadrantProbabilities(center, center);
+    expect(p['top-center']).toBeGreaterThan(p['top-left']);
+    expect(p['center-left']).toBeGreaterThan(p['top-left']);
+  });
+
+  it('returns all 9 quadrants', () => {
+    const p = computeQuadrantProbabilities(center, center);
+    const keys = Object.keys(p);
+    expect(keys).toHaveLength(9);
+    expect(keys).toContain('center');
+    expect(keys).toContain('top-left');
+    expect(keys).toContain('bottom-right');
+  });
+
+  it('extreme gaze concentrates mass on nearest quadrant', () => {
+    const extreme: IrisDisplacement = { rx: 0.3, ry: 0.3 };
+    const p = computeQuadrantProbabilities(extreme, extreme);
+    expect(p['bottom-right']).toBeGreaterThan(0.5);
+    const sum = Object.values(p).reduce((a, b) => a + b, 0);
+    expect(sum).toBeCloseTo(1, 1);
+  });
+
+  it('averages left and right eye displacement', () => {
+    const leftEye: IrisDisplacement = { rx: -0.10, ry: 0 };
+    const rightEye: IrisDisplacement = { rx: 0.10, ry: 0 };
+    const p = computeQuadrantProbabilities(leftEye, rightEye);
+    expect(p['center']).toBeGreaterThan(p['center-left']);
+    expect(p['center']).toBeGreaterThan(p['center-right']);
   });
 });

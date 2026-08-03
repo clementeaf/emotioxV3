@@ -1,3 +1,26 @@
+## v0.92.0 — Website Tracking gauntlet: 206 tests + probabilistic gaze zones (2026-08-03)
+
+### test gauntlet — website tracking (full feature coverage)
+- **206 new tests** across backend and research-frontend. Coverage: controller routing (69), service functions (51 new), report service (22), gaze logic (9 new), gaze analytics (3 new), research-frontend service client (33), ScrollDepthChart (5), TrackingEmotionsTab (6), TrackingAttentionTab (6).
+- **Backend controller** (`tracking.controller.ts`, 850 lines) — 0 → 69 tests. Public routes (CORS, script.js, session validation, events, rrweb, snapshot size limits, emotions/gaze sample caps, emotion-video). Authenticated routes (38 endpoints: config, verify, overview, pages, heatmap, element-clicks, sessions, scroll, rrweb, funnels, export, friction, snapshot, attention, visitors, live, emotions, gaze, snippet, screenshot, report). Auth error classification.
+- **Backend report service** (`tracking-report.service.ts`, 254 lines) — 0 → 22 tests. Cache read (5), LLM generation with conditional data gathering (17), OpenAI mock, config caching.
+- **Backend service expanded** (`tracking.service.ts`, 1512 lines) — 19 → 70 tests. 20 previously untested functions: `getElementClickData`, `getRecentSessionCount`, `getTrackedPages`, `getSessions`, `savePageSnapshot`, `getFrictionSummary`, `getSessionFrictionTags`, `getPageSnapshotHtml`, `getAttentionHeatmapData`, `getVisitorJourneys`, `getLiveSessions`, `savePageScreenshotFromBase64`, `getSessionEvents`, `appendRrwebEvents`, `getRrwebEvents`, `computeFunnelDropoff`, `appendEmotionSamples`, `appendGazeSamples`, `saveEmotionVideo`, `getSessionEmotionSamples`.
+- **Research-frontend service client** — 0 → 33 tests. All ~27 tracking API functions verified for correct endpoints, params, response unwrapping.
+- **Research-frontend components** — 5 → 22 tests. ScrollDepthChart (loading, empty, bars, colors), TrackingEmotionsTab (loading, empty, distribution, summary, canvas, sessions), TrackingAttentionTab (loading, empty, grid, score, states, sessions).
+- **Coverage thresholds added.** `tracking-gaze.analytics.ts` 80% lines/functions, `tracking-report.service.ts` 70% lines/functions.
+
+### feat: probabilistic gaze zone distribution
+- **`computeQuadrantProbabilities()`** in `tracking-gaze-logic.ts`. 2D Gaussian over 9 quadrant centroids — each iris sample produces a probability distribution instead of a single discrete zone. σ = direction thresholds (0.08 horizontal, 0.06 vertical). Center gaze spreads ~45% center, ~25% adjacent, ~5% corners.
+- **Snippet v3.4.** `quadProbs` inline function sends `quadrantProbs: {center: 0.45, ...}` alongside discrete `quadrant` (backward compatible). New sessions use probabilistic; old data falls back to discrete.
+- **Backend weighted aggregation.** `tracking-gaze.analytics.ts` reads `quadrantProbs` when present, accumulates weighted counts per quadrant. Falls back to discrete `quadrant` for pre-v0.92 data.
+- **Frontend label.** TrackingAttentionTab grid description: "Probabilistic area estimation — each sample spreads across zones based on iris uncertainty. Not exact gaze."
+
+### quality
+- **2,155 tests, 0 failures** across all 3 subprojects (participant: 1065, backend: 483, research: 607). Previously: 1,921.
+- **TypeScript strict** — 0 errors, 0 warnings in all 3 subprojects.
+
+---
+
 ## v0.91.0 — Bob Martin test gauntlet: eye tracking + website tracking gaze (2026-07-31)
 
 ### test gauntlet — eye tracking (Bob Martin methodology)

@@ -9,7 +9,7 @@ import { getTrackingGazeData } from '../tracking-gaze.analytics';
 
 function sessionRow(
     id: string,
-    samples: Array<{ timestamp: number; quadrant: string; attention: string; score: number; cursorX?: number; cursorY?: number }>,
+    samples: Array<{ timestamp: number; quadrant: string; attention: string; score: number; cursorX?: number; cursorY?: number; quadrantProbs?: Record<string, number> }>,
     overrides: Partial<{ visitor_id: string; page_url: string }> = {},
 ) {
     return {
@@ -141,5 +141,45 @@ describe('getTrackingGazeData', () => {
         expect(result.perSession[0].dominantQuadrant).toBe('top-left');
         expect(result.perSession[0].avgScore).toBe(0.9);
         expect(result.perSession[0].sampleCount).toBe(3);
+    });
+
+    it('uses quadrantProbs weighted aggregation when available', async () => {
+        mockQuery.mockResolvedValueOnce({
+            rows: [sessionRow('s1', [
+                { timestamp: 0, quadrant: 'center', attention: 'engaged', score: 1,
+                  quadrantProbs: { 'center': 0.5, 'center-right': 0.3, 'top-center': 0.2 } },
+            ])],
+        });
+        const result = await getTrackingGazeData('r1');
+        expect(result.quadrantDistribution['center']).toBeGreaterThan(0);
+        expect(result.quadrantDistribution['center-right']).toBeGreaterThan(0);
+        expect(result.quadrantDistribution['top-center']).toBeGreaterThan(0);
+        const sum = Object.values(result.quadrantDistribution).reduce((a, b) => a + b, 0);
+        expect(sum).toBeCloseTo(100, 0);
+    });
+
+    it('falls back to discrete quadrant when no quadrantProbs', async () => {
+        mockQuery.mockResolvedValueOnce({
+            rows: [sessionRow('s1', [
+                { timestamp: 0, quadrant: 'top-left', attention: 'engaged', score: 1 },
+            ])],
+        });
+        const result = await getTrackingGazeData('r1');
+        expect(result.quadrantDistribution['top-left']).toBe(100);
+    });
+
+    it('mixes probabilistic and discrete samples', async () => {
+        mockQuery.mockResolvedValueOnce({
+            rows: [sessionRow('s1', [
+                { timestamp: 0, quadrant: 'center', attention: 'engaged', score: 1,
+                  quadrantProbs: { 'center': 0.6, 'center-right': 0.4 } },
+                { timestamp: 500, quadrant: 'top-left', attention: 'engaged', score: 0.8 },
+            ])],
+        });
+        const result = await getTrackingGazeData('r1');
+        expect(result.totalSamples).toBe(2);
+        expect(result.quadrantDistribution['center']).toBeGreaterThan(0);
+        expect(result.quadrantDistribution['center-right']).toBeGreaterThan(0);
+        expect(result.quadrantDistribution['top-left']).toBeGreaterThan(0);
     });
 });

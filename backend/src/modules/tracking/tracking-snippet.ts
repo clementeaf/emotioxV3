@@ -512,6 +512,14 @@ function gazeQuad(d){
     var vp=d.v==="up"?"top":d.v==="down"?"bottom":"center";
     return vp+"-"+d.h;
 }
+function quadProbs(l,r){
+    var ax=(l.rx+r.rx)/2,ay=(l.ry+r.ry)/2;
+    var QC=[[-0.16,-0.12,"top-left"],[0,-0.12,"top-center"],[0.16,-0.12,"top-right"],[-0.16,0,"center-left"],[0,0,"center"],[0.16,0,"center-right"],[-0.16,0.12,"bottom-left"],[0,0.12,"bottom-center"],[0.16,0.12,"bottom-right"]];
+    var SX=GAZE_H_THRESH,SY=GAZE_V_THRESH,t=0,w={};
+    for(var i=0;i<9;i++){var dx=ax-QC[i][0],dy=ay-QC[i][1];var v=Math.exp(-(dx*dx)/(2*SX*SX)-(dy*dy)/(2*SY*SY));w[QC[i][2]]=v;t+=v;}
+    var p={};for(var k in w)p[k]=t>0?Math.round(w[k]/t*1000)/1000:0;
+    return p;
+}
 function cursorMatch(g,cx,cy,vw,vh){
     if(g.h==="center"&&g.v==="center")return true;
     var ch=cx<vw/3?"left":cx>vw*2/3?"right":"center";
@@ -672,6 +680,7 @@ function sampleFrame(){
             gazeBuf.push({
                 timestamp:ts,
                 quadrant:gazeQuad(gd),
+                quadrantProbs:quadProbs(ld,rd),
                 attention:st,
                 score:Math.round(score*100)/100,
                 cursorX:Math.round(lastCursorX),

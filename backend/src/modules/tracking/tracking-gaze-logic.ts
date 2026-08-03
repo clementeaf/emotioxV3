@@ -95,7 +95,59 @@ export function estimateGazeDirection(
 }
 
 // ---------------------------------------------------------------------------
-// Quadrant
+// Probabilistic quadrant distribution
+// ---------------------------------------------------------------------------
+
+export type QuadrantProbabilities = Record<GazeQuadrant, number>;
+
+const QUADRANT_CENTROIDS: Array<{ q: GazeQuadrant; cx: number; cy: number }> = [
+  { q: 'top-left',      cx: -0.16, cy: -0.12 },
+  { q: 'top-center',    cx:  0.00, cy: -0.12 },
+  { q: 'top-right',     cx:  0.16, cy: -0.12 },
+  { q: 'center-left',   cx: -0.16, cy:  0.00 },
+  { q: 'center',        cx:  0.00, cy:  0.00 },
+  { q: 'center-right',  cx:  0.16, cy:  0.00 },
+  { q: 'bottom-left',   cx: -0.16, cy:  0.12 },
+  { q: 'bottom-center', cx:  0.00, cy:  0.12 },
+  { q: 'bottom-right',  cx:  0.16, cy:  0.12 },
+];
+
+// ponytail: σ = threshold — at zone boundary weight ≈ 0.6, decays smoothly
+const SIGMA_X = HORIZONTAL_THRESHOLD;
+const SIGMA_Y = VERTICAL_THRESHOLD;
+
+/**
+ * Compute probability distribution over 9 quadrants using 2D Gaussian.
+ * Instead of hard-classifying to one zone, spreads probability across
+ * neighboring zones based on iris displacement uncertainty.
+ */
+export function computeQuadrantProbabilities(
+  leftEye: IrisDisplacement,
+  rightEye: IrisDisplacement,
+): QuadrantProbabilities {
+  const avgRx = (leftEye.rx + rightEye.rx) / 2;
+  const avgRy = (leftEye.ry + rightEye.ry) / 2;
+
+  const weights: Record<string, number> = {};
+  let total = 0;
+
+  for (const { q, cx, cy } of QUADRANT_CENTROIDS) {
+    const dx = avgRx - cx;
+    const dy = avgRy - cy;
+    const w = Math.exp(-(dx * dx) / (2 * SIGMA_X * SIGMA_X) - (dy * dy) / (2 * SIGMA_Y * SIGMA_Y));
+    weights[q] = w;
+    total += w;
+  }
+
+  const result = {} as QuadrantProbabilities;
+  for (const { q } of QUADRANT_CENTROIDS) {
+    result[q] = total > 0 ? Math.round(weights[q] / total * 1000) / 1000 : 0;
+  }
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// Quadrant (discrete — backward compat)
 // ---------------------------------------------------------------------------
 
 /**

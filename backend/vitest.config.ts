@@ -15,6 +15,8 @@ export default defineConfig({
                 '**/analytics/eye-tracking-v2.analytics.ts': { lines: 80, functions: 80 },
                 '**/tracking/tracking-emotion.analytics.ts': { lines: 80, functions: 80 },
                 '**/tracking/tracking-gaze-logic.ts': { lines: 90, functions: 90 },
+                '**/tracking/tracking-gaze.analytics.ts': { lines: 80, functions: 80 },
+                '**/tracking/tracking-report.service.ts': { lines: 70, functions: 70 },
             },
         },
     },
