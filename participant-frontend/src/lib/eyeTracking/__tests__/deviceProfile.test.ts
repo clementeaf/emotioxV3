@@ -113,12 +113,12 @@ describe('getProfileForDevice — desktop', () => {
     expect(profile.deviceType).toBe('desktop');
   });
 
-  it('uncertaintyRadius is 120', () => {
-    expect(profile.uncertaintyRadius).toBe(120);
+  it('uncertaintyRadius is 300', () => {
+    expect(profile.uncertaintyRadius).toBe(300);
   });
 
-  it('hysteresisMs is 200', () => {
-    expect(profile.hysteresisMs).toBe(200);
+  it('hysteresisMs is 180', () => {
+    expect(profile.hysteresisMs).toBe(180);
   });
 
   it('has gaze tracking', () => {
@@ -129,8 +129,8 @@ describe('getProfileForDevice — desktop', () => {
     expect(profile.headPoseGainMultiplier).toBe(1.0);
   });
 
-  it('minConfidence is 0.15', () => {
-    expect(profile.minConfidence).toBe(0.15);
+  it('minConfidence is 0.10', () => {
+    expect(profile.minConfidence).toBe(0.10);
   });
 });
 
@@ -166,12 +166,12 @@ describe('getProfileForDevice — mobile', () => {
   });
 
   it('largest uncertainty', () => {
-    expect(profile.uncertaintyRadius).toBe(200);
+    expect(profile.uncertaintyRadius).toBe(400);
     expect(profile.uncertaintyRadius).toBeGreaterThan(getProfileForDevice('tablet').uncertaintyRadius);
   });
 
   it('slowest hysteresis', () => {
-    expect(profile.hysteresisMs).toBe(300);
+    expect(profile.hysteresisMs).toBe(280);
     expect(profile.hysteresisMs).toBeGreaterThan(getProfileForDevice('tablet').hysteresisMs);
   });
 
@@ -184,8 +184,8 @@ describe('getProfileForDevice — mobile', () => {
   });
 
   it('lowest minConfidence (most tolerant)', () => {
-    expect(profile.minConfidence).toBeLessThan(getProfileForDevice('desktop').minConfidence);
-    expect(profile.minConfidence).toBeLessThan(getProfileForDevice('tablet').minConfidence);
+    expect(profile.minConfidence).toBeLessThanOrEqual(getProfileForDevice('desktop').minConfidence);
+    expect(profile.minConfidence).toBeLessThanOrEqual(getProfileForDevice('tablet').minConfidence);
   });
 });
 
@@ -208,9 +208,9 @@ describe('getProfileForDevice — ordering invariants', () => {
     expect(tablet.hysteresisMs).toBeLessThan(mobile.hysteresisMs);
   });
 
-  it('minConfidence: desktop > tablet > mobile', () => {
-    expect(desktop.minConfidence).toBeGreaterThan(tablet.minConfidence);
-    expect(tablet.minConfidence).toBeGreaterThan(mobile.minConfidence);
+  it('minConfidence: desktop >= tablet >= mobile', () => {
+    expect(desktop.minConfidence).toBeGreaterThanOrEqual(tablet.minConfidence);
+    expect(tablet.minConfidence).toBeGreaterThanOrEqual(mobile.minConfidence);
   });
 
   it('all uncertaintyRadius values are positive', () => {
@@ -241,19 +241,19 @@ describe('getProfileFromUA', () => {
   it('desktop Chrome → desktop profile', () => {
     const profile = getProfileFromUA(UA.chrome_desktop);
     expect(profile.deviceType).toBe('desktop');
-    expect(profile.uncertaintyRadius).toBe(120);
+    expect(profile.uncertaintyRadius).toBe(300);
   });
 
   it('iPhone → mobile profile', () => {
     const profile = getProfileFromUA(UA.iphone);
     expect(profile.deviceType).toBe('mobile');
-    expect(profile.uncertaintyRadius).toBe(200);
+    expect(profile.uncertaintyRadius).toBe(400);
   });
 
   it('iPad → tablet profile', () => {
     const profile = getProfileFromUA(UA.ipad);
     expect(profile.deviceType).toBe('tablet');
-    expect(profile.uncertaintyRadius).toBe(160);
+    expect(profile.uncertaintyRadius).toBe(350);
   });
 
   it('Android phone → mobile profile', () => {
@@ -334,5 +334,93 @@ describe('deviceProfile — completeness', () => {
     expect(getProfileForDevice('desktop').hasGazeTracking).toBe(true);
     expect(getProfileForDevice('tablet').hasGazeTracking).toBe(false);
     expect(getProfileForDevice('mobile').hasGazeTracking).toBe(false);
+  });
+
+  types.forEach((type) => {
+    it(`${type} profile has all new calibration and quality fields`, () => {
+      const profile = getProfileForDevice(type);
+      expect(typeof profile.maxCalibrationRmsePx).toBe('number');
+      expect(typeof profile.rejectCalibrationRmsePx).toBe('number');
+      expect(typeof profile.gazeCollectIntervalMs).toBe('number');
+      expect(typeof profile.requireFullscreen).toBe('boolean');
+      expect(typeof profile.requireLandscape).toBe('boolean');
+      expect(typeof profile.faceLostPauseThresholdS).toBe('number');
+      expect(typeof profile.headPoseDriftThresholdDeg).toBe('number');
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// New calibration / quality fields — exact values
+// ---------------------------------------------------------------------------
+
+describe('getProfileForDevice — calibration fields (desktop)', () => {
+  const profile = getProfileForDevice('desktop');
+
+  it('maxCalibrationRmsePx is 80', () => {
+    expect(profile.maxCalibrationRmsePx).toBe(80);
+  });
+
+  it('requireFullscreen is true', () => {
+    expect(profile.requireFullscreen).toBe(true);
+  });
+
+  it('requireLandscape is false', () => {
+    expect(profile.requireLandscape).toBe(false);
+  });
+
+  it('gazeCollectIntervalMs is 50', () => {
+    expect(profile.gazeCollectIntervalMs).toBe(50);
+  });
+});
+
+describe('getProfileForDevice — calibration fields (tablet)', () => {
+  const profile = getProfileForDevice('tablet');
+
+  it('maxCalibrationRmsePx is 120', () => {
+    expect(profile.maxCalibrationRmsePx).toBe(120);
+  });
+
+  it('requireLandscape is true', () => {
+    expect(profile.requireLandscape).toBe(true);
+  });
+
+  it('gazeCollectIntervalMs is 40', () => {
+    expect(profile.gazeCollectIntervalMs).toBe(40);
+  });
+});
+
+describe('getProfileForDevice — calibration fields (mobile)', () => {
+  const profile = getProfileForDevice('mobile');
+
+  it('maxCalibrationRmsePx is 120', () => {
+    expect(profile.maxCalibrationRmsePx).toBe(120);
+  });
+
+  it('requireLandscape is true', () => {
+    expect(profile.requireLandscape).toBe(true);
+  });
+
+  it('gazeCollectIntervalMs is 30', () => {
+    expect(profile.gazeCollectIntervalMs).toBe(30);
+  });
+});
+
+describe('getProfileForDevice — quality invariants', () => {
+  const types: DeviceType[] = ['desktop', 'tablet', 'mobile'];
+
+  types.forEach((type) => {
+    it(`${type}: faceLostPauseThresholdS > 0`, () => {
+      expect(getProfileForDevice(type).faceLostPauseThresholdS).toBeGreaterThan(0);
+    });
+
+    it(`${type}: headPoseDriftThresholdDeg > 0`, () => {
+      expect(getProfileForDevice(type).headPoseDriftThresholdDeg).toBeGreaterThan(0);
+    });
+
+    it(`${type}: rejectCalibrationRmsePx > maxCalibrationRmsePx`, () => {
+      const profile = getProfileForDevice(type);
+      expect(profile.rejectCalibrationRmsePx).toBeGreaterThan(profile.maxCalibrationRmsePx);
+    });
   });
 });

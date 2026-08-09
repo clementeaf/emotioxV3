@@ -41,7 +41,7 @@ export const MIN_FACE_CONFIDENCE = 0.8;
 // Check results
 // ---------------------------------------------------------------------------
 
-export type QualityCheckId = 'brightness' | 'distance' | 'resolution' | 'headStability' | 'faceDetection' | 'headPose';
+export type QualityCheckId = 'brightness' | 'distance' | 'resolution' | 'headStability' | 'faceDetection' | 'headPose' | 'fullscreen' | 'orientation';
 
 export type CheckStatus = 'pending' | 'checking' | 'pass' | 'warn' | 'fail';
 
@@ -208,6 +208,50 @@ export function checkFaceConfidence(confidence: number): QualityCheckResult {
         return { id: 'faceDetection', status: 'fail', value: Math.round(confidence * 100), message: 'Face not clearly detected' };
     }
     return { id: 'faceDetection', status: 'pass', value: Math.round(confidence * 100) };
+}
+
+// ---------------------------------------------------------------------------
+// Aggregate gate
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Fullscreen check
+// ---------------------------------------------------------------------------
+
+export function checkFullscreen(): QualityCheckResult {
+    const isFullscreen = Boolean(
+        document.fullscreenElement
+        || (document as unknown as { webkitFullscreenElement?: Element }).webkitFullscreenElement
+    );
+    if (!isFullscreen) {
+        return { id: 'fullscreen', status: 'fail', message: 'Fullscreen required for accurate tracking' };
+    }
+    return { id: 'fullscreen', status: 'pass' };
+}
+
+// ---------------------------------------------------------------------------
+// Landscape orientation check (mobile/tablet)
+// ---------------------------------------------------------------------------
+
+export function checkLandscape(): QualityCheckResult {
+    const isLandscape = window.innerWidth > window.innerHeight;
+    if (!isLandscape) {
+        return { id: 'orientation', status: 'fail', message: 'Rotate device to landscape' };
+    }
+    return { id: 'orientation', status: 'pass' };
+}
+
+// ---------------------------------------------------------------------------
+// Head pose check (yaw/pitch within bounds)
+// ---------------------------------------------------------------------------
+
+export function checkHeadPose(yawDeg: number, pitchDeg: number): QualityCheckResult {
+    const maxYaw = 20;
+    const maxPitch = 15;
+    if (Math.abs(yawDeg) > maxYaw || Math.abs(pitchDeg) > maxPitch) {
+        return { id: 'headPose', status: 'fail', value: Math.round(Math.max(Math.abs(yawDeg), Math.abs(pitchDeg))), message: 'Face the camera directly' };
+    }
+    return { id: 'headPose', status: 'pass', value: Math.round(Math.max(Math.abs(yawDeg), Math.abs(pitchDeg))) };
 }
 
 // ---------------------------------------------------------------------------

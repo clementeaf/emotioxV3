@@ -57,7 +57,7 @@ export const StandardSidebar = () => {
             await logout();
             navigate('/login');
         } catch {
-            toast.error('Error al cerrar sesión');
+            toast.error('Failed to sign out');
         }
     };
 

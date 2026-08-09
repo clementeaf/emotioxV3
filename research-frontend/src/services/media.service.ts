@@ -391,3 +391,12 @@ class MediaService {
 
 export const mediaService = new MediaService();
 
+export interface StimulusComplexityResult {
+    suggestedSeconds: number;
+    reason: string;
+}
+
+export async function analyzeStimulusComplexity(s3Key: string): Promise<StimulusComplexityResult> {
+    return apiClient.post<StimulusComplexityResult>('/media/analyze-complexity', { s3Key });
+}
+

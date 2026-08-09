@@ -39,7 +39,7 @@ export const LinkConfigurationSection = ({
     const handleParticipantLimitChange = (rawValue: string) => {
         const parsed = Number.parseInt(rawValue);
         if (Number.isNaN(parsed) || parsed < 1) {
-            toast.warning('El límite debe ser un número mayor a 0');
+            toast.warning('Limit must be a number greater than 0');
             return;
         }
         onChange({

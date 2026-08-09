@@ -13,7 +13,7 @@ export const ErrorPage = () => {
     // Try to get error from location state (works with both router types)
     const error = location.state?.error as Error | { status?: number; statusText?: string; message?: string } | undefined;
     
-    let errorMessage = 'Algo salió mal';
+    let errorMessage = 'Something went wrong';
     let errorStatus = 404;
 
     if (error) {
@@ -27,7 +27,7 @@ export const ErrorPage = () => {
         }
     } else if (location.pathname !== '/') {
         // If no error in state but we're on a non-root path, it's likely a 404
-        errorMessage = 'Página no encontrada';
+        errorMessage = 'Page not found';
         errorStatus = 404;
     }
 
@@ -40,18 +40,18 @@ export const ErrorPage = () => {
                     </div>
 
                     <h1 className="text-3xl font-bold text-gray-900 text-center mb-2">
-                        {errorStatus === 404 ? 'Página no encontrada' : 'Algo salió mal'}
+                        {errorStatus === 404 ? 'Page not found' : 'Something went wrong'}
                     </h1>
 
                     <p className="text-gray-600 text-center mb-8">
-                        {errorMessage || 'Lo sentimos, ha ocurrido un error inesperado. Por favor, intenta recargar la página o regresa al inicio.'}
+                        {errorMessage || 'We\'re sorry, an unexpected error occurred. Please try reloading the page or go back to the home page.'}
                     </p>
 
                     <div className="flex flex-col sm:flex-row gap-4 justify-center">
                         <Link to="/">
                             <Button className="flex items-center justify-center gap-2">
                                 <Home className="h-4 w-4" />
-                                Ir al inicio
+                                Go to home
                             </Button>
                         </Link>
                         <Button 
@@ -60,7 +60,7 @@ export const ErrorPage = () => {
                             onClick={() => window.history.back()}
                         >
                             <ArrowLeft className="h-4 w-4" />
-                            Volver
+                            Go back
                         </Button>
                         <Button 
                             variant="outline" 
@@ -68,14 +68,14 @@ export const ErrorPage = () => {
                             onClick={() => window.location.reload()}
                         >
                             <AlertTriangle className="h-4 w-4" />
-                            Intentar de nuevo
+                            Try again
                         </Button>
                     </div>
                     
                     {import.meta.env.DEV && error && (
                         <div className="mt-8 p-4 bg-red-50 border border-red-200 rounded-lg">
                             <h3 className="text-sm font-semibold text-red-800 mb-2">
-                                Detalles del error (solo en desarrollo):
+                                Error details (development only):
                             </h3>
                             <pre className="text-xs text-red-700 overflow-auto max-h-64">
                                 {error instanceof Error ? error.stack : JSON.stringify(error, null, 2)}

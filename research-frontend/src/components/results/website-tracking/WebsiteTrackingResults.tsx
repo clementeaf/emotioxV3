@@ -8,7 +8,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
-    MousePointerClick, Users, Activity,
+    MousePointerClick, Users, Activity, AlertTriangle,
     Download, ArrowDownUp, PlayCircle, TrendingDown, Eye, Grid3X3, SmilePlus,
 } from 'lucide-react';
 import * as trackingService from '../../../services/tracking.service';
@@ -22,6 +22,7 @@ import { PageFlowDiagram } from './PageFlowDiagram';
 import { resolveMediaUrl } from '../../../services/media.service';
 import { TrackingEmotionsTab } from './TrackingEmotionsTab';
 import { TrackingAttentionTab } from './TrackingAttentionTab';
+import { TrackingFrictionTab } from './TrackingFrictionTab';
 
 const formatDateTime = (iso: string): string => {
     const d = new Date(iso);
@@ -29,7 +30,7 @@ const formatDateTime = (iso: string): string => {
         + ' ' + d.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
 };
 
-type ResultTab = 'funnels' | 'heatmaps' | 'sessions' | 'live' | 'emotions' | 'attention';
+type ResultTab = 'funnels' | 'heatmaps' | 'sessions' | 'friction' | 'live' | 'emotions' |'attention';
 type HeatmapSubTab = 'click' | 'scroll' | 'attention' | 'density';
 type FunnelSubTab = 'custom-funnels' | 'page-flow' | 'comparison';
 
@@ -148,6 +149,7 @@ export const WebsiteTrackingResults = ({ researchId }: WebsiteTrackingResultsPro
         { id: 'funnels', label: 'Funnels', icon: <TrendingDown className="h-4 w-4" />, tooltip: 'Conversion funnels and page flow analysis' },
         { id: 'heatmaps', label: 'Heatmaps', icon: <MousePointerClick className="h-4 w-4" />, tooltip: 'Click, scroll, and attention overlays on your pages' },
         { id: 'sessions', label: 'Sessions', icon: <Users className="h-4 w-4" />, tooltip: 'Visitor journeys with session replay' },
+        { id: 'friction', label: 'Friction', icon: <AlertTriangle className="h-4 w-4" />, tooltip: 'Rage clicks, dead clicks, speed browsing, and mouse-out events' },
         { id: 'live', label: 'Live', icon: <Activity className="h-4 w-4" />, tooltip: 'Currently active visitors on your site' },
         { id: 'emotions', label: 'Emotions', icon: <SmilePlus className="h-4 w-4" />, tooltip: 'Visitor facial emotion analysis' },
         { id: 'attention', label: 'Attention', icon: <Eye className="h-4 w-4" />, tooltip: 'Webcam-based gaze zone attention tracking' },
@@ -360,6 +362,10 @@ export const WebsiteTrackingResults = ({ researchId }: WebsiteTrackingResultsPro
 
             {activeTab === 'attention' && (
                 <TrackingAttentionTab researchId={researchId} selectedPageUrl={selectedPageUrl} />
+            )}
+
+            {activeTab === 'friction' && (
+                <TrackingFrictionTab researchId={researchId} />
             )}
 
             {activeTab === 'funnels' && (

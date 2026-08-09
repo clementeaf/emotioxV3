@@ -138,8 +138,22 @@ export {
     checkDistance,
     checkHeadStability,
     checkFaceConfidence,
+    checkFullscreen,
+    checkLandscape,
+    checkHeadPose,
     estimateDistanceCm,
     computePositionVariance,
     evaluateGate,
 } from './sessionQualityChecks';
 export type { QualityCheckResult, QualityGateResult, CheckStatus, QualityCheckId } from './sessionQualityChecks';
+
+export { RuntimeQualityMonitor } from './runtimeQualityMonitor';
+export type { RuntimeQualityCallbacks, RuntimeQualityConfig } from './runtimeQualityMonitor';
+
+export {
+    detectDeviceType,
+    getProfileForDevice,
+    getProfileFromUA,
+    getCurrentDeviceProfile,
+} from './deviceProfile';
+export type { DeviceType, DeviceProfile } from './deviceProfile';

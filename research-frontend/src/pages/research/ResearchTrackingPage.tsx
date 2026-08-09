@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Clock3, User, Search, X } from 'lucide-react';
 import { researchService, type ResearchActivity } from '../../services/research.service';
 import { ResearchDetailDrawer } from '../../components/tracking/ResearchDetailDrawer';
+import { CustomSelect } from '../../components/ui/CustomSelect';
 
 const ACTION_STYLES: Record<string, { bg: string; text: string }> = {
     created:   { bg: 'bg-emerald-50', text: 'text-emerald-700' },
@@ -83,27 +84,29 @@ export const ResearchTrackingPage = () => {
                     />
                 </div>
 
-                <select
-                    value={researchFilter}
-                    onChange={(e) => setResearchFilter(e.target.value)}
-                    className={`px-2 py-1.5 text-xs border rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-                        researchFilter !== 'all' ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-500'
-                    }`}
-                >
-                    <option value="all">All researches</option>
-                    {researchNames.map(n => <option key={n} value={n}>{n}</option>)}
-                </select>
+                <div className="w-40">
+                    <CustomSelect
+                        value={researchFilter}
+                        onChange={(v) => setResearchFilter(v)}
+                        options={[
+                            { value: 'all', label: 'All researches' },
+                            ...researchNames.map(n => ({ value: n, label: n })),
+                        ]}
+                        placeholder="All researches"
+                    />
+                </div>
 
-                <select
-                    value={actionFilter}
-                    onChange={(e) => setActionFilter(e.target.value)}
-                    className={`px-2 py-1.5 text-xs border rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-                        actionFilter !== 'all' ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-500'
-                    }`}
-                >
-                    <option value="all">All actions</option>
-                    {actionTypes.map(a => <option key={a} value={a}>{a}</option>)}
-                </select>
+                <div className="w-40">
+                    <CustomSelect
+                        value={actionFilter}
+                        onChange={(v) => setActionFilter(v)}
+                        options={[
+                            { value: 'all', label: 'All actions' },
+                            ...actionTypes.map(a => ({ value: a, label: a })),
+                        ]}
+                        placeholder="All actions"
+                    />
+                </div>
 
                 {hasActiveFilters && (
                     <button
@@ -116,7 +119,7 @@ export const ResearchTrackingPage = () => {
             </div>
 
             {/* Content */}
-            <div className="flex-1 min-h-0 overflow-auto px-6 pb-4">
+            <div className="flex-1 min-h-0 px-6 pb-4">
                 {isLoading ? (
                     <div className="space-y-3">
                         {Array.from({ length: 6 }).map((_, i) => (
@@ -138,7 +141,7 @@ export const ResearchTrackingPage = () => {
                         )}
                     </div>
                 ) : (
-                    <div className="rounded-xl border border-gray-100 overflow-hidden">
+                    <div className="rounded-xl border border-gray-100 overflow-auto h-full">
                         <table className="w-full min-w-[700px]">
                             <thead className="bg-gray-50/80 border-b border-gray-100 sticky top-0 z-10">
                                 <tr>

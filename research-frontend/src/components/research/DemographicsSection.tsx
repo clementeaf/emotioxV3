@@ -38,8 +38,8 @@ export const DemographicsSection = ({
                 />
             </div>
 
-            <div className="space-y-4 px-4">
-                <div className="space-y-3">
+            <div className="space-y-3 px-4">
+                <div className="space-y-2">
                     {DEMOGRAPHIC_KEYS.map((key) => {
                         const isEnabled = isDemographicEnabled(key);
                         const DEMOGRAPHIC_LABELS: Record<string, string> = {
@@ -103,7 +103,7 @@ export const DemographicsSection = ({
                                 tabIndex={0}
                                 onClick={handleRowClick}
                                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleRowClick(); }}
-                                className={`flex w-full items-center justify-between p-3 border rounded-md transition-colors text-left ${demographicEnabled ? 'cursor-pointer hover:bg-gray-50' : 'opacity-50 cursor-not-allowed'}`}
+                                className={`flex w-full items-center justify-between py-2 px-3 border rounded-md transition-colors text-left ${demographicEnabled ? 'cursor-pointer hover:bg-gray-50' : 'opacity-50 cursor-not-allowed'}`}
                             >
                                 <label className={`flex items-center gap-2 text-sm ${demographicEnabled ? 'cursor-pointer' : 'cursor-not-allowed'}`}>
                                     <input

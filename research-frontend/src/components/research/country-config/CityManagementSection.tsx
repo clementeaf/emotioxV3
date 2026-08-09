@@ -1,5 +1,6 @@
 import { Globe, MapPin, Plus, Trash2 } from 'lucide-react';
 import React from 'react';
+import { CustomSelect } from '../../ui/CustomSelect';
 import type { CityEntry } from './types';
 
 interface CityManagementSectionProps {
@@ -37,16 +38,14 @@ export const CityManagementSection: React.FC<CityManagementSectionProps> = ({
         Add the cities the participant will be able to select. If you don't add any, a free text field will be shown.
       </p>
       <div className="flex gap-2 mb-3">
-        <select
-          value={cityCountry}
-          onChange={(e) => onCityCountryChange(e.target.value)}
-          className="w-40 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-        >
-          <option value="">Country (optional)</option>
-          {qualifyingCountries.map(country => (
-            <option key={country} value={country}>{country}</option>
-          ))}
-        </select>
+        <div className="w-40">
+          <CustomSelect
+            options={qualifyingCountries.map(country => ({ value: country, label: country }))}
+            value={cityCountry}
+            onChange={onCityCountryChange}
+            placeholder="Country (optional)"
+          />
+        </div>
         <input
           type="text"
           value={cityInput}

@@ -482,7 +482,7 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
       {!isLive && (
         <div className="mb-4 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
           <p className="text-xs text-yellow-700">
-            <strong>Nota:</strong> Los resultados no se actualizan en tiempo real. Para ver los datos más recientes, reconecta el monitoreo o recarga la página.
+            <strong>Note:</strong> Results are not updated in real time. To see the latest data, reconnect monitoring or reload the page.
           </p>
         </div>
       )}
@@ -539,8 +539,9 @@ export const SmartVOCResults = ({ researchId, className }: SmartVOCResultsProps)
             {questionCards.length > 0 ? (
               questionCards
             ) : (
-              <div className="text-center p-12 bg-gray-50 rounded-lg">
-                <p className="text-gray-500">No SmartVOC data available yet. Data will appear here once participants complete the surveys.</p>
+              <div className="text-center p-12 bg-gray-50 rounded-xl">
+                <p className="text-sm font-semibold text-gray-700 mb-1">No SmartVOC data available yet</p>
+                <p className="text-[13px] text-gray-400">Share the survey link with participants to start collecting responses.</p>
               </div>
             )}
           </div>

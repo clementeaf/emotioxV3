@@ -104,7 +104,7 @@ export const EyeTrackingResults = ({ researchId, className }: EyeTrackingResults
               </div>
             )}
           </div>
-          <div className="w-80 shrink-0 sticky top-4 self-start max-h-[calc(100vh-8rem)] overflow-y-auto">
+          <div className="w-80 shrink-0 sticky top-0 self-start max-h-[calc(100vh-6rem)] overflow-y-auto">
             <Filters
               researchId={researchId}
               demographicData={demographicData}

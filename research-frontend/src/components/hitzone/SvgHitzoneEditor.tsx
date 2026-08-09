@@ -162,29 +162,29 @@ export const SvgHitzoneEditor: React.FC<SvgHitzoneEditorProps & { onClose?: () =
   // Validación de URL
   if (!imageUrl || imageUrl.trim() === '') {
     return <div style={{ width: CANVAS_WIDTH, height: CANVAS_HEIGHT, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc', borderRadius: 8 }}>
-      <span className="text-neutral-500">No se puede mostrar la imagen. Vuelve a subir el archivo.</span>
+      <span className="text-neutral-500">Cannot display the image. Please re-upload the file.</span>
       {onClose && (
-        <button onClick={onClose} style={{ position: 'absolute', top: 16, right: 16, zIndex: 20 }} className="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300">Cerrar</button>
+        <button onClick={onClose} style={{ position: 'absolute', top: 16, right: 16, zIndex: 20 }} className="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300">Close</button>
       )}
     </div>;
   }
 
   return (
     <div style={{ position: 'relative', width: 'min(90vw, 575px)', height: 'min(80vh, 575px)', background: '#fff', borderRadius: 8, boxShadow: '0 2px 16px #0002' }}>
-      {/* Botón cerrar */}
+      {/* Close button */}
       {onClose && (
-        <button onClick={onClose} style={{ position: 'absolute', top: 16, right: 16, zIndex: 20 }} className="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300">Cerrar</button>
+        <button onClick={onClose} style={{ position: 'absolute', top: 16, right: 16, zIndex: 20 }} className="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300">Close</button>
       )}
       {/* Instrucciones */}
       <div style={{ position: 'absolute', top: 16, left: 16, zIndex: 20, background: '#f8fafc', borderRadius: 6, padding: '8px 16px', fontSize: 13, color: '#333', boxShadow: '0 1px 4px #0001' }}>
-        <b>Instrucciones:</b> Dibuja una zona arrastrando con el mouse. Haz clic en una zona para seleccionarla. Arrastra para mover. Usa los círculos para redimensionar. Pulsa &quot;Eliminar zona&quot; para borrar la seleccionada.
+        <b>Instructions:</b> Draw a zone by dragging with the mouse. Click a zone to select it. Drag to move. Use the circles to resize. Press &quot;Delete zone&quot; to remove the selected one.
       </div>
       {/* Botones de acción */}
       <div style={{ position: 'absolute', bottom: 16, left: 16, zIndex: 20, display: 'flex', gap: 8 }}>
-        <button onClick={() => onSave && onSave(localAreas)} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Guardar zonas</button>
-        <button onClick={() => setShowTest(v => !v)} className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">{showTest ? 'Ocultar prueba' : 'Probar hitzones'}</button>
+        <button onClick={() => onSave && onSave(localAreas)} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Save zones</button>
+        <button onClick={() => setShowTest(v => !v)} className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">{showTest ? 'Hide test' : 'Test hitzones'}</button>
         {localSelectedIdx !== null && (
-          <button onClick={handleDelete} className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600">Eliminar zona</button>
+          <button onClick={handleDelete} className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600">Delete zone</button>
         )}
       </div>
       {/* Imagen base */}
@@ -249,7 +249,7 @@ export const SvgHitzoneEditor: React.FC<SvgHitzoneEditorProps & { onClose?: () =
             ))}
             {/* Tooltip de prueba */}
             {showTest && (
-              <title>Zona interactiva #{idx + 1}</title>
+              <title>Interactive zone #{idx + 1}</title>
             )}
           </g>
         ))}

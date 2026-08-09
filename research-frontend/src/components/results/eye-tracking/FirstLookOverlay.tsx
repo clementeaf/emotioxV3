@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { HeatmapRenderer } from '../cognitive-task/components/HeatmapRenderer';
+import { CustomSelect } from '../../ui/CustomSelect';
 import type { EyeTrackingStimulus } from '../../../services/analytics.service';
 
 export const FirstLookOverlay = ({
@@ -40,15 +41,13 @@ export const FirstLookOverlay = ({
     <div>
       <div className="flex items-center gap-3 mb-3">
         <label className="text-xs text-gray-500">Show first</label>
-        <select
-          value={count}
-          onChange={e => setCount(Number(e.target.value))}
-          className="text-xs border border-gray-200 rounded-md px-2 py-1 bg-white"
-        >
-          {[1, 2, 3, 5, 10].map(n => (
-            <option key={n} value={n}>{n} fixation{n > 1 ? 's' : ''}</option>
-          ))}
-        </select>
+        <div className="w-36">
+          <CustomSelect
+            options={[1, 2, 3, 5, 10].map(n => ({ value: String(n), label: `${n} fixation${n > 1 ? 's' : ''}` }))}
+            value={String(count)}
+            onChange={v => setCount(Number(v))}
+          />
+        </div>
         <span className="text-xs text-gray-400">
           per participant &middot; {participantCount} participants &middot; {firstFixations.length} points
         </span>
@@ -56,7 +55,7 @@ export const FirstLookOverlay = ({
       <HeatmapRenderer
         imageUrl={imageUrl}
         data={heatmapData}
-        coordSystem="pixel"
+        coordSystem="percent"
         className="w-full"
       />
     </div>

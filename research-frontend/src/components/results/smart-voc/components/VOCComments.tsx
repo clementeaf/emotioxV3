@@ -306,7 +306,7 @@ export const VOCComments = ({
               ) : (
                 <tr>
                   <td colSpan={2} className="p-8 text-center text-gray-500 text-sm">
-                    No comments available
+                    Text responses will appear here once participants answer open-ended questions.
                   </td>
                 </tr>
               )}

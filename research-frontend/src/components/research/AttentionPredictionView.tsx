@@ -302,12 +302,12 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                 height: a.height,
             }));
             await mediaService.predictAttention(research.id, mediaId, undefined, undefined, aoiPayload);
-            queryClient.invalidateQueries({ queryKey: researchKeys.detail(research.id) });
         } catch {
             // Error persisted on stimulus by backend; user can retry
         } finally {
             stopPredictTimer();
             setIsPredicting(false);
+            queryClient.invalidateQueries({ queryKey: researchKeys.detail(research.id) });
         }
     }, [research.id, queryClient, startPredictTimer, stopPredictTimer]);
 
@@ -434,7 +434,7 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                 sse.close();
                 videoSSERef.current = null;
                 setVideoProgress(prev => prev && prev.phase !== 'error' && prev.phase !== 'complete'
-                    ? { ...prev, message: 'Procesando en segundo plano...' }
+                    ? { ...prev, message: 'Processing in background...' }
                     : prev);
 
                 let pollCount = 0;
@@ -447,7 +447,7 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                         const stim = fresh?.settings?.stimuli?.find(s => s.mediaId === videoStimulus.mediaId);
                         if (stim?.processedAt) {
                             clearInterval(pollInterval);
-                            setVideoProgress({ phase: 'complete', current: 0, total: 0, message: 'Procesamiento completado' });
+                            setVideoProgress({ phase: 'complete', current: 0, total: 0, message: 'Processing completed' });
                             setTimeout(() => setVideoProgress(null), 3000);
                             return;
                         }
@@ -458,11 +458,11 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                         }
                     } catch { /* network error, keep polling */ }
                     setVideoProgress(prev => prev && prev.phase !== 'complete' && prev.phase !== 'error'
-                        ? { ...prev, message: `Procesando en segundo plano... (${pollCount * 10}s)` }
+                        ? { ...prev, message: `Processing in background... (${pollCount * 10}s)` }
                         : prev);
                     if (pollCount >= maxPolls) {
                         clearInterval(pollInterval);
-                        setVideoProgress({ phase: 'error', current: 0, total: 0, message: 'Tiempo de espera agotado. Recarga la página.' });
+                        setVideoProgress({ phase: 'error', current: 0, total: 0, message: 'Timeout exceeded. Please reload the page.' });
                     }
                 }, 10_000);
             });
@@ -541,36 +541,36 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                 <Drawer
                     isOpen={isPromptOpen}
                     onClose={() => setIsPromptOpen(false)}
-                    title="Criterio de análisis"
+                    title="Analysis criteria"
                     width="lg"
                 >
                     <div className="space-y-4">
                         <div className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2">
                             <p className="text-xs font-medium uppercase tracking-wide text-blue-600">
-                                Criterio activo
+                                Active criteria
                             </p>
                             <p className="text-sm font-semibold text-blue-900 mt-0.5">
                                 {draftCriteriaName}
                             </p>
                             <p className="text-xs text-blue-700 mt-1">
-                                Este nombre se muestra en el encabezado del estímulo tras aplicar al estudio.
+                                This name is shown in the stimulus header after applying to the study.
                             </p>
                         </div>
                         <p className="text-sm text-gray-500">
-                            Personaliza el criterio enviado a la IA para el heatmap y el análisis. Los cambios aplican solo a corridas futuras.
+                            Customize the criteria sent to the AI for heatmap and analysis. Changes apply only to future runs.
                         </p>
 
                         <button
                             type="button"
                             onClick={() => {
                                 if (promptDraft.trim() && promptDraft.trim() !== RECOMMENDED_CRITERIA_TEMPLATE.trim()) {
-                                    if (!window.confirm('¿Reemplazar el criterio actual con la plantilla recomendada?')) return;
+                                    if (!window.confirm('Replace current criteria with the recommended template?')) return;
                                 }
                                 handlePromptDraftChange(RECOMMENDED_CRITERIA_TEMPLATE);
                             }}
                             className="text-sm text-blue-600 hover:text-blue-800 font-medium"
                         >
-                            Insertar plantilla recomendada
+                            Insert recommended template
                         </button>
 
                         <textarea
@@ -649,11 +649,11 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                                 onClick={() => { void handleSavePrompt(); setIsPromptOpen(false); }}
                                 className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                             >
-                                {isSavingPrompt ? 'Guardando...' : 'Aplicar al estudio'}
+                                {isSavingPrompt ? 'Saving...' : 'Apply to study'}
                             </button>
                         </div>
                         <p className="text-[11px] text-slate-400 mt-1">
-                            El criterio orienta el análisis IA. Para actualizar el mapa de calor, usa «Regenerar heatmap».
+                            The criteria guides the AI analysis. To update the heatmap, use "Regenerate heatmap".
                         </p>
 
                         {/* Presets — below actions */}
@@ -698,22 +698,22 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                             <div className="mb-4 flex shrink-0 flex-col gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                                 {needsHeatmapRegeneration && (
                                     <div className="flex items-center justify-between gap-3">
-                                        <span>Este estímulo tiene análisis IA pero no heatmap TranSalNet. Genera el heatmap para ver la predicción real.</span>
+                                        <span>This stimulus has AI analysis but no TranSalNet heatmap. Generate the heatmap to see the actual prediction.</span>
                                         <button
                                             type="button"
                                             onClick={() => void runPrediction(activeStimulus.mediaId, liveAois)}
                                             disabled={isPredicting}
                                             className="shrink-0 rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
                                         >
-                                            Regenerar heatmap
+                                            Regenerate heatmap
                                         </button>
                                     </div>
                                 )}
                                 {isLegacyStimulus && (
                                     <p>
-                                        Resultados del flujo anterior (auto-análisis). Sigue el paso a paso:
-                                        definir zonas → criterio → generar heatmap → analizar con IA.
-                                        Los resultados actuales no se muestran hasta completar el flujo.
+                                        Results from the previous flow (auto-analysis). Follow the steps:
+                                        define zones → criteria → generate heatmap → analyze with AI.
+                                        Current results are not shown until the flow is completed.
                                     </p>
                                 )}
                             </div>
@@ -751,7 +751,6 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                             onAoiSkippedChange={(skipped) => void handleAoiSkippedChange(skipped, activeStimulus.mediaId)}
                             onAoiListChange={setLiveAois}
                             autoPresets={activeStimulus.autoPresets as { blur: number; opacity: number; threshold: number } | undefined}
-                            griddedAOIs={activeStimulus.griddedAOIs}
                             isAnalyzing={isProcessing}
                             analyzeElapsed={analyzeElapsed}
                             onProcessVideo={activeStimulus.isVideo ? (aois?: ManualAOI[]) => {
@@ -771,10 +770,10 @@ export const AttentionPredictionView = ({ research, stimulusId }: AttentionPredi
                                     type="button"
                                     onClick={() => setIsPromptOpen(true)}
                                     className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-md transition-colors bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-200"
-                                    title="Editar criterio de análisis"
+                                    title="Edit analysis criteria"
                                 >
                                     <Settings2 className="w-3.5 h-3.5 shrink-0" />
-                                    <span className="text-gray-500">Criterio</span>
+                                    <span className="text-gray-500">Criteria</span>
                                     <span className="max-w-[180px] truncate rounded-md border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700">
                                         {activeCriteriaLabel}
                                     </span>

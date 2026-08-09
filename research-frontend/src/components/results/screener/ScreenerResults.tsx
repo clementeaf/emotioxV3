@@ -207,8 +207,9 @@ function DistributionChart({ data }: { data: ScreenerResultsType }) {
           </BarChart>
         </ResponsiveContainer>
       ) : (
-        <div className="h-[220px] flex items-center justify-center text-sm text-gray-400">
-          No response data yet
+        <div className="h-[220px] flex flex-col items-center justify-center text-center">
+          <p className="text-sm font-semibold text-gray-700 mb-1">No response data yet</p>
+          <p className="text-[13px] text-gray-400">Responses will appear here once participants complete the screener.</p>
         </div>
       )}
 

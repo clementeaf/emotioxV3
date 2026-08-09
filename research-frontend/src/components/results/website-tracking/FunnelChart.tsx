@@ -85,7 +85,7 @@ export const FunnelChart = ({ researchId, view }: FunnelChartProps) => {
                             ) : (
                                 <div className="bg-gray-50 rounded-lg p-6 text-center w-full">
                                     <TrendingDown className="h-6 w-6 text-gray-300 mx-auto mb-2" />
-                                    <p className="text-xs text-gray-500">No custom funnels yet.</p>
+                                    <p className="text-xs text-gray-500">Define conversion funnels in the tracking configuration to measure drop-off.</p>
                                 </div>
                             )}
                         </div>

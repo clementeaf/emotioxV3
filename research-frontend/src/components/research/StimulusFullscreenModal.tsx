@@ -122,7 +122,7 @@ export const StimulusFullscreenModal = ({
             className="fixed inset-0 z-50 flex flex-col bg-black/95"
             role="dialog"
             aria-modal="true"
-            aria-label={`Vista completa: ${title}`}
+            aria-label={`Fullscreen view: ${title}`}
         >
             {/* Toolbar */}
             <div className="flex items-center justify-between px-4 py-2 bg-black/80 flex-shrink-0">
@@ -133,13 +133,13 @@ export const StimulusFullscreenModal = ({
                         onClick={() => void handleDownload()}
                         className="px-3 py-1.5 text-xs font-medium text-white bg-white/10 rounded hover:bg-white/20 transition-colors"
                     >
-                        Descargar imagen
+                        Download image
                     </button>
                     <button
                         type="button"
                         onClick={onClose}
                         className="p-1.5 text-white/60 hover:text-white transition-colors"
-                        aria-label="Cerrar vista completa"
+                        aria-label="Close fullscreen view"
                     >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />

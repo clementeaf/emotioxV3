@@ -44,6 +44,7 @@ export const CustomSelect = ({
     const generatedId = useId();
     const id = propId || generatedId;
     const [isOpen, setIsOpen] = useState<boolean>(false);
+    const [isVisible, setIsVisible] = useState<boolean>(false);
     const [selectedValue, setSelectedValue] = useState<string>(value || '');
     const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number; width: number } | null>(null);
     const selectRef = useRef<HTMLDivElement>(null);
@@ -55,6 +56,16 @@ export const CustomSelect = ({
         }
     }, [value]);
 
+    const openDropdown = () => {
+        setIsOpen(true);
+        requestAnimationFrame(() => setIsVisible(true));
+    };
+
+    const closeDropdown = () => {
+        setIsVisible(false);
+        setTimeout(() => setIsOpen(false), 150);
+    };
+
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent): void => {
             const target = event.target as Node;
@@ -62,18 +73,15 @@ export const CustomSelect = ({
             const clickedInsideDropdown = dropdownRef.current && dropdownRef.current.contains(target);
 
             if (!clickedInsideSelect && !clickedInsideDropdown) {
-                setIsOpen(false);
+                closeDropdown();
             }
         };
 
         if (isOpen) {
             document.addEventListener('mousedown', handleClickOutside);
 
-            // Calculate dropdown position (viewport coords for position:fixed)
-            // Opens upward if not enough space below
             if (selectRef.current) {
                 const rect = selectRef.current.getBoundingClientRect();
-                // Estimate dropdown height: ~36px per option, capped at 240px
                 const estimatedHeight = Math.min(Math.max(options.length, 1) * 36 + 8, 240);
                 const spaceBelow = window.innerHeight - rect.bottom;
                 const openUpward = spaceBelow < estimatedHeight && rect.top > estimatedHeight;
@@ -84,13 +92,10 @@ export const CustomSelect = ({
                 });
             }
 
-            // Close dropdown when the page or an ancestor scrolls,
-            // but NOT when scrolling inside the dropdown list itself.
             const handleScroll = (e: Event) => {
                 const target = e.target;
-                // The dropdown list has data-custom-select-dropdown — ignore its scroll
                 if (target instanceof Element && target.hasAttribute('data-custom-select-dropdown')) return;
-                setIsOpen(false);
+                closeDropdown();
             };
             window.addEventListener('scroll', handleScroll, true);
 
@@ -109,7 +114,7 @@ export const CustomSelect = ({
 
     const handleSelect = (optionValue: string): void => {
         setSelectedValue(optionValue);
-        setIsOpen(false);
+        closeDropdown();
         if (onChange) {
             onChange(optionValue);
         }
@@ -140,7 +145,7 @@ export const CustomSelect = ({
                     type="button"
                     id={id}
                     name={id}
-                    onClick={() => !disabled && setIsOpen(!isOpen)}
+                    onClick={() => !disabled && (isOpen ? closeDropdown() : openDropdown())}
                     disabled={disabled}
                     className={cn(
                         'flex h-10 w-full items-center justify-between rounded-lg border border-gray-200 bg-white px-3 py-2 text-left text-sm text-gray-800 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 transition-colors min-w-0',
@@ -167,7 +172,10 @@ export const CustomSelect = ({
                     <div
                         ref={dropdownRef}
                         data-custom-select-dropdown
-                        className="fixed z-[9999] rounded-lg border border-gray-200 bg-white shadow-lg max-h-60 overflow-auto"
+                        className={cn(
+                            'fixed z-[9999] rounded-lg border border-gray-200 bg-white shadow-lg max-h-60 overflow-auto transition-all duration-150',
+                            isVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
+                        )}
                         style={{
                             top: `${dropdownPosition.top}px`,
                             left: `${dropdownPosition.left}px`,

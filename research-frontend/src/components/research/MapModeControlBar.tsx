@@ -51,7 +51,7 @@ export const MapModeControlBar = ({
                         type="button"
                         disabled={disabled}
                         onClick={() => onMapModeChange(mode)}
-                        title={disabled ? 'Spotlight y Cold no disponibles en AOI Editor' : undefined}
+                        title={disabled ? 'Spotlight and Cold not available in AOI Editor' : undefined}
                         className={cn(
                             'px-2.5 py-1 text-xs font-medium rounded transition-colors',
                             mapMode === mode
@@ -97,11 +97,11 @@ export const MapModeControlBar = ({
             onClick={onOpenSettings}
             className="px-2.5 py-1 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded hover:bg-blue-100 transition-colors"
         >
-            Ajuste fino
+            Fine tune
         </button>
         {isAoiEditMode === false && mapMode === 'classic' && (settings.preset === 'Smooth' || settings.threshold < 48) && (
             <span className="text-[11px] text-amber-700">
-                Usa Lab o Precise para mayor granularidad
+                Use Lab or Precise for higher granularity
             </span>
         )}
     </div>

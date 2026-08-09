@@ -157,30 +157,30 @@ const AttentionWorkflowPanel = ({
     return (
         <div className="space-y-2">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                Paso a paso
+                Step by step
             </p>
             <WorkflowStep
                 step={1}
-                title="Definir zonas"
+                title="Define zones"
                 isComplete={zonesComplete}
-                actionLabel="Ir al editor de zonas"
+                actionLabel="Go to zone editor"
                 onAction={onFocusAoiEditor}
             />
             <WorkflowStep
                 step={2}
-                title="Criterio de análisis"
+                title="Analysis criteria"
                 isComplete={hasCriteria}
                 detail={criteriaLabel}
-                actionLabel="Editar criterio"
+                actionLabel="Edit criteria"
                 onAction={onOpenCriteria}
             />
             <WorkflowStep
                 step={3}
-                title="Generar heatmap"
+                title="Generate heatmap"
                 isComplete={heatmapComplete}
                 isLoading={isPredicting}
-                loadingLabel={`Regenerando heatmap… ${predictElapsed}s`}
-                actionLabel={hasHeatmap ? 'Regenerar heatmap' : 'Generar heatmap'}
+                loadingLabel={`Regenerating heatmap... ${predictElapsed}s`}
+                actionLabel={hasHeatmap ? 'Regenerate heatmap' : 'Generate heatmap'}
                 onAction={onRunPrediction}
                 actionDisabled={!canRunPrediction}
             />
@@ -287,9 +287,9 @@ const AttentionBadge = ({ level }: { level: string }) => {
 // ─── Duration Badge ─────────────────────────────────────────────────
 
 const DURATION_LABELS: Record<string, string> = {
-    brief: 'breve',
-    moderate: 'moderada',
-    long: 'prolongada',
+    brief: 'brief',
+    moderate: 'moderate',
+    long: 'long',
 };
 
 const DurationBadge = ({ duration }: { duration: string }) => {
@@ -377,25 +377,25 @@ export const AiAnalysisPanel = ({
                         <Sparkles className="h-5 w-5 text-blue-600" />
                     </div>
                     <div>
-                        <h3 className="text-sm font-semibold text-slate-900">Análisis IA</h3>
+                        <h3 className="text-sm font-semibold text-slate-900">AI Analysis</h3>
                         <p className="text-xs text-slate-500">
-                            Completa cada paso y ejecuta el análisis
+                            Complete each step and run the analysis
                         </p>
                     </div>
                 </div>
                 {isLegacyFlow && (
                     <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 mb-3">
-                        Este estímulo tiene resultados del flujo anterior. Completa el paso a paso antes de re-analizar.
+                        This stimulus has results from a previous flow. Complete the steps before re-analyzing.
                     </p>
                 )}
                 <AttentionWorkflowPanel {...workflowProps} />
                 <div className="mt-4 pt-4 border-t border-slate-200">
                     <WorkflowStep
                         step={4}
-                        title="Analizar con IA"
+                        title="Analyze with AI"
                         isComplete={false}
                         isLoading={isAnalyzing}
-                        loadingLabel={analyzeElapsed > 0 ? `Analizando… ${analyzeElapsed}s` : 'Analizando…'}
+                        loadingLabel={analyzeElapsed > 0 ? `Analyzing... ${analyzeElapsed}s` : 'Analyzing...'}
                     />
                     <button
                         type="button"
@@ -406,23 +406,23 @@ export const AiAnalysisPanel = ({
                         {isAnalyzing ? (
                             <>
                                 <RefreshCw className="h-4 w-4 animate-spin" />
-                                Analizando…
+                                Analyzing...
                             </>
                         ) : (
                             <>
                                 <Sparkles className="h-4 w-4" />
-                                Analizar con IA
+                                Analyze with AI
                             </>
                         )}
                     </button>
                     {!canAnalyze && !isPredicting && (
                         <p className="mt-2 text-xs text-amber-600">
-                            Completa zonas, criterio y heatmap antes del análisis IA.
+                            Complete zones, criteria, and heatmap before running AI analysis.
                         </p>
                     )}
                     {isPredicting && (
                         <p className="mt-2 text-xs text-indigo-600">
-                            Los % de las zonas se actualizarán cuando termine el heatmap.
+                            Zone percentages will update when the heatmap finishes.
                         </p>
                     )}
                 </div>
@@ -440,10 +440,10 @@ export const AiAnalysisPanel = ({
                         <Sparkles className="h-5 w-5 text-blue-600" />
                     </div>
                     <div>
-                        <h3 className="text-sm font-semibold text-slate-900">Análisis IA</h3>
+                        <h3 className="text-sm font-semibold text-slate-900">AI Analysis</h3>
                         <p className="text-xs text-slate-500">
-                            {criteriaLabel ? `Criterio: ${criteriaLabel} · ` : ''}
-                            Confianza: {analysis.confidence}%
+                            {criteriaLabel ? `Criteria: ${criteriaLabel} · ` : ''}
+                            Confidence: {analysis.confidence}%
                         </p>
                     </div>
                 </div>
@@ -453,7 +453,7 @@ export const AiAnalysisPanel = ({
                     className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-white border border-gray-300 rounded-lg hover:bg-slate-50 disabled:opacity-50 transition-colors"
                 >
                     <RefreshCw className={`h-3.5 w-3.5 ${isAnalyzing ? 'animate-spin' : ''}`} />
-                    Re-analizar
+                    Re-analyze
                 </button>
             </div>
 
@@ -461,7 +461,7 @@ export const AiAnalysisPanel = ({
                 <AttentionWorkflowPanel {...workflowProps} />
                 {isPredicting && (
                     <p className="text-xs text-indigo-600 bg-indigo-50 border border-indigo-100 rounded-md px-3 py-2">
-                        Regenerando heatmap ({predictElapsed}s). Los % de las zonas se actualizarán al finalizar.
+                        Regenerating heatmap ({predictElapsed}s). Zone percentages will update when finished.
                     </p>
                 )}
                 {/* Context & Scores */}
@@ -477,21 +477,21 @@ export const AiAnalysisPanel = ({
                     <div className="flex items-center gap-4">
                         <div className="text-center">
                             <ScoreGauge score={analysis.attentionScore} size={72} />
-                            <p className="text-xs text-slate-500 mt-1">Atención</p>
+                            <p className="text-xs text-slate-500 mt-1">Attention</p>
                         </div>
                         <div className="text-center">
                             <ScoreGauge score={analysis.confidence} size={56} />
-                            <p className="text-xs text-slate-500 mt-1">Confianza</p>
+                            <p className="text-xs text-slate-500 mt-1">Confidence</p>
                         </div>
                     </div>
                 </div>
 
                 {/* Auto-detected AOIs */}
-                <Section title={`Áreas de interés (${displayAutoAois.length})`} icon={<Eye className="h-4 w-4" />}>
+                <Section title={`Areas of interest (${displayAutoAois.length})`} icon={<Eye className="h-4 w-4" />}>
                     {manualAois.length > 0 && displayAutoAois.length > 0 && (
                         <p className="mt-2 text-xs text-slate-500">
-                            {displayAutoAois.length} zona{displayAutoAois.length !== 1 ? 's' : ''} IA
-                            + {manualAois.length} zona{manualAois.length !== 1 ? 's' : ''} manual{manualAois.length !== 1 ? 'es' : ''}.
+                            {displayAutoAois.length} AI zone{displayAutoAois.length !== 1 ? 's' : ''}
+                            + {manualAois.length} manual zone{manualAois.length !== 1 ? 's' : ''}.
                         </p>
                     )}
                     <div className="mt-3 space-y-2">
@@ -503,7 +503,7 @@ export const AiAnalysisPanel = ({
                                         <AttentionBadge level={aoi.attentionLevel} />
                                         {aoi.lowConfidence && (
                                             <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-200 text-slate-600">
-                                                aprox.
+                                                approx.
                                             </span>
                                         )}
                                     </div>
@@ -514,7 +514,7 @@ export const AiAnalysisPanel = ({
                                     disabled={importedLabels.has(aoi.label)}
                                     className="text-xs px-2.5 py-1 text-blue-600 hover:bg-blue-50 rounded disabled:text-slate-400 disabled:hover:bg-transparent transition-colors whitespace-nowrap"
                                 >
-                                    {importedLabels.has(aoi.label) ? 'Editable' : 'Convertir a zona editable'}
+                                    {importedLabels.has(aoi.label) ? 'Editable' : 'Convert to editable zone'}
                                 </button>
                             </div>
                         ))}
@@ -525,28 +525,28 @@ export const AiAnalysisPanel = ({
                             className="mt-3 flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-800 transition-colors"
                         >
                             <Download className="h-3.5 w-3.5" />
-                            Convertir todas a zonas editables
+                            Convert all to editable zones
                         </button>
                     )}
                 </Section>
 
                 {/* Attention Flow */}
-                <Section title="Flujo de atención" icon={<ArrowRightLeft className="h-4 w-4" />}>
+                <Section title="Attention flow" icon={<ArrowRightLeft className="h-4 w-4" />}>
                     <div className="mt-3 space-y-3">
                         <div className="flex gap-4">
                             <div className="flex-1">
-                                <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">Punto de entrada</p>
+                                <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">Entry point</p>
                                 <p className="text-sm text-slate-800">{analysis.attentionFlow.entryPoint}</p>
                             </div>
                             <div className="flex-1">
-                                <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">Punto de salida</p>
+                                <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">Exit point</p>
                                 <p className="text-sm text-slate-800">{analysis.attentionFlow.exitPoint}</p>
                             </div>
                         </div>
 
                         {/* Flow path */}
                         <div>
-                            <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Recorrido visual</p>
+                            <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Visual path</p>
                             <div className="flex items-center gap-1 flex-wrap">
                                 {analysis.attentionFlow.flowPath.map((step, i) => (
                                     <span key={i} className="flex items-center gap-1">
@@ -562,7 +562,7 @@ export const AiAnalysisPanel = ({
                         {/* Leak areas */}
                         {analysis.attentionFlow.leakAreas.length > 0 && (
                             <div>
-                                <p className="text-xs font-medium text-red-500 uppercase tracking-wide mb-1">Fuga de atención</p>
+                                <p className="text-xs font-medium text-red-500 uppercase tracking-wide mb-1">Attention leak</p>
                                 <ul className="space-y-1">
                                     {analysis.attentionFlow.leakAreas.map((area, i) => (
                                         <li key={i} className="text-xs text-slate-600 flex items-start gap-1.5">
@@ -579,7 +579,7 @@ export const AiAnalysisPanel = ({
                 </Section>
 
                 {/* Gaze Path */}
-                <Section title={`Recorrido de mirada (${analysis.gazePath.length} fijaciones)`} icon={<Route className="h-4 w-4" />}>
+                <Section title={`Gaze path (${analysis.gazePath.length} fixations)`} icon={<Route className="h-4 w-4" />}>
                     <div className="mt-3">
                         <div className="space-y-1.5">
                             {[...analysis.gazePath]
@@ -617,15 +617,15 @@ export const AiAnalysisPanel = ({
 
                 {/* Brand Attention (Hosseini 2024) */}
                 {analysis.brandAttention && analysis.brandAttention.logos.length > 0 && (
-                    <Section title={`Atención de marca (${analysis.brandAttention.logos.length} logos)`} icon={<Eye className="h-4 w-4" />}>
+                    <Section title={`Brand attention (${analysis.brandAttention.logos.length} logos)`} icon={<Eye className="h-4 w-4" />}>
                         <div className="mt-3 space-y-3">
                             {/* Score — LLM holistic judgment */}
                             <div className="flex items-center gap-3">
                                 <div className="flex-1">
                                     <div className="flex items-center justify-between mb-1">
                                         <span className="text-xs font-medium text-slate-700">
-                                            Visibilidad de marca
-                                            <span className="ml-1 text-[10px] text-slate-400 font-normal">(evaluación IA)</span>
+                                            Brand visibility
+                                            <span className="ml-1 text-[10px] text-slate-400 font-normal">(AI evaluation)</span>
                                         </span>
                                         <span className={`text-sm font-bold ${
                                             analysis.brandAttention.brandAttentionScore >= 70 ? 'text-green-600' :
@@ -639,12 +639,12 @@ export const AiAnalysisPanel = ({
                             </div>
 
                             <p className="mt-1 text-[10px] text-slate-400 leading-relaxed">
-                                El score de visibilidad es una evaluación cualitativa de la IA.
-                                El % de saliencia abajo es la medición real del mapa de calor (TranSalNet).
+                                The visibility score is a qualitative AI evaluation.
+                                The saliency % below is the actual heatmap measurement (TranSalNet).
                             </p>
 
                             {/* Logos — TranSalNet saliency measurement */}
-                            <p className="text-[10px] text-slate-400 uppercase tracking-wider">Saliencia medida por heatmap</p>
+                            <p className="text-[10px] text-slate-400 uppercase tracking-wider">Saliency measured by heatmap</p>
                             {analysis.brandAttention.logos.map((logo, i) => (
                                 <div key={i} className="flex items-center justify-between bg-slate-50 rounded-lg px-3 py-2">
                                     <div>
@@ -673,7 +673,7 @@ export const AiAnalysisPanel = ({
                 )}
 
                 {/* Methodology */}
-                <Section title="Metodología técnica" icon={<BookOpen className="h-4 w-4" />} defaultOpen={false}>
+                <Section title="Technical methodology" icon={<BookOpen className="h-4 w-4" />} defaultOpen={false}>
                     <p className="mt-3 text-sm text-slate-600 leading-relaxed">{analysis.methodology}</p>
                 </Section>
             </div>

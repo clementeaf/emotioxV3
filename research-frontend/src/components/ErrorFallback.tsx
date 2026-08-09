@@ -24,18 +24,18 @@ export const ErrorFallback: React.FC<ErrorFallbackProps> = ({ error, errorInfo, 
                     </div>
 
                     <h1 className="text-3xl font-bold text-gray-900 text-center mb-4">
-                        Algo salió mal
+                        Something went wrong
                     </h1>
 
                     <p className="text-gray-600 text-center mb-8">
-                        Lo sentimos, ha ocurrido un error inesperado. Por favor, intenta recargar la página
-                        o regresa al inicio.
+                        We're sorry, an unexpected error occurred. Please try reloading the page
+                        or go back to the home page.
                     </p>
 
                     <div className="flex flex-col sm:flex-row gap-4 justify-center mb-8">
                         <Button onClick={onReset} className="flex items-center justify-center gap-2">
                             <RefreshCw className="h-4 w-4" />
-                            Intentar de nuevo
+                            Try again
                         </Button>
                         <Button
                             onClick={onGoHome}
@@ -43,14 +43,14 @@ export const ErrorFallback: React.FC<ErrorFallbackProps> = ({ error, errorInfo, 
                             className="flex items-center justify-center gap-2"
                         >
                             <Home className="h-4 w-4" />
-                            Ir al inicio
+                            Go to home
                         </Button>
                     </div>
 
                     {isDevelopment && error && (
                         <div className="mt-8 p-4 bg-red-50 border border-red-200 rounded-md">
                             <h2 className="text-lg font-semibold text-red-800 mb-2">
-                                Detalles del error (solo en desarrollo):
+                                Error details (development only):
                             </h2>
                             <pre className="text-sm text-red-700 overflow-auto max-h-64">
                                 <code>{error.toString()}</code>

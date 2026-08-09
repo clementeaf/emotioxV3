@@ -420,28 +420,6 @@ export const ResearchPage = () => {
         );
     }
 
-    /* ─── Loading ─── */
-    if (isLoading) {
-        return (
-            <div className="flex h-full w-full flex-col gap-3 overflow-hidden p-6">
-                <ResearchCardSkeleton /><ResearchCardSkeleton /><ResearchCardSkeleton />
-            </div>
-        );
-    }
-
-    /* ─── Error ─── */
-    if (error) {
-        return (
-            <div className="h-full w-full flex items-center justify-center p-6">
-                <div className="bg-red-50 border border-red-200 rounded-xl p-6 max-w-md w-full text-center">
-                    <h2 className="text-base font-semibold text-red-800 mb-1">Error Loading Researches</h2>
-                    <p className="text-[13px] text-red-600 mb-4">{error instanceof Error ? error.message : 'Failed to load'}</p>
-                    <button onClick={() => window.location.reload()} className="text-sm font-medium text-red-700 hover:text-red-800">Try Again</button>
-                </div>
-            </div>
-        );
-    }
-
     /* ─── Main ─── */
     return (
         <div className="h-full w-full flex flex-col overflow-hidden">
@@ -528,14 +506,15 @@ export const ResearchPage = () => {
                 )}
 
                 {enterpriseNames.length > 1 && (
-                    <select
-                        value={enterpriseFilter}
-                        onChange={(e) => setEnterpriseFilter(e.target.value)}
-                        className={`px-2 py-1.5 text-xs border rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-500 ${enterpriseFilter !== 'all' ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-500'}`}
-                    >
-                        <option value="all">All enterprises</option>
-                        {enterpriseNames.map(e => <option key={e} value={e}>{e}</option>)}
-                    </select>
+                    <div className="w-40">
+                        <CustomSelect
+                            options={[{ value: 'all', label: 'All enterprises' }, ...enterpriseNames.map(e => ({ value: e, label: e }))]}
+                            value={enterpriseFilter}
+                            onChange={(v) => setEnterpriseFilter(v)}
+                            placeholder="All enterprises"
+                            className={`!h-[30px] !text-xs !py-0 ${enterpriseFilter !== 'all' ? '!border-blue-300 !bg-blue-50 !text-blue-700' : '!border-gray-200 !text-gray-500'}`}
+                        />
+                    </div>
                 )}
 
                 <div className="flex items-center gap-1 flex-shrink-0">
@@ -563,7 +542,17 @@ export const ResearchPage = () => {
 
             {/* Content */}
             <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-4">
-                {typedResearches.length === 0 ? (
+                {isLoading ? (
+                    <div className="space-y-2">
+                        <ResearchCardSkeleton /><ResearchCardSkeleton /><ResearchCardSkeleton />
+                    </div>
+                ) : error ? (
+                    <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-center">
+                        <h2 className="text-base font-semibold text-red-800 mb-1">Error Loading Researches</h2>
+                        <p className="text-[13px] text-red-600 mb-4">{error instanceof Error ? error.message : 'Failed to load'}</p>
+                        <button onClick={() => window.location.reload()} className="text-sm font-medium text-red-700 hover:text-red-800">Try Again</button>
+                    </div>
+                ) : typedResearches.length === 0 ? (
                     <div className="rounded-xl border border-gray-100 bg-white p-16 text-center">
                         <Folder className="mx-auto h-10 w-10 text-gray-300 mb-3" />
                         <h3 className="text-base font-medium text-gray-900 mb-1">No Research Projects Yet</h3>

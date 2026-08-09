@@ -20,6 +20,7 @@ import { ClientsBenchmarkView } from '../../components/research/ClientsBenchmark
 import { WebsiteTrackingConfig } from '../../components/research/WebsiteTrackingConfig';
 import { ModuleTemplateSelectionModal } from '../../components/research/ModuleTemplateSelectionModal';
 import { LoadingErrorStates } from '../../components/research/LoadingErrorStates';
+import { EyeTrackingLiveTestModal } from '../../components/research/EyeTrackingLiveTestModal';
 import { useToast } from '../../hooks/useToast';
 import { modulesService } from '../../services/modules.service';
 import { moduleTemplatesService } from '../../services/moduleTemplates.service';
@@ -107,6 +108,8 @@ export const ResearchBuilderPage = () => {
 
     // Check if current module is Research Configuration
     const isResearchConfigModule = activeModule?.name === 'Research Configuration';
+    const isEyeTrackingModule = activeModule?.name?.trim().toLowerCase() === 'eye tracking';
+    const [isLiveTestOpen, setIsLiveTestOpen] = useState(false);
 
     const { components, setComponents, componentValues, setComponentValues } = useModuleComponents(activeModule);
 
@@ -516,6 +519,7 @@ export const ResearchBuilderPage = () => {
                         }}
                         stages={typedResearch.stages || []}
                         onDraftSaveComplete={() => queryClient.invalidateQueries({ queryKey: researchKeys.detail(id!) })}
+                        onLiveTest={isEyeTrackingModule ? () => setIsLiveTestOpen(true) : undefined}
                     />
                 </div>
             )}
@@ -606,8 +610,8 @@ export const ResearchBuilderPage = () => {
 
                 {/* Research Configuration module: Show custom component */}
                 {!isFileBasedResearch && !isSmartVOCStage && !isCollectionStageActive && isResearchConfigModule && activeModule && (
-                    <div className="space-y-6">
-                        <div className="rounded-lg shadow-sm border border-gray-100 p-4 sm:p-5 lg:p-6">
+                    <div>
+                        <div>
                             <ResearchConfigurationModule
                                 config={transformResearchConfigComponentValues(componentValues)}
                                 researchStatus={research?.status}
@@ -651,6 +655,13 @@ export const ResearchBuilderPage = () => {
                 stageName={selectedStage?.name}
                 existingModuleNames={(selectedStage?.modules || []).map((m: Module) => m.name)}
             />
+            {isEyeTrackingModule && id && (
+                <EyeTrackingLiveTestModal
+                    isOpen={isLiveTestOpen}
+                    onClose={() => setIsLiveTestOpen(false)}
+                    researchId={id}
+                />
+            )}
         </div>
     );
 };

@@ -245,14 +245,14 @@ export const SmartVOCPreview: React.FC<SmartVOCPreviewProps> = ({
                         { id: 'estimulado', name: 'Estimulado', color: '#bbf7d0' },
                         { id: 'exploratorio', name: 'Exploratorio', color: '#bbf7d0' },
                         { id: 'interesado', name: 'Interesado', color: '#bbf7d0' },
-                        { id: 'energico', name: 'Enérgico', color: '#bbf7d0' },
+                        { id: 'energico', name: 'Energetic', color: '#bbf7d0' },
                     ],
                     // Fila 3 - Emociones Negativas (8) - Rojo Claro
                     [
                         { id: 'descontento', name: 'Descontento', color: '#fecaca' },
                         { id: 'frustrado', name: 'Frustrado', color: '#fecaca' },
                         { id: 'irritado', name: 'Irritado', color: '#fecaca' },
-                        { id: 'decepcion', name: 'Decepción', color: '#fecaca' },
+                        { id: 'decepcion', name: 'Disappointment', color: '#fecaca' },
                         { id: 'estresado', name: 'Estresado', color: '#fecaca' },
                         { id: 'infeliz', name: 'Infeliz', color: '#fecaca' },
                         { id: 'desatendido', name: 'Desatendido', color: '#fecaca' },

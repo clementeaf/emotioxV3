@@ -14,7 +14,8 @@ import type { ConditionalityConfig } from '../../utils/moduleRequired';
 import { isImplicitAssociationModuleName } from '../../utils/implicitAssociationBuilder';
 import { IATPreviewModal } from './IATPreviewModal';
 import { EyeTrackingPreviewModal } from './EyeTrackingPreviewModal';
-import { Play } from 'lucide-react';
+import { EyeTrackingLiveTestModal } from './EyeTrackingLiveTestModal';
+import { Play, Eye } from 'lucide-react';
 
 export interface CognitiveTaskModuleCardRef {
     getComponentValues: () => Record<string, string>;
@@ -65,6 +66,7 @@ export const CognitiveTaskModuleCard = forwardRef<CognitiveTaskModuleCardRef, Co
     const [isConditionalityModalOpen, setIsConditionalityModalOpen] = useState(false);
     const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+    const [isLiveTestOpen, setIsLiveTestOpen] = useState(false);
 
     const isIatModule = isImplicitAssociationModuleName(module.name);
     const isEtModule = module.name.trim().toLowerCase() === 'eye tracking';
@@ -222,14 +224,24 @@ export const CognitiveTaskModuleCard = forwardRef<CognitiveTaskModuleCardRef, Co
                     <h3 className="text-base font-semibold text-gray-900">{questionNumber ? `${questionNumber}. ` : ''}{module.name}</h3>
                     <div className="flex items-center gap-4 ml-auto">
                         {isEtModule && (
-                            <button
-                                type="button"
-                                onClick={() => setIsPreviewOpen(true)}
-                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 transition-colors"
-                            >
-                                <Play className="h-3.5 w-3.5" />
-                                Preview
-                            </button>
+                            <>
+                                <button
+                                    type="button"
+                                    onClick={() => setIsLiveTestOpen(true)}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-md hover:bg-emerald-100 transition-colors"
+                                >
+                                    <Eye className="h-3.5 w-3.5" />
+                                    Live Test
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setIsPreviewOpen(true)}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 transition-colors"
+                                >
+                                    <Play className="h-3.5 w-3.5" />
+                                    Preview
+                                </button>
+                            </>
                         )}
                         {isIatModule && (
                             <>
@@ -368,6 +380,13 @@ export const CognitiveTaskModuleCard = forwardRef<CognitiveTaskModuleCardRef, Co
                         </div>
                     </div>
                 </div>
+            )}
+            {isEtModule && isLiveTestOpen && researchId && (
+                <EyeTrackingLiveTestModal
+                    isOpen={true}
+                    onClose={() => setIsLiveTestOpen(false)}
+                    researchId={researchId}
+                />
             )}
             {isEtModule && isPreviewOpen && (() => {
                 let etStimuli: Array<{ url?: string; s3Key?: string; name?: string }> = [];

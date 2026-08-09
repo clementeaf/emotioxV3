@@ -373,8 +373,8 @@ export const getParticipantsWithStatusInternal = async (researchId: string) => {
         participantsQuery = `
             SELECT
                 r.participant_id as id,
-                COALESCE(CAST(r.participant_id AS CHAR), 'Unknown') as name,
-                COALESCE(CAST(r.participant_id AS CHAR), 'unknown@example.com') as email,
+                COALESCE(p.name, CAST(r.participant_id AS CHAR), 'Unknown') as name,
+                p.email as email,
                 COUNT(DISTINCT CASE WHEN r.module_id IN (${placeholders}) THEN r.module_id END) as answered_modules,
                 MIN(r.created_at) as first_response,
                 MAX(r.created_at) as last_response,
@@ -390,8 +390,8 @@ export const getParticipantsWithStatusInternal = async (researchId: string) => {
         participantsQuery = `
             SELECT
                 r.participant_id as id,
-                COALESCE(CAST(r.participant_id AS CHAR), 'Unknown') as name,
-                COALESCE(CAST(r.participant_id AS CHAR), 'unknown@example.com') as email,
+                COALESCE(p.name, CAST(r.participant_id AS CHAR), 'Unknown') as name,
+                p.email as email,
                 0 as answered_modules,
                 MIN(r.created_at) as first_response,
                 MAX(r.created_at) as last_response,
@@ -443,11 +443,11 @@ export const getParticipantsWithStatusInternal = async (researchId: string) => {
             : participantTotal > 0 ? Math.min(99, Math.round((answered / participantTotal) * 100))
             : 0;
         // Panel status (overquota/disqualified) overrides progress-based status
-        const status = panelStatus === 'overquota' ? 'Sobre cuota'
-            : panelStatus === 'disqualified' ? 'Descalificado'
-            : isCompleted ? 'Completado'
-            : progress > 0 ? 'En proceso'
-            : 'Por iniciar';
+        const status = panelStatus === 'overquota' ? 'Over quota'
+            : panelStatus === 'disqualified' ? 'Disqualified'
+            : isCompleted ? 'Completed'
+            : progress > 0 ? 'In progress'
+            : 'Not started';
         const durationSeconds = row.first_response && row.last_response
             ? Math.floor((new Date(row.last_response).getTime() - new Date(row.first_response).getTime()) / 1000)
             : 0;
@@ -523,8 +523,8 @@ export const getParticipantDetails = async (researchId: string, participantId: s
         participantQuery = `
             SELECT
                 r.participant_id as id,
-                COALESCE(CAST(r.participant_id AS CHAR), 'Unknown') as name,
-                COALESCE(CAST(r.participant_id AS CHAR), 'unknown@example.com') as email,
+                COALESCE(p.name, CAST(r.participant_id AS CHAR), 'Unknown') as name,
+                p.email as email,
                 COUNT(DISTINCT CASE WHEN r.module_id IN (${placeholders}) THEN r.module_id END) as answered_modules,
                 MIN(r.created_at) as first_response,
                 MAX(r.created_at) as last_response,
@@ -539,8 +539,8 @@ export const getParticipantDetails = async (researchId: string, participantId: s
         participantQuery = `
             SELECT
                 r.participant_id as id,
-                COALESCE(CAST(r.participant_id AS CHAR), 'Unknown') as name,
-                COALESCE(CAST(r.participant_id AS CHAR), 'unknown@example.com') as email,
+                COALESCE(p.name, CAST(r.participant_id AS CHAR), 'Unknown') as name,
+                p.email as email,
                 0 as answered_modules,
                 MIN(r.created_at) as first_response,
                 MAX(r.created_at) as last_response,

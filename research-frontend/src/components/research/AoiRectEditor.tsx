@@ -13,6 +13,8 @@ interface AoiRectEditorProps {
     onSelect: () => void;
     onChange: (updated: ManualAOI) => void;
     containerRef: RefObject<HTMLDivElement | null>;
+    /** When true, disables move/resize so drawing new AOIs passes through */
+    disabled?: boolean;
 }
 
 const HANDLES: Array<{ mode: DragMode; className: string; cursor: string }> = [
@@ -39,6 +41,7 @@ export function AoiRectEditor({
     onSelect,
     onChange,
     containerRef,
+    disabled = false,
 }: AoiRectEditorProps): ReactElement {
     const dragRef = useRef<{
         mode: DragMode;
@@ -131,7 +134,7 @@ export function AoiRectEditor({
 
     return (
         <div
-            className="absolute z-20 border-2 pointer-events-auto"
+            className="absolute z-20 border-2"
             style={{
                 left: `${aoi.x}%`,
                 top: `${aoi.y}%`,
@@ -140,8 +143,9 @@ export function AoiRectEditor({
                 backgroundColor: `${color}20`,
                 borderColor: color,
                 boxShadow: selected ? `0 0 0 2px ${color}55` : undefined,
+                pointerEvents: disabled ? 'none' : 'auto',
             }}
-            onMouseDown={(e) => startDrag('move', e)}
+            onMouseDown={disabled ? undefined : (e) => startDrag('move', e)}
         >
             <span
                 className="absolute top-1 left-1 text-[10px] font-bold px-1 rounded pointer-events-none"

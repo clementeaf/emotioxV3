@@ -6,6 +6,7 @@ import { Modal } from '../../components/ui/Modal';
 import { Card } from '../../components/ui/Card';
 import { useToast } from '../../hooks/useToast';
 import { ConfirmationModal } from '../../components/ui/ConfirmationModal';
+import { CustomSelect } from '../../components/ui/CustomSelect';
 
 export const UserManagementPage = () => {
     const [users, setUsers] = useState<User[]>([]);
@@ -50,10 +51,10 @@ export const UserManagementPage = () => {
         try {
             if (editingUser) {
                 await usersService.updateUser(editingUser.id, formData);
-                success('Usuario actualizado exitosamente');
+                success('User updated successfully');
             } else {
                 await usersService.createUser(formData);
-                success('Usuario creado exitosamente');
+                success('User created successfully');
             }
             setIsModalOpen(false);
             loadUsers();
@@ -61,7 +62,7 @@ export const UserManagementPage = () => {
         } catch (err: unknown) {
             console.error('Submit error:', err);
             // Extract error message from axios response or error object
-            let errorMessage = 'Error al guardar usuario';
+            let errorMessage = 'Failed to save user';
 
             if (err && typeof err === 'object' && 'response' in err) {
                 // Axios error
@@ -81,10 +82,10 @@ export const UserManagementPage = () => {
         if (!deleteId) return;
         try {
             await usersService.deleteUser(deleteId);
-            success('Usuario eliminado');
+            success('User deleted');
             loadUsers();
         } catch {
-            error('Error al eliminar usuario');
+            error('Failed to delete user');
         } finally {
             setDeleteId(null);
         }
@@ -125,11 +126,11 @@ export const UserManagementPage = () => {
             <div className="max-w-7xl mx-auto space-y-6">
                 <div className="flex justify-between items-center">
                     <div>
-                        <h1 className="text-2xl font-bold text-gray-900">Gestión de Usuarios (Público)</h1>
-                        <p className="text-gray-500">Administración de usuarios sin autenticación requerida</p>
+                        <h1 className="text-2xl font-bold text-gray-900">User Management (Public)</h1>
+                        <p className="text-gray-500">User administration without authentication required</p>
                     </div>
                     <Button onClick={openCreate} variant="primary">
-                        Nuevo Usuario
+                        New User
                     </Button>
                 </div>
 
@@ -138,20 +139,20 @@ export const UserManagementPage = () => {
                         <table className="min-w-full divide-y divide-gray-200">
                             <thead className="bg-gray-50">
                                 <tr>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nombre</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rol</th>
-                                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
+                                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="bg-white divide-y divide-gray-200">
                                 {loading ? (
                                     <tr>
-                                        <td colSpan={4} className="px-6 py-4 text-center text-gray-500">Cargando...</td>
+                                        <td colSpan={4} className="px-6 py-4 text-center text-gray-500">Loading...</td>
                                     </tr>
                                 ) : users.length === 0 ? (
                                     <tr>
-                                        <td colSpan={4} className="px-6 py-4 text-center text-gray-500">No hay usuarios registrados</td>
+                                        <td colSpan={4} className="px-6 py-4 text-center text-gray-500">No registered users. Add your first team member to get started.</td>
                                     </tr>
                                 ) : (
                                     users.map((user) => (
@@ -172,13 +173,13 @@ export const UserManagementPage = () => {
                                                     onClick={() => openEdit(user)}
                                                     className="text-indigo-600 hover:text-indigo-900 mr-4"
                                                 >
-                                                    Editar
+                                                    Edit
                                                 </button>
                                                 <button
                                                     onClick={() => setDeleteId(user.id)}
                                                     className="text-red-600 hover:text-red-900"
                                                 >
-                                                    Eliminar
+                                                    Delete
                                                 </button>
                                             </td>
                                         </tr>
@@ -193,7 +194,7 @@ export const UserManagementPage = () => {
                 <Modal
                     isOpen={isModalOpen}
                     onClose={() => setIsModalOpen(false)}
-                    title={editingUser ? 'Editar Usuario' : 'Nuevo Usuario'}
+                    title={editingUser ? 'Edit User' : 'New User'}
                 >
                     <form onSubmit={handleSubmit} className="space-y-4">
                         {errorMsg && (
@@ -203,13 +204,13 @@ export const UserManagementPage = () => {
                         )}
                         <div className="grid grid-cols-2 gap-4">
                             <Input
-                                label="Nombre"
+                                label="First Name"
                                 value={formData.first_name}
                                 onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
                                 required
                             />
                             <Input
-                                label="Apellido"
+                                label="Last Name"
                                 value={formData.last_name}
                                 onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
                                 required
@@ -223,29 +224,29 @@ export const UserManagementPage = () => {
                             required
                         />
                         <Input
-                            label={editingUser ? "Contraseña (dejar en blanco para mantener)" : "Contraseña"}
+                            label={editingUser ? "Password (leave blank to keep current)" : "Password"}
                             type="password"
                             value={formData.password}
                             onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                             required={!editingUser}
                         />
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Rol</label>
-                            <select
-                                className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border"
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+                            <CustomSelect
                                 value={formData.role}
-                                onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                            >
-                                <option value="user">Usuario</option>
-                                <option value="admin">Administrador</option>
-                            </select>
+                                onChange={(v) => setFormData({ ...formData, role: v as CreateUserData['role'] })}
+                                options={[
+                                    { value: 'user', label: 'User' },
+                                    { value: 'admin', label: 'Admin' },
+                                ]}
+                            />
                         </div>
                         <div className="flex justify-end gap-3 mt-6">
                             <Button type="button" variant="ghost" onClick={() => setIsModalOpen(false)}>
-                                Cancelar
+                                Cancel
                             </Button>
                             <Button type="submit" variant="primary">
-                                Guardar
+                                Save
                             </Button>
                         </div>
                     </form>
@@ -256,10 +257,10 @@ export const UserManagementPage = () => {
                     isOpen={!!deleteId}
                     onClose={() => setDeleteId(null)}
                     onConfirm={handleDelete}
-                    title="Eliminar Usuario"
-                    message="¿Estás seguro de que deseas eliminar este usuario? Esta acción no se puede deshacer."
-                    confirmText="Eliminar"
-                    cancelText="Cancelar"
+                    title="Delete User"
+                    message="Are you sure you want to delete this user? This action cannot be undone."
+                    confirmText="Delete"
+                    cancelText="Cancel"
                     variant="danger"
                 />
             </div>

@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { Users, ChevronDown, ChevronUp } from 'lucide-react';
+import { CustomSelect } from '../ui/CustomSelect';
 
 export interface AnalysisProfile {
     gender?: 'male' | 'female' | 'any';
@@ -141,15 +142,11 @@ export const AnalysisProfilePanel = ({ profile, onChange, detectedContext }: Ana
                     <div className="grid grid-cols-3 gap-2">
                         <div>
                             <label className="text-xs font-medium text-gray-600 mb-1 block">Gender</label>
-                            <select
+                            <CustomSelect
+                                options={GENDER_OPTIONS}
                                 value={profile.gender || 'any'}
-                                onChange={(e) => update('gender', e.target.value)}
-                                className="w-full text-xs border border-gray-200 rounded-md px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-purple-500"
-                            >
-                                {GENDER_OPTIONS.map(opt => (
-                                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                                ))}
-                            </select>
+                                onChange={(v) => update('gender', v)}
+                            />
                         </div>
                         <div>
                             <label className="text-xs font-medium text-gray-600 mb-1 block">Age Range</label>
@@ -163,15 +160,11 @@ export const AnalysisProfilePanel = ({ profile, onChange, detectedContext }: Ana
                         </div>
                         <div>
                             <label className="text-xs font-medium text-gray-600 mb-1 block">Intention</label>
-                            <select
+                            <CustomSelect
+                                options={INTENTION_OPTIONS}
                                 value={profile.intention || 'browsing'}
-                                onChange={(e) => update('intention', e.target.value)}
-                                className="w-full text-xs border border-gray-200 rounded-md px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-purple-500"
-                            >
-                                {INTENTION_OPTIONS.map(opt => (
-                                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                                ))}
-                            </select>
+                                onChange={(v) => update('intention', v)}
+                            />
                         </div>
                     </div>
 
@@ -193,7 +186,7 @@ export const AnalysisProfilePanel = ({ profile, onChange, detectedContext }: Ana
                         <textarea
                             value={profile.description || ''}
                             onChange={(e) => update('description', e.target.value)}
-                            placeholder="e.g. Mujer de 30 años, Lima metropolitana, buscando yogurt light para dieta"
+                            placeholder="e.g. 30-year-old woman, metropolitan area, looking for light yogurt for diet"
                             rows={2}
                             className="w-full text-xs border border-gray-200 rounded-md px-2 py-1.5 resize-none focus:outline-none focus:ring-1 focus:ring-purple-500"
                         />

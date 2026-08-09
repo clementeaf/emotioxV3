@@ -136,8 +136,8 @@ export const NEVQuestionCard = ({
                       )}
                       <div className="absolute left-6 top-0 z-10 hidden group-hover:block bg-white border border-gray-300 rounded shadow-lg p-2 text-xs text-gray-700 w-56">
                         {cluster.trend === 'up'
-                          ? 'Este cluster ha aumentado en el último periodo.'
-                          : 'Este cluster ha disminuido en el último periodo.'}
+                          ? 'This cluster has increased in the last period.'
+                          : 'This cluster has decreased in the last period.'}
                       </div>
                     </div>
                     <span className={cn(
@@ -151,7 +151,7 @@ export const NEVQuestionCard = ({
               ))}
             </div>
           ) : (
-            <p className="text-gray-400 text-sm text-center py-4">No data available</p>
+            <p className="text-gray-400 text-sm text-center py-4">Emotion data will appear once participants respond to this question.</p>
           )}
         </Card>
 
@@ -171,8 +171,8 @@ export const NEVQuestionCard = ({
                       )}
                       <div className="absolute left-6 top-0 z-10 hidden group-hover:block bg-white border border-gray-300 rounded shadow-lg p-2 text-xs text-gray-700 w-56">
                         {cluster.trend === 'up'
-                          ? 'Este cluster ha aumentado en el último periodo.'
-                          : 'Este cluster ha disminuido en el último periodo.'}
+                          ? 'This cluster has increased in the last period.'
+                          : 'This cluster has decreased in the last period.'}
                       </div>
                     </div>
                     <span className={cn(
@@ -186,7 +186,7 @@ export const NEVQuestionCard = ({
               ))}
             </div>
           ) : (
-            <p className="text-gray-400 text-sm text-center py-4">No data available</p>
+            <p className="text-gray-400 text-sm text-center py-4">Emotion data will appear once participants respond to this question.</p>
           )}
         </Card>
       </div>

@@ -25,6 +25,20 @@ export interface DeviceProfile {
   readonly hasGazeTracking: boolean;
   /** Head pose compensation gain multiplier (higher = more correction). */
   readonly headPoseGainMultiplier: number;
+  /** Max acceptable RMSE (px) after calibration validation. */
+  readonly maxCalibrationRmsePx: number;
+  /** Max RMSE (px) before hard-reject (after retries). */
+  readonly rejectCalibrationRmsePx: number;
+  /** Gaze poll interval during stimulus (ms). Lower = more samples. */
+  readonly gazeCollectIntervalMs: number;
+  /** Require fullscreen during calibration + stimulus. */
+  readonly requireFullscreen: boolean;
+  /** Require landscape orientation. */
+  readonly requireLandscape: boolean;
+  /** Max seconds face can be lost before pausing stimulus. */
+  readonly faceLostPauseThresholdS: number;
+  /** Head pose drift (degrees) that triggers micro-recalibration. */
+  readonly headPoseDriftThresholdDeg: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -33,25 +47,46 @@ export interface DeviceProfile {
 
 const PROFILES: Record<DeviceType, Omit<DeviceProfile, 'deviceType'>> = {
   desktop: {
-    uncertaintyRadius: 120,
-    hysteresisMs: 200,
-    minConfidence: 0.15,
+    uncertaintyRadius: 300,
+    hysteresisMs: 180,
+    minConfidence: 0.10,
     hasGazeTracking: true,
     headPoseGainMultiplier: 1.0,
+    maxCalibrationRmsePx: 80,
+    rejectCalibrationRmsePx: 150,
+    gazeCollectIntervalMs: 50,
+    requireFullscreen: true,
+    requireLandscape: false,
+    faceLostPauseThresholdS: 1.5,
+    headPoseDriftThresholdDeg: 15,
   },
   tablet: {
-    uncertaintyRadius: 160,
-    hysteresisMs: 250,
-    minConfidence: 0.12,
+    uncertaintyRadius: 350,
+    hysteresisMs: 220,
+    minConfidence: 0.08,
     hasGazeTracking: false,
     headPoseGainMultiplier: 1.5,
+    maxCalibrationRmsePx: 120,
+    rejectCalibrationRmsePx: 200,
+    gazeCollectIntervalMs: 40,
+    requireFullscreen: true,
+    requireLandscape: true,
+    faceLostPauseThresholdS: 2.0,
+    headPoseDriftThresholdDeg: 20,
   },
   mobile: {
-    uncertaintyRadius: 200,
-    hysteresisMs: 300,
-    minConfidence: 0.10,
+    uncertaintyRadius: 400,
+    hysteresisMs: 280,
+    minConfidence: 0.08,
     hasGazeTracking: false,
-    headPoseGainMultiplier: 0, // no head pose on mobile
+    headPoseGainMultiplier: 0,
+    maxCalibrationRmsePx: 120,
+    rejectCalibrationRmsePx: 200,
+    gazeCollectIntervalMs: 30,
+    requireFullscreen: true,
+    requireLandscape: true,
+    faceLostPauseThresholdS: 2.0,
+    headPoseDriftThresholdDeg: 25,
   },
 };
 

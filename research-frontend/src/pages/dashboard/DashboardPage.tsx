@@ -5,6 +5,7 @@ import { useResearchTypes } from '../../hooks/useResearchTypesQuery';
 import { useAuthStore } from '../../stores/auth.store';
 import { ConfirmationModal } from '../../components/ui/ConfirmationModal';
 import { Trash2, Copy, Users, FileText, BarChart3, CheckCircle, Archive, ArchiveRestore, Search, X, Plus } from 'lucide-react';
+import { CustomSelect } from '../../components/ui/CustomSelect';
 import type { Research, DashboardSummary } from '../../services/research.service';
 
 /* ─── Summary Card ──────────────────────────────────────────────── */
@@ -386,7 +387,7 @@ export const DashboardPage = () => {
             {/* Main Content */}
             <div className="flex flex-col xl:flex-row gap-3 flex-1 min-h-0 px-6 py-4">
                 {/* Left: Research Table */}
-                <div className="flex-1 rounded-xl border border-gray-100 overflow-hidden min-w-0 flex flex-col min-h-0">
+                <div className="flex-1 rounded-xl border border-gray-100 bg-white overflow-hidden min-w-0 flex flex-col min-h-0">
                     {/* Search + filters */}
                     <div className="px-3 pt-3 pb-2 border-b border-gray-100 flex-shrink-0 space-y-2">
                         <div className="flex flex-wrap items-center gap-2">
@@ -402,29 +403,31 @@ export const DashboardPage = () => {
                             </div>
 
                             {techniques.length > 1 && (
-                                <select
-                                    value={techniqueFilter}
-                                    onChange={(e) => setTechniqueFilter(e.target.value)}
-                                    className={`px-2 py-1.5 text-xs border rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-                                        techniqueFilter !== 'all' ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-500'
-                                    }`}
-                                >
-                                    <option value="all">All techniques</option>
-                                    {techniques.map(t => <option key={t} value={t}>{t}</option>)}
-                                </select>
+                                <div className="w-40">
+                                    <CustomSelect
+                                        value={techniqueFilter}
+                                        onChange={(v) => setTechniqueFilter(v)}
+                                        options={[
+                                            { value: 'all', label: 'All techniques' },
+                                            ...techniques.map(t => ({ value: t, label: t })),
+                                        ]}
+                                        placeholder="All techniques"
+                                    />
+                                </div>
                             )}
 
                             {enterprises.length > 1 && (
-                                <select
-                                    value={enterpriseFilter}
-                                    onChange={(e) => setEnterpriseFilter(e.target.value)}
-                                    className={`px-2 py-1.5 text-xs border rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-                                        enterpriseFilter !== 'all' ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-500'
-                                    }`}
-                                >
-                                    <option value="all">All enterprises</option>
-                                    {enterprises.map(e => <option key={e} value={e}>{e}</option>)}
-                                </select>
+                                <div className="w-40">
+                                    <CustomSelect
+                                        value={enterpriseFilter}
+                                        onChange={(v) => setEnterpriseFilter(v)}
+                                        options={[
+                                            { value: 'all', label: 'All enterprises' },
+                                            ...enterprises.map(e => ({ value: e, label: e })),
+                                        ]}
+                                        placeholder="All enterprises"
+                                    />
+                                </div>
                             )}
 
                             <div className="flex items-center gap-1 flex-shrink-0">
@@ -516,11 +519,28 @@ export const DashboardPage = () => {
                                 ) : filteredResearches.length === 0 ? (
                                     <tr>
                                         <td colSpan={7} className="px-3 py-16 text-center">
-                                            <p className="text-sm text-gray-400">No researches found</p>
-                                            {hasActiveFilters && (
-                                                <button onClick={clearAllFilters} className="mt-2 text-blue-600 hover:text-blue-700 text-sm font-medium">
-                                                    Clear filters
-                                                </button>
+                                            {(researches as Research[]).length === 0 && !hasActiveFilters ? (
+                                                <div className="flex flex-col items-center">
+                                                    <FileText className="h-10 w-10 text-gray-300 mb-3" />
+                                                    <p className="text-sm font-semibold text-gray-700 mb-1">No research projects yet</p>
+                                                    <p className="text-[13px] text-gray-400 mb-4">Create your first research to start collecting data.</p>
+                                                    <button
+                                                        onClick={() => navigate('/research')}
+                                                        className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+                                                    >
+                                                        <Plus className="h-4 w-4" />
+                                                        New Research
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <>
+                                                    <p className="text-sm text-gray-400">No researches found</p>
+                                                    {hasActiveFilters && (
+                                                        <button onClick={clearAllFilters} className="mt-2 text-blue-600 hover:text-blue-700 text-sm font-medium">
+                                                            Clear filters
+                                                        </button>
+                                                    )}
+                                                </>
                                             )}
                                         </td>
                                     </tr>

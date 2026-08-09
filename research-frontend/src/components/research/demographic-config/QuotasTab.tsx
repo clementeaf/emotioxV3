@@ -7,6 +7,7 @@
 
 import { Users, X as XIcon } from 'lucide-react';
 import React from 'react';
+import { CustomSelect } from '../../ui/CustomSelect';
 import type {
   BaseDemographicOption,
   BaseDemographicQuota,
@@ -125,23 +126,17 @@ export function QuotasTab<
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                           {fieldSelectLabel}
                         </label>
-                        <select
+                        <CustomSelect
+                          options={available.map((option) => ({
+                            value: getQuotaFieldValue(option),
+                            label: option.label,
+                          }))}
                           value={String(quota.field)}
-                          onChange={(e) =>
-                            handleUpdateQuota(quota.id, 'field', e.target.value)
+                          onChange={(v) =>
+                            handleUpdateQuota(quota.id, 'field', v)
                           }
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        >
-                          <option value="">Select</option>
-                          {available.map((option) => (
-                            <option
-                              key={option.id}
-                              value={getQuotaFieldValue(option)}
-                            >
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
+                          placeholder="Select"
+                        />
                       </div>
 
                       {/* Quota Value (always percentage) */}

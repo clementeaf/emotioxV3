@@ -70,6 +70,8 @@ function buildRow(pid: string, opts: {
   stimulusType?: string;
   gazeTimeline?: Array<{ x: number; y: number; t: number; videoTime?: number }>;
   videoEnded?: boolean;
+  viewportWidth?: number;
+  viewportHeight?: number;
 } = {}) {
   return {
     participant_id: pid,
@@ -85,6 +87,8 @@ function buildRow(pid: string, opts: {
       ...(opts.stimulusType ? { stimulusType: opts.stimulusType } : {}),
       ...(opts.gazeTimeline ? { gazeTimeline: opts.gazeTimeline } : {}),
       ...(opts.videoEnded !== undefined ? { videoEnded: opts.videoEnded } : {}),
+      ...(opts.viewportWidth !== undefined ? { viewportWidth: opts.viewportWidth } : {}),
+      ...(opts.viewportHeight !== undefined ? { viewportHeight: opts.viewportHeight } : {}),
     }),
     created_at: new Date(),
   };
@@ -1324,5 +1328,221 @@ describe('getBenchmarkResults', () => {
     const result = await getBenchmarkResults('bench-1');
     expect(result.researches).toHaveLength(1);
     expect(result.researches[0].modules).toEqual([]);
+  });
+});
+
+// ===========================================================================
+// Fixation coordinate normalization
+// ===========================================================================
+
+describe('fixation coordinate normalization', () => {
+  /** Helper: set up mock queries for a single-module ET result and return the call. */
+  function setupSingleModuleQueries(rows: ReturnType<typeof buildRow>[], aois?: any[]) {
+    const config = buildETConfig({ aois: aois ?? [] });
+    // stage query
+    mockQuery.mockResolvedValueOnce({ rows: [{ stage_id: 'stg-1', stage_name: 'Eye Tracking' }] });
+    // module query
+    mockQuery.mockResolvedValueOnce({ rows: [{ id: 'mod-1', name: 'ET Module', config }] });
+    // responses query
+    mockQuery.mockResolvedValueOnce({ rows });
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('normalizes pixel coords to 0-100 when viewportWidth and viewportHeight are present', async () => {
+    // Fixation at pixel (500, 250) on a 1000x500 viewport => (50%, 50%)
+    const row = buildRow('p1', {
+      fixations: [{ x: 500, y: 250, duration: 300, timestamp: 0 }],
+      viewportWidth: 1000,
+      viewportHeight: 500,
+    });
+    setupSingleModuleQueries([row]);
+
+    const result = await getEyeTrackingResults('r-1');
+    const fixation = result.stimuli[0].fixations[0];
+
+    expect(fixation.x).toBeCloseTo(50, 1);
+    expect(fixation.y).toBeCloseTo(50, 1);
+  });
+
+  it('auto-normalizes when viewport dims are missing but coords exceed 100', async () => {
+    // Fixation at (800, 600) with no viewport info => coords > 100, auto-normalize
+    const row = buildRow('p1', {
+      fixations: [
+        { x: 800, y: 600, duration: 200, timestamp: 0 },
+        { x: 400, y: 300, duration: 200, timestamp: 100 },
+      ],
+    });
+    setupSingleModuleQueries([row]);
+
+    const result = await getEyeTrackingResults('r-1');
+    const fixations = result.stimuli[0].fixations;
+
+    // All coords should be in 0-100 range after normalization
+    for (const f of fixations) {
+      expect(f.x).toBeGreaterThanOrEqual(0);
+      expect(f.x).toBeLessThanOrEqual(100);
+      expect(f.y).toBeGreaterThanOrEqual(0);
+      expect(f.y).toBeLessThanOrEqual(100);
+    }
+  });
+
+  it('passes through unchanged when coords are already in 0-100 range', async () => {
+    const row = buildRow('p1', {
+      fixations: [{ x: 45, y: 60, duration: 300, timestamp: 0 }],
+    });
+    setupSingleModuleQueries([row]);
+
+    const result = await getEyeTrackingResults('r-1');
+    const fixation = result.stimuli[0].fixations[0];
+
+    expect(fixation.x).toBe(45);
+    expect(fixation.y).toBe(60);
+  });
+
+  it('does not trigger normalization when max coord is exactly 100', async () => {
+    // Boundary: exactly 100 should NOT trigger auto-normalization (coords <= 100)
+    const row = buildRow('p1', {
+      fixations: [
+        { x: 100, y: 80, duration: 300, timestamp: 0 },
+        { x: 50, y: 100, duration: 300, timestamp: 100 },
+      ],
+    });
+    setupSingleModuleQueries([row]);
+
+    const result = await getEyeTrackingResults('r-1');
+    const fixations = result.stimuli[0].fixations;
+
+    // Should pass through unchanged since max coord = 100 (not > 100)
+    expect(fixations[0].x).toBe(100);
+    expect(fixations[0].y).toBe(80);
+    expect(fixations[1].x).toBe(50);
+    expect(fixations[1].y).toBe(100);
+  });
+
+  it('normalizes correctly with viewportWidth only overriding auto-scale', async () => {
+    // viewportWidth=1920, viewportHeight=1080, fixation at (960, 540) => (50%, 50%)
+    const row = buildRow('p1', {
+      fixations: [{ x: 960, y: 540, duration: 400, timestamp: 0 }],
+      viewportWidth: 1920,
+      viewportHeight: 1080,
+    });
+    setupSingleModuleQueries([row]);
+
+    const result = await getEyeTrackingResults('r-1');
+    const fixation = result.stimuli[0].fixations[0];
+
+    expect(fixation.x).toBeCloseTo(50, 1);
+    expect(fixation.y).toBeCloseTo(50, 1);
+  });
+});
+
+// ===========================================================================
+// TTFF (Time To First Fixation) computation
+// ===========================================================================
+
+describe('TTFF (Time To First Fixation)', () => {
+  function setupSingleModuleWithAois(rows: ReturnType<typeof buildRow>[], aois: any[]) {
+    const config = buildETConfig({ aois });
+    mockQuery.mockResolvedValueOnce({ rows: [{ stage_id: 'stg-1', stage_name: 'Eye Tracking' }] });
+    mockQuery.mockResolvedValueOnce({ rows: [{ id: 'mod-1', name: 'ET Module', config }] });
+    mockQuery.mockResolvedValueOnce({ rows });
+  }
+
+  const aoiCenter = { id: 'aoi-1', label: 'Logo', x: 40, y: 40, width: 20, height: 20 };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('TTFF is 0 when the first fixation is inside the AOI', async () => {
+    // Participant's first (and only) fixation is at (50, 50) -- center of the AOI
+    const row = buildRow('p1', {
+      fixations: [
+        { x: 50, y: 50, duration: 300, timestamp: 1000 },
+      ],
+    });
+    setupSingleModuleWithAois([row], [aoiCenter]);
+
+    const result = await getEyeTrackingResults('r-1');
+    const aoi = result.stimuli[0].aois[0];
+
+    // First fixation is in AOI, so TTFF = aoiTime - startTime = 1000 - 1000 = 0
+    expect((aoi as Record<string, unknown>).avgTTFF).toBe(0);
+  });
+
+  it('TTFF > 0 when participant looked elsewhere first', async () => {
+    // Participant looks at (10, 10) first (outside AOI), then at (50, 50) (inside AOI)
+    const row = buildRow('p1', {
+      fixations: [
+        { x: 10, y: 10, duration: 200, timestamp: 1000 },
+        { x: 50, y: 50, duration: 300, timestamp: 1500 },
+      ],
+    });
+    setupSingleModuleWithAois([row], [aoiCenter]);
+
+    const result = await getEyeTrackingResults('r-1');
+    const aoi = result.stimuli[0].aois[0];
+
+    // TTFF = 1500 - 1000 = 500ms
+    expect((aoi as Record<string, unknown>).avgTTFF).toBe(500);
+  });
+
+  it('averages TTFF across multiple participants', async () => {
+    // P1: first fixation outside at t=0, first AOI fixation at t=200 => TTFF=200
+    // P2: first fixation outside at t=0, first AOI fixation at t=800 => TTFF=800
+    // Average TTFF = (200 + 800) / 2 = 500
+    const row1 = buildRow('p1', {
+      fixations: [
+        { x: 10, y: 10, duration: 100, timestamp: 0 },
+        { x: 50, y: 50, duration: 300, timestamp: 200 },
+      ],
+    });
+    const row2 = buildRow('p2', {
+      fixations: [
+        { x: 10, y: 10, duration: 100, timestamp: 0 },
+        { x: 50, y: 50, duration: 300, timestamp: 800 },
+      ],
+    });
+    setupSingleModuleWithAois([row1, row2], [aoiCenter]);
+
+    const result = await getEyeTrackingResults('r-1');
+    const aoi = result.stimuli[0].aois[0];
+
+    expect((aoi as Record<string, unknown>).avgTTFF).toBe(500);
+  });
+
+  it('TTFF uses earliest fixation as stimulus start proxy (not absolute zero)', async () => {
+    // Participant's first fixation starts at t=5000 (not zero), AOI hit at t=5300
+    // TTFF should be 300, not 5300
+    const row = buildRow('p1', {
+      fixations: [
+        { x: 10, y: 10, duration: 100, timestamp: 5000 },
+        { x: 50, y: 50, duration: 300, timestamp: 5300 },
+      ],
+    });
+    setupSingleModuleWithAois([row], [aoiCenter]);
+
+    const result = await getEyeTrackingResults('r-1');
+    const aoi = result.stimuli[0].aois[0];
+
+    expect((aoi as Record<string, unknown>).avgTTFF).toBe(300);
+  });
+
+  it('TTFF is 0 when only fixation is in AOI (no elsewhere gaze)', async () => {
+    // Single fixation directly in the AOI
+    const row = buildRow('p1', {
+      fixations: [
+        { x: 45, y: 45, duration: 500, timestamp: 2000 },
+      ],
+    });
+    setupSingleModuleWithAois([row], [aoiCenter]);
+
+    const result = await getEyeTrackingResults('r-1');
+    const aoi = result.stimuli[0].aois[0];
+
+    expect((aoi as Record<string, unknown>).avgTTFF).toBe(0);
   });
 });

@@ -86,18 +86,24 @@ export const TransparencyMap = ({
       if (!maskCtx) return;
       maskCtx.clearRect(0, 0, w, h);
 
+      // Fixations are in percent (0-100) — convert to canvas pixels
+      const maxCoord = Math.max(...fixations.map(f => Math.max(f.x, f.y)), 1);
+      const isPercent = maxCoord <= 100;
+
       const maxDur = Math.max(...fixations.map(f => f.duration), 1);
       for (const fix of fixations) {
+        const fx = isPercent ? (fix.x / 100) * w : fix.x;
+        const fy = isPercent ? (fix.y / 100) * h : fix.y;
         const baseR = (revealRadius / 100) * Math.min(w, h) * 0.1;
         const durScale = 0.5 + (fix.duration / maxDur) * 0.5;
         const r = baseR * durScale;
 
-        const gradient = maskCtx.createRadialGradient(fix.x, fix.y, 0, fix.x, fix.y, r);
+        const gradient = maskCtx.createRadialGradient(fx, fy, 0, fx, fy, r);
         gradient.addColorStop(0, 'rgba(255,255,255,1)');
         gradient.addColorStop(0.7, 'rgba(255,255,255,0.6)');
         gradient.addColorStop(1, 'rgba(255,255,255,0)');
         maskCtx.fillStyle = gradient;
-        maskCtx.fillRect(fix.x - r, fix.y - r, r * 2, r * 2);
+        maskCtx.fillRect(fx - r, fy - r, r * 2, r * 2);
       }
     }
 

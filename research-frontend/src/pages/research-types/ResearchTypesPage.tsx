@@ -119,7 +119,7 @@ export const ResearchTypesPage = () => {
                         ) : filteredTypes.length === 0 ? (
                             <div className="text-center py-12">
                                 <FileText className="h-8 w-8 text-gray-300 mx-auto mb-2" />
-                                <p className="text-[13px] text-gray-400">{searchQuery ? 'No types match search' : 'No types yet'}</p>
+                                <p className="text-[13px] text-gray-400">{searchQuery ? 'No types match search' : 'Create a research type to organize your studies.'}</p>
                             </div>
                         ) : filteredTypes.map(type => (
                             <div key={type.id} className="group rounded-xl border border-gray-100 bg-white px-4 py-3 hover:border-gray-200 transition-all">
@@ -175,7 +175,7 @@ export const ResearchTypesPage = () => {
                         ) : filteredTechniques.length === 0 ? (
                             <div className="text-center py-12">
                                 <FlaskConical className="h-8 w-8 text-gray-300 mx-auto mb-2" />
-                                <p className="text-[13px] text-gray-400">{searchQuery ? 'No techniques match search' : 'No techniques yet'}</p>
+                                <p className="text-[13px] text-gray-400">{searchQuery ? 'No techniques match search' : 'Create a technique to define default stages for your studies.'}</p>
                             </div>
                         ) : filteredTechniques.map(technique => (
                             <div key={technique.id} className="group rounded-xl border border-gray-100 bg-white px-4 py-3 hover:border-gray-200 transition-all">

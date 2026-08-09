@@ -524,10 +524,22 @@ const computeEyeTrackingMetrics = (
       const parsed = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
       const fixations: Array<{ x: number; y: number; duration: number; timestamp?: number }> = parsed?.fixations ?? [];
       const pid = row.participant_id;
+      const vpW: number | undefined = parsed?.viewportWidth;
+      const vpH: number | undefined = parsed?.viewportHeight;
+
+      // Detect if fixations are in viewport pixels (legacy: no viewportWidth saved)
+      // Heuristic: if max coord > 100, they're viewport pixels, not percentages
+      let maxCoord = 0;
+      for (const f of fixations) maxCoord = Math.max(maxCoord, f.x, f.y);
+      const needsNormalization = vpW && vpH ? true : maxCoord > 100;
+      const scaleX = vpW ? vpW : (needsNormalization ? maxCoord * 1.05 : 1);
+      const scaleY = vpH ? vpH : (needsNormalization ? maxCoord * 1.05 : 1);
 
       let totalDwell = 0;
       for (const f of fixations) {
-        allFixationsRaw.push({ x: f.x, y: f.y, duration: f.duration, participantId: pid, timestamp: f.timestamp ?? 0 });
+        const nx = needsNormalization ? (f.x / scaleX) * 100 : f.x;
+        const ny = needsNormalization ? (f.y / scaleY) * 100 : f.y;
+        allFixationsRaw.push({ x: nx, y: ny, duration: f.duration, participantId: pid, timestamp: f.timestamp ?? 0 });
         totalDwell += f.duration;
       }
 
@@ -632,16 +644,28 @@ const computeEyeTrackingMetrics = (
       weightedFixations.filter(f => f.aoiWeight >= 0.5).map(f => f.participantId)
     );
 
-    // TTFF: Time To First Fixation — use significant fixations (weight >= 0.5)
-    const firstFixationByParticipant = new Map<string, number>();
-    for (const f of weightedFixations) {
-      if (f.aoiWeight < 0.5) continue;
-      const existing = firstFixationByParticipant.get(f.participantId);
+    // TTFF: Time To First Fixation — relative to participant's first fixation (stimulus start proxy)
+    const participantStartTime = new Map<string, number>();
+    for (const f of allFixations) {
+      const existing = participantStartTime.get(f.participantId);
       if (existing === undefined || f.timestamp < existing) {
-        firstFixationByParticipant.set(f.participantId, f.timestamp);
+        participantStartTime.set(f.participantId, f.timestamp);
       }
     }
-    const ttffValues = Array.from(firstFixationByParticipant.values());
+
+    const firstAoiFixationByParticipant = new Map<string, number>();
+    for (const f of weightedFixations) {
+      if (f.aoiWeight < 0.5) continue;
+      const existing = firstAoiFixationByParticipant.get(f.participantId);
+      if (existing === undefined || f.timestamp < existing) {
+        firstAoiFixationByParticipant.set(f.participantId, f.timestamp);
+      }
+    }
+    const ttffValues: number[] = [];
+    for (const [pid, aoiTime] of firstAoiFixationByParticipant) {
+      const startTime = participantStartTime.get(pid) ?? aoiTime;
+      ttffValues.push(Math.max(0, aoiTime - startTime));
+    }
     const avgTTFF = ttffValues.length > 0
       ? Math.round(ttffValues.reduce((a, b) => a + b, 0) / ttffValues.length)
       : 0;

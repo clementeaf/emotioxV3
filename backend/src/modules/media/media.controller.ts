@@ -3,6 +3,7 @@ import { success, error } from '../../utils/response';
 import { isAuthError, requireAuth } from '../../utils/auth.local';
 import * as mediaService from './media.service.local';
 import { getRequestOrigin } from '../../utils/request';
+import { analyzeStimulusComplexity } from './stimulus-complexity.service';
 
 export const handleMediaRoutes = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
     const { httpMethod, path } = event;
@@ -10,6 +11,13 @@ export const handleMediaRoutes = async (event: APIGatewayProxyEvent): Promise<AP
     try {
         await requireAuth(event);
         const body = event.body ? JSON.parse(event.body) : {};
+
+        if (path === '/media/analyze-complexity' && httpMethod === 'POST') {
+            const { s3Key } = body;
+            if (!s3Key) return error('s3Key is required', 400, undefined, origin);
+            const result = await analyzeStimulusComplexity(s3Key);
+            return success(result, 200, undefined, origin);
+        }
 
         if (path === '/media/upload' && httpMethod === 'POST') {
             const { research_id, file_name, content_type } = body;

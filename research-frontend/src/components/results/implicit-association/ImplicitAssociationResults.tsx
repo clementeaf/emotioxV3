@@ -48,7 +48,7 @@ const ASSOCIATION_STYLES: Record<AssociationStrength, { bg: string; text: string
     strong: { bg: 'bg-red-50 border-red-200', text: 'text-red-700', label: 'Strong', labelEs: 'Fuerte' },
     moderate: { bg: 'bg-amber-50 border-amber-200', text: 'text-amber-700', label: 'Moderate', labelEs: 'Media' },
     weak: { bg: 'bg-blue-50 border-blue-200', text: 'text-blue-700', label: 'Weak', labelEs: 'Baja' },
-    none: { bg: 'bg-gray-50 border-gray-200', text: 'text-gray-500', label: 'None', labelEs: 'Sin asociación' },
+    none: { bg: 'bg-gray-50 border-gray-200', text: 'text-gray-500', label: 'None', labelEs: 'No association' },
 };
 
 const AssociationBadge = ({ score, targetName }: { score: number; targetName?: string }) => {
@@ -761,10 +761,9 @@ const IATModuleCard = ({ module: mod }: { module: IATModuleResult }) => {
       )}
       <RTDistributionCard module={mod} />
       {mod.totalResponses === 0 && (
-        <div className="mt-4 bg-gray-50 border border-gray-200 rounded-lg p-4 text-center">
-          <p className="text-sm text-gray-500">
-            No responses yet. Data will appear here once participants complete this test.
-          </p>
+        <div className="mt-4 bg-gray-50 border border-gray-200 rounded-xl p-4 text-center">
+          <p className="text-sm font-semibold text-gray-700 mb-1">No responses yet</p>
+          <p className="text-[13px] text-gray-400">Share the study link with participants to start collecting data.</p>
         </div>
       )}
       {mod.totalResponses > 0 && (
@@ -869,10 +868,8 @@ export const ImplicitAssociationResults = ({ researchId, className }: ImplicitAs
 
             {filteredModules.length === 0 ? (
               <div className="bg-white border border-gray-200 rounded-xl p-12 text-center">
-                <p className="text-lg font-medium text-gray-900 mb-2">No IAT modules found</p>
-                <p className="text-sm text-gray-500">
-                  This research does not have Implicit Association test modules configured.
-                </p>
+                <p className="text-sm font-semibold text-gray-700 mb-1">No IAT modules found</p>
+                <p className="text-[13px] text-gray-400">Configure Implicit Association in the study builder.</p>
               </div>
             ) : (
               <div className="space-y-8">

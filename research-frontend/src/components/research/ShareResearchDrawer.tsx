@@ -167,7 +167,7 @@ export const ShareResearchDrawer = ({ isOpen, onClose, researchId, isOwner }: Sh
                             ))}
                         </div>
                     ) : collaborators.length === 0 ? (
-                        <p className="text-sm text-gray-400">No collaborators yet.</p>
+                        <p className="text-sm text-gray-400">Add team members by email to share access to this research.</p>
                     ) : (
                         <div className="space-y-2">
                             {collaborators.map((collab) => (

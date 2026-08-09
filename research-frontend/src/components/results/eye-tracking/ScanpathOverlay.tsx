@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import type { EyeTrackingStimulus } from '../../../services/analytics.service';
+import { CustomSelect } from '../../ui/CustomSelect';
 
 /** Color gradient from cool (first) to warm (last) fixation */
 const SCANPATH_GRADIENT = [
@@ -37,17 +38,35 @@ export const ScanpathOverlay = ({
     return Array.from(ids);
   }, [fixations]);
 
-  const visibleFixations = useMemo(() => {
+  const rawVisible = useMemo(() => {
     const filtered = selectedParticipant === 'all'
       ? fixations
       : fixations.filter(f => f.participantId === selectedParticipant);
     return [...filtered].sort((a, b) => a.timestamp - b.timestamp);
   }, [fixations, selectedParticipant]);
 
-  // Use image natural dimensions for viewBox (fixations are in image pixel coords)
-  // Don't render overlay until natural size is known
+  // Use image natural dimensions for viewBox
   const vw = naturalSize?.w ?? 0;
   const vh = naturalSize?.h ?? 0;
+
+  // Fixations from backend are in percentage (0-100) or viewport pixels (legacy).
+  // Convert to image pixel coords for the SVG viewBox.
+  const visibleFixations = useMemo(() => {
+    if (!vw || !vh || rawVisible.length === 0) return rawVisible;
+    const maxX = Math.max(...rawVisible.map(f => f.x));
+    const maxY = Math.max(...rawVisible.map(f => f.y));
+    // Percentage coords (0-100): scale to image dimensions
+    if (maxX <= 100 && maxY <= 100) {
+      return rawVisible.map(f => ({ ...f, x: (f.x / 100) * vw, y: (f.y / 100) * vh }));
+    }
+    // Viewport pixels (legacy): scale proportionally to image
+    if (maxX > vw * 1.1 || maxY > vh * 1.1) {
+      const scaleX = vw / (maxX * 1.05);
+      const scaleY = vh / (maxY * 1.05);
+      return rawVisible.map(f => ({ ...f, x: f.x * scaleX, y: f.y * scaleY }));
+    }
+    return rawVisible;
+  }, [rawVisible, vw, vh]);
 
   const maxDur = useMemo(
     () => Math.max(...visibleFixations.map(f => f.duration), 1),
@@ -59,16 +78,16 @@ export const ScanpathOverlay = ({
       {/* Participant selector */}
       <div className="flex items-center gap-3 mb-3">
         <label className="text-xs text-gray-500">Participant:</label>
-        <select
-          value={selectedParticipant}
-          onChange={e => setSelectedParticipant(e.target.value)}
-          className="text-xs border border-gray-200 rounded-md px-2 py-1 bg-white"
-        >
-          <option value="all">All ({participantIds.length})</option>
-          {participantIds.map(pid => (
-            <option key={pid} value={pid}>{pid}</option>
-          ))}
-        </select>
+        <div className="w-40">
+          <CustomSelect
+            value={selectedParticipant}
+            onChange={(v) => setSelectedParticipant(v)}
+            options={[
+              { value: 'all', label: `All (${participantIds.length})` },
+              ...participantIds.map(pid => ({ value: pid, label: pid })),
+            ]}
+          />
+        </div>
         <span className="text-xs text-gray-400">{visibleFixations.length} fixations</span>
       </div>
 

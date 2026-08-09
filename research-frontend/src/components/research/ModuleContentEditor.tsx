@@ -1,4 +1,5 @@
-import { Trash2, Plus } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Trash2, Plus, PenTool, Sparkles } from 'lucide-react';
 import type { ComponentConfig } from '../../types/moduleBuilder.types';
 import {
     isImplicitAssociationModuleName,
@@ -9,7 +10,7 @@ import { isScreenerMultipleChoiceSelection, isScreenerSingleChoiceSelection } fr
 import { EditableComponent } from './EditableComponent';
 import { CustomSelect } from '../ui/CustomSelect';
 import { AOIDrawer, type AOI } from './AOIDrawer';
-import { resolveMediaUrl } from '../../services/media.service';
+import { resolveMediaUrl, analyzeStimulusComplexity, type StimulusComplexityResult } from '../../services/media.service';
 import { IATFlowchart } from './IATFlowchart';
 
 interface ModuleContentEditorProps {
@@ -112,6 +113,53 @@ export const ModuleContentEditor = ({
     researchId,
     moduleName,
 }: ModuleContentEditorProps) => {
+    const [aoiModalOpen, setAoiModalOpen] = useState(false);
+    const [aoiModalVisible, setAoiModalVisible] = useState(false);
+    const [complexitySuggestion, setComplexitySuggestion] = useState<StimulusComplexityResult | null>(null);
+    const [complexityLoading, setComplexityLoading] = useState(false);
+    const [lastAnalyzedKey, setLastAnalyzedKey] = useState('');
+
+    const normalizedModuleName_ = moduleName?.trim().toLowerCase() ?? '';
+    const isEyeTracking_ = normalizedModuleName_ === 'eye tracking';
+    const stimuliCompId = isEyeTracking_ ? components.find(c => !c.hidden && c.type === 'file-upload')?.id : undefined;
+    const stimuliRawForEffect = stimuliCompId ? (componentValues[stimuliCompId] || '') : '';
+
+    useEffect(() => {
+        if (!isEyeTracking_) return;
+        let s3Key = '';
+        try {
+            const parsed = JSON.parse(stimuliRawForEffect);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+                s3Key = parsed[0]?.s3Key || parsed[0]?.url || '';
+            }
+        } catch { /* ignore */ }
+        if (!s3Key || s3Key === lastAnalyzedKey) return;
+        setLastAnalyzedKey(s3Key);
+        setComplexityLoading(true);
+        setComplexitySuggestion(null);
+        analyzeStimulusComplexity(s3Key)
+            .then(setComplexitySuggestion)
+            .catch(() => setComplexitySuggestion(null))
+            .finally(() => setComplexityLoading(false));
+    }, [isEyeTracking_, stimuliRawForEffect, lastAnalyzedKey]);
+
+    const openAoiModal = useCallback(() => {
+        setAoiModalOpen(true);
+        requestAnimationFrame(() => setAoiModalVisible(true));
+    }, []);
+
+    const closeAoiModal = useCallback(() => {
+        setAoiModalVisible(false);
+        setTimeout(() => setAoiModalOpen(false), 200);
+    }, []);
+
+    useEffect(() => {
+        if (!aoiModalOpen) return;
+        const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closeAoiModal(); };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [aoiModalOpen, closeAoiModal]);
+
     const visibleComponents = components
         .filter(c => !c.hidden)
         .sort((a, b) => {
@@ -454,24 +502,39 @@ export const ModuleContentEditor = ({
         };
 
         return (
-            <div className="space-y-6">
-            <div className="grid grid-cols-1 gap-x-8 gap-y-6 lg:grid-cols-[280px_1fr_240px]">
-                {/* Instruction spans left + center columns — rendered as input, not textarea */}
+            <div>
+            <div className="grid grid-cols-1 gap-x-8 gap-y-3 lg:grid-cols-[280px_1fr_240px]">
+                {/* Instruction + Draw AOI button */}
                 {instructionComp && (
-                    <div className="lg:col-span-2">
-                        <EditableComponent
-                            component={{ ...instructionComp, type: 'input' }}
-                            value={componentValues[instructionComp.id] || ''}
-                            onChange={(value) => onValueChange(instructionComp.id, value)}
-                            researchId={researchId}
-                        />
+                    <div className="lg:col-span-2 flex items-end gap-2">
+                        <div className="flex-1">
+                            <EditableComponent
+                                component={{ ...instructionComp, type: 'input' }}
+                                value={componentValues[instructionComp.id] || ''}
+                                onChange={(value) => onValueChange(instructionComp.id, value)}
+                                researchId={researchId}
+                            />
+                        </div>
+                        {firstStimulusUrl && !isShelfMode && (
+                            <button
+                                type="button"
+                                onClick={openAoiModal}
+                                className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg border text-gray-600 border-gray-200 hover:bg-gray-50 transition-colors whitespace-nowrap"
+                            >
+                                <PenTool className="h-3.5 w-3.5" />
+                                Draw AOI
+                                {parsedAois.length > 0 && (
+                                    <span className="ml-1 px-1.5 py-0.5 text-[10px] font-semibold bg-blue-100 text-blue-700 rounded-full">
+                                        {parsedAois.length}
+                                    </span>
+                                )}
+                            </button>
+                        )}
                     </div>
                 )}
-                {/* Empty cell for the notes column on the instruction row */}
-                {instructionComp && <div className="hidden lg:block" />}
 
-                {/* Left: Stimuli upload + file list */}
-                    <div className="space-y-3" style={{ minHeight: 380 }}>
+                {/* Left: Stimuli upload + file list + AOI */}
+                    <div className="space-y-3">
                         {stimuliComp && (
                             <EditableComponent
                                 component={{ ...stimuliComp, settings: { ...stimuliComp.settings, listOnly: true } }}
@@ -553,6 +616,27 @@ export const ModuleContentEditor = ({
                                         );
                                     })}
                                 </div>
+                                {complexityLoading && (
+                                    <p className="text-xs text-gray-400 mt-2 flex items-center gap-1.5">
+                                        <Sparkles className="h-3 w-3 animate-pulse" />
+                                        Analyzing image complexity...
+                                    </p>
+                                )}
+                                {complexitySuggestion && !complexityLoading && (
+                                    <button
+                                        type="button"
+                                        onClick={() => onValueChange(primingComp.id, String(complexitySuggestion.suggestedSeconds))}
+                                        className="mt-2 flex items-start gap-1.5 text-xs text-blue-600 hover:text-blue-700 transition-colors group"
+                                    >
+                                        <Sparkles className="h-3 w-3 mt-0.5 flex-shrink-0" />
+                                        <span>
+                                            <span className="font-medium group-hover:underline">
+                                                AI suggests {complexitySuggestion.suggestedSeconds}s
+                                            </span>
+                                            <span className="text-gray-400 ml-1">— {complexitySuggestion.reason}</span>
+                                        </span>
+                                    </button>
+                                )}
                             </div>
                         )}
                         {/* Shelf configuration — visible only in shelf mode (auto-detected: >1 image) */}
@@ -634,7 +718,7 @@ export const ModuleContentEditor = ({
                     </div>
 
                     {/* Right: Techniques notes panel */}
-                    <aside className="space-y-4">
+                    <aside className="space-y-4 lg:row-start-1 lg:col-start-3 lg:row-span-3">
                         <div className="bg-blue-600 text-white rounded-lg p-4">
                             <h4 className="text-sm font-bold mb-1">Techniques</h4>
                             <p className="text-xs text-blue-100">
@@ -657,20 +741,31 @@ export const ModuleContentEditor = ({
                         </div>
                     </aside>
                 </div>
-
-                {/* AOI Drawing — shown when a stimulus image is uploaded (stand_alone only) */}
-                {firstStimulusUrl && !isShelfMode && (
-                    <div className="rounded-lg border border-gray-200 bg-white p-4">
-                        <h4 className="text-sm font-semibold text-gray-900 mb-3">Areas of Interest (AOI)</h4>
-                        <p className="text-xs text-gray-500 mb-3">
-                            Draw rectangular regions on the stimulus to define areas of interest for analytics.
-                        </p>
-                        <AOIDrawer
-                            imageUrl={firstStimulusUrl}
-                            aois={parsedAois}
-                            onChange={(newAois) => onValueChange('aois', JSON.stringify(newAois))}
-                            maxHeight={400}
-                        />
+                {/* AOI Modal */}
+                {aoiModalOpen && firstStimulusUrl && !isShelfMode && (
+                    <div
+                        className={`fixed inset-0 z-50 flex items-center justify-center transition-colors duration-200 ${aoiModalVisible ? 'bg-black/40' : 'bg-black/0'}`}
+                        onClick={closeAoiModal}
+                    >
+                        <div
+                            className={`bg-white rounded-xl shadow-lg w-[90vw] max-w-4xl max-h-[85vh] flex flex-col transition-all duration-200 ${aoiModalVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}
+                            onClick={e => e.stopPropagation()}
+                        >
+                            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200">
+                                <h3 className="text-sm font-semibold text-gray-900">Areas of Interest (AOI)</h3>
+                                <button onClick={closeAoiModal} className="p-1 text-gray-400 hover:text-gray-600 rounded-md hover:bg-gray-100 transition-colors">
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                </button>
+                            </div>
+                            <div className="flex-1 overflow-y-auto p-5">
+                                <AOIDrawer
+                                    imageUrl={firstStimulusUrl}
+                                    aois={parsedAois}
+                                    onChange={(newAois) => onValueChange('aois', JSON.stringify(newAois))}
+                                    maxHeight={500}
+                                />
+                            </div>
+                        </div>
                     </div>
                 )}
             </div>

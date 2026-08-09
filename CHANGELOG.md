@@ -1,3 +1,65 @@
+## v0.93.0 — Eye Tracking builder UX, quality pipeline, consistency sweep + onboarding (2026-08-09)
+
+### feat: Eye Tracking builder — zero-scroll layout
+- **AOI as modal.** "Draw AOI" button with badge next to Task Instructions opens fullscreen modal with `AOIDrawer`. Replaced inline AOI section that caused scroll.
+- **AI priming suggestion.** `POST /media/analyze-complexity` sends stimulus to Gemini Flash, returns `{suggestedSeconds, reason}`. Clickable suggestion below priming time selector auto-applies the value.
+- **Live Test.** "Live Test" button in builder header opens participant-frontend in iframe (`?preview=true`). Researcher experiences the exact same flow participants will use — quality gate, calibration, stimulus, data capture.
+- **Layout compacted.** Removed `minHeight: 380` from stimuli column, reduced grid gaps, Techniques panel aligned to row 1.
+
+### feat: eye tracking quality pipeline (shared)
+- **`deviceProfile.ts`** — 7 new fields per device: `maxCalibrationRmsePx` (desktop 80, mobile/tablet 120), `rejectCalibrationRmsePx`, `gazeCollectIntervalMs` (desktop 50ms, mobile 30ms), `requireFullscreen`, `requireLandscape` (mobile/tablet only), `faceLostPauseThresholdS`, `headPoseDriftThresholdDeg`.
+- **`sessionQualityChecks.ts`** — 3 new pre-calibration checks: `checkFullscreen()`, `checkLandscape()`, `checkHeadPose(yaw, pitch)`.
+- **`runtimeQualityMonitor.ts`** — new module for stimulus viewing: face-loss pause (configurable threshold), orientation change listener, head pose drift detection for micro-recalibration trigger.
+- **`EyeTrackingRenderer`** — now saves `viewportWidth`/`viewportHeight` in response payload.
+
+### feat: fixation coordinate normalization
+- **Backend** (`eye-tracking.analytics.ts`): fixations normalized to percentage (0-100) before sending to frontend. Uses `viewportWidth/Height` when present; auto-detects legacy viewport-pixel coords (>100) and scales proportionally.
+- **Frontend**: `ScanpathOverlay`, `FirstLookOverlay`, `TransparencyMap` all handle percent coords. `HeatmapRenderer` switched to `coordSystem="percent"`.
+- **TTFF fix**: Time To First Fixation now relative (first AOI fixation - first global fixation), not absolute Unix timestamp.
+
+### feat: Website Tracking Friction tab
+- **`TrackingFrictionTab`** — new results tab: summary cards (total events, types, % sessions affected), breakdown bars (rage-click, dead-click, speed-browsing, mouse-out), per-session friction tags list.
+- Backend endpoints `GET /friction` and `GET /friction/sessions` already existed — tab wires them into the UI.
+
+### feat: Research Configuration tabs
+- **4-tab layout**: Setup (participation mode + demographics side-by-side), Links & QR (backlinks + share URL side-by-side), Settings (link config + participant limit), Participants (CSV import + panel).
+- Eliminated vertical scroll in Research Configuration.
+
+### feat: guided empty states (onboarding)
+- **17 files, ~25 empty states** upgraded from plain "No data yet" to guided next-step CTAs.
+- **Tier 1**: Dashboard ("New Research" CTA), SmartVOC/Eye Tracking/Screener/IAT results ("Share the study link"), ParticipantsTable ("Import via CSV or share link").
+- **Tier 2**: EmotionPanel ("Enable Emotion Recognition"), VOCComments, NEVQuestionCard, FunnelChart ("Define conversion funnels").
+- **Tier 3**: UserManagement, ResearchTypes, Modules, Clients, History, ShareResearchDrawer — all with contextual guidance.
+
+### feat: AI stimulus complexity analysis
+- **`POST /media/analyze-complexity`** — backend endpoint. Reads image from filesystem, sends to Gemini Flash with eye-tracking-specific prompt, returns `{suggestedSeconds: 5-30, reason}`. Fallback 10s when no API key.
+- **Frontend**: `analyzeStimulusComplexity()` in media service. Auto-triggers on stimulus upload in Eye Tracking builder.
+
+### ui: consistency sweep
+- **Spanish → English**: ~120+ hardcoded Spanish strings translated across 22 files (error pages, toasts, validations, AI analysis panel, attention prediction, hitzones, SmartVOC, IAT, admin).
+- **Native `<select>` → `CustomSelect`**: 13 files migrated (dashboard, tracking, eye tracking overlays, ranking editor, quotas, city config, modules, admin).
+- **`CustomSelect` smooth transitions**: fade+scale 150ms on open/close, applied globally via base component.
+- **Skeleton improvements**: ResearchPage, ResearchHistoryPage, ClientsPage — header/filters always visible, skeleton only in content area.
+- **Builder header**: `mb-8 pb-4` → `mb-3 pb-3` (eliminated dead space).
+- **Research Tracking page**: table scroll internal (header sticky), not page-level.
+- **Dashboard table**: added `bg-white` (was transparent).
+- **Eye Tracking Results**: tabs compacted (text-only, no icons), AOI as overlay on image + modal for metrics/drawing. Download as icon-only button.
+- **Enterprise filter** on Research page → CustomSelect.
+
+### fix: data integrity
+- **Participant name dedup**: `research-in-progress.service.ts` uses `p.name`/`p.email` from JOIN, not `participant_id` for both fields.
+- **Status labels**: backend sends English (`In progress`, `Completed`, `Not started`, `Over quota`, `Disqualified`).
+- **Orphan media cleanup**: fixed research with missing stimulus file via DB update.
+
+### test gauntlet (90 tests)
+- **Backend** (35): stimulus-complexity service (15), fixation normalization + TTFF (10), research-in-progress status labels (10).
+- **Participant-frontend** (55): runtimeQualityMonitor (19), sessionQualityChecks new functions (14), deviceProfile new fields (22).
+
+### quality
+- **TypeScript strict** — 0 errors, 0 warnings in all 3 subprojects.
+
+---
+
 ## v0.92.0 — Website Tracking gauntlet: 206 tests + probabilistic gaze zones (2026-08-03)
 
 ### test gauntlet — website tracking (full feature coverage)

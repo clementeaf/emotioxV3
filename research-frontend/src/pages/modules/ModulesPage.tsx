@@ -8,6 +8,7 @@ import type { StageTemplateWithModules } from '../../types/moduleBuilder.types';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../../hooks/useToast';
 import { ModulesGridSkeleton } from '../../components/ui/Skeleton';
+import { CustomSelect } from '../../components/ui/CustomSelect';
 import { cn } from '../../lib/utils';
 import { flat } from '../../utils/radashi';
 import { useModuleTemplates, useModuleTemplate, useDeleteModuleTemplate } from '../../hooks/useModuleTemplatesQuery';
@@ -419,16 +420,17 @@ export const ModulesPage = () => {
                 </div>
                 {!isMultiSelectMode && (
                     <div className="flex items-center gap-1.5">
-                        <select
-                            id={sortSelectId}
-                            name={sortSelectId}
-                            value={sortBy}
-                            onChange={(e) => setSortBy(e.target.value as 'name' | 'date' | 'usage')}
-                            className="px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 text-gray-500"
-                        >
-                            <option value="name">Name</option>
-                            <option value="date">Date</option>
-                        </select>
+                        <div className="w-28">
+                            <CustomSelect
+                                id={sortSelectId}
+                                value={sortBy}
+                                onChange={(v) => setSortBy(v as 'name' | 'date' | 'usage')}
+                                options={[
+                                    { value: 'name', label: 'Name' },
+                                    { value: 'date', label: 'Date' },
+                                ]}
+                            />
+                        </div>
                         <button
                             onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
                             className="p-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
@@ -510,7 +512,7 @@ export const ModulesPage = () => {
             ) : !hasResults ? (
                 <div className="rounded-xl border border-gray-100 bg-white p-12 text-center">
                     <Boxes className="h-8 w-8 text-gray-300 mx-auto mb-2" />
-                    <p className="text-[13px] text-gray-400">{searchQuery ? 'No modules match search' : 'No modules yet'}</p>
+                    <p className="text-[13px] text-gray-400">{searchQuery ? 'No modules match search' : 'Module templates will appear here. Create one from the builder.'}</p>
                     {!searchQuery && (
                         <button onClick={() => navigate('/modules/new')} className="mt-3 text-[13px] text-blue-600 hover:text-blue-700 font-medium">Create first module</button>
                     )}

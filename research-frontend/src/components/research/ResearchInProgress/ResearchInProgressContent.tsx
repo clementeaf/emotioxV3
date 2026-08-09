@@ -32,10 +32,10 @@ export function ResearchInProgressContent({ researchId: propResearchId }: Resear
     useMonitoringReceiver(researchId || null, token || null);
 
     const [status, setStatus] = useState<ResearchStatus>({
-        status: { value: '--', description: 'Cargando...', icon: 'chart-line' },
-        participants: { value: '--', description: 'Cargando...', icon: 'users' },
-        completionRate: { value: '--', description: 'Cargando...', icon: 'check-circle' },
-        averageTime: { value: '--', description: 'Cargando...', icon: 'clock' }
+        status: { value: '--', description: 'Loading...', icon: 'chart-line' },
+        participants: { value: '--', description: 'Loading...', icon: 'users' },
+        completionRate: { value: '--', description: 'Loading...', icon: 'check-circle' },
+        averageTime: { value: '--', description: 'Loading...', icon: 'clock' }
     });
     const [participants, setParticipants] = useState<Participant[]>([]);
     const [researchConfig, setResearchConfig] = useState<ResearchConfiguration | null>(null);
@@ -130,7 +130,7 @@ export function ResearchInProgressContent({ researchId: propResearchId }: Resear
                 });
             }
         } catch (error: unknown) {
-            const errorMessage = error instanceof Error ? error.message : 'Error al cargar los datos de la investigación';
+            const errorMessage = error instanceof Error ? error.message : 'Failed to load research data';
             setError(errorMessage);
             toastRef.current.error(errorMessage);
         } finally {
@@ -187,9 +187,9 @@ export function ResearchInProgressContent({ researchId: propResearchId }: Resear
         <div className="container mx-auto px-4 py-8">
             <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
                 <div className="p-3 rounded-lg border border-gray-200 bg-white">
-                    <p className="text-xs text-gray-500 mb-1">Estado</p>
+                    <p className="text-xs text-gray-500 mb-1">Status</p>
                     <p className="text-sm font-semibold text-gray-900">{status.status?.value || '--'}</p>
-                    <p className="text-[11px] text-gray-400">{status.status?.description || 'Cargando...'}</p>
+                    <p className="text-[11px] text-gray-400">{status.status?.description || 'Loading...'}</p>
                 </div>
                 <div className="p-3 rounded-lg border border-gray-200 bg-white">
                     <p className="text-xs text-gray-500 mb-1">Módulos</p>
@@ -197,19 +197,19 @@ export function ResearchInProgressContent({ researchId: propResearchId }: Resear
                     <p className="text-[11px] text-gray-400">configurados</p>
                 </div>
                 <div className="p-3 rounded-lg border border-gray-200 bg-white">
-                    <p className="text-xs text-gray-500 mb-1">Participantes</p>
+                    <p className="text-xs text-gray-500 mb-1">Participants</p>
                     <p className="text-sm font-semibold text-gray-900">{status.participants?.value || '--'}</p>
-                    <p className="text-[11px] text-gray-400">{status.participants?.description || 'Cargando...'}</p>
+                    <p className="text-[11px] text-gray-400">{status.participants?.description || 'Loading...'}</p>
                 </div>
                 <div className="p-3 rounded-lg border border-gray-200 bg-white">
-                    <p className="text-xs text-gray-500 mb-1">Tasa de completitud</p>
+                    <p className="text-xs text-gray-500 mb-1">Completion rate</p>
                     <p className="text-sm font-semibold text-gray-900">{status.completionRate?.value || '--'}</p>
-                    <p className="text-[11px] text-gray-400">{status.completionRate?.description || 'Cargando...'}</p>
+                    <p className="text-[11px] text-gray-400">{status.completionRate?.description || 'Loading...'}</p>
                 </div>
                 <div className="p-3 rounded-lg border border-gray-200 bg-white">
-                    <p className="text-xs text-gray-500 mb-1">Tiempo promedio</p>
+                    <p className="text-xs text-gray-500 mb-1">Average time</p>
                     <p className="text-sm font-semibold text-gray-900">{status.averageTime?.value || '--'}</p>
-                    <p className="text-[11px] text-gray-400">{status.averageTime?.description || 'Cargando...'}</p>
+                    <p className="text-[11px] text-gray-400">{status.averageTime?.description || 'Loading...'}</p>
                 </div>
             </div>
 

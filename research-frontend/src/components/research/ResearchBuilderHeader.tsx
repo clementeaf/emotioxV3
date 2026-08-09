@@ -1,4 +1,4 @@
-import { Settings, Boxes, Save } from 'lucide-react';
+import { Settings, Boxes, Save, Eye } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Select } from '../ui/Select';
 import type { Research, Module, Stage } from '../../services/research.service';
@@ -22,6 +22,7 @@ interface ResearchBuilderHeaderProps {
     onModuleJump?: (moduleId: string) => void;
     stages?: Stage[];
     onDraftSaveComplete?: () => void;
+    onLiveTest?: () => void;
 }
 
 /**
@@ -44,6 +45,7 @@ export const ResearchBuilderHeader = ({
     onModuleJump,
     stages = [],
     onDraftSaveComplete,
+    onLiveTest,
 }: ResearchBuilderHeaderProps) => {
     // Support both new generic props and legacy Cognitive Tasks props
     const isCollectionStage = isCollectionStageProp ?? isCognitiveTasksStage;
@@ -52,7 +54,7 @@ export const ResearchBuilderHeader = ({
     const isMultiModuleStage = isSmartVOCStage || isCollectionStage;
 
     return (
-        <div className="mb-8 border-b border-gray-200 pb-4">
+        <div className="mb-3 border-b border-gray-200 pb-3">
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
@@ -109,6 +111,16 @@ export const ResearchBuilderHeader = ({
                             researchId={research.id}
                             onSaveComplete={onDraftSaveComplete}
                         />
+                    )}
+                    {onLiveTest && (
+                        <button
+                            type="button"
+                            onClick={onLiveTest}
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-md hover:bg-emerald-100 transition-colors"
+                        >
+                            <Eye className="h-3.5 w-3.5" />
+                            Live Test
+                        </button>
                     )}
                     {(activeModule || isMultiModuleStage) && (
                         <Button onClick={onSave} isLoading={isSaving} disabled={isSaving}>

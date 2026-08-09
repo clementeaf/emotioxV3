@@ -197,28 +197,28 @@ export const LocalHitzoneEditor: React.FC<LocalHitzoneEditorProps> = ({
       <div className="flex flex-col items-center justify-center w-full mt-4">
         {testMode ? (
           <div className="flex flex-row items-center justify-center gap-4">
-            <button onClick={() => setTestMode(false)} className="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600">Salir de prueba</button>
-            <button onClick={onClose} className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">Cerrar</button>
+            <button onClick={() => setTestMode(false)} className="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600">Exit test</button>
+            <button onClick={onClose} className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">Close</button>
           </div>
         ) : areas.length === 0 ? (
           <>
-            <div className="mb-4 text-sm text-neutral-600">Dibuja la zona a guardar</div>
+            <div className="mb-4 text-sm text-neutral-600">Draw the zone to save</div>
             <div className="flex flex-row items-center justify-center gap-4">
-              <button onClick={onClose} className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">Cerrar</button>
+              <button onClick={onClose} className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">Close</button>
             </div>
           </>
         ) : (
           <>
             <div className="mb-4 text-sm text-neutral-600">
               {selectedIdx !== null
-                ? `Zona ${selectedIdx + 1} seleccionada. Puedes guardarla, eliminarla o probarla.`
-                : 'Zona dibujada. Selecciona una zona para eliminarla, o puedes guardarla o probarla.'
+                ? `Zone ${selectedIdx + 1} selected. You can save, delete, or test it.`
+                : 'Zone drawn. Select a zone to delete it, or you can save or test it.'
               }
             </div>
             <div className="flex flex-row items-center justify-center gap-4">
               <button onClick={() => {
                 onSave(areas);
-              }} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Guardar zona</button>
+              }} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Save zone</button>
               <button
                 onClick={handleDelete}
                 disabled={selectedIdx === null}
@@ -228,10 +228,10 @@ export const LocalHitzoneEditor: React.FC<LocalHitzoneEditorProps> = ({
                     : 'bg-red-500 text-white hover:bg-red-600'
                 }`}
               >
-                Eliminar zona
+                Delete zone
               </button>
-              <button onClick={() => setTestMode(true)} className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">Probar hitzone</button>
-              <button onClick={onClose} className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">Cerrar</button>
+              <button onClick={() => setTestMode(true)} className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">Test hitzone</button>
+              <button onClick={onClose} className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">Close</button>
             </div>
           </>
         )}
@@ -240,7 +240,7 @@ export const LocalHitzoneEditor: React.FC<LocalHitzoneEditorProps> = ({
       {testMode && activeTestIdx !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
           <div className="bg-white rounded-lg shadow-lg p-8 flex flex-col items-center">
-            <h3 className="text-lg font-semibold mb-4">¡Hitzone activo! Zona {activeTestIdx + 1}</h3>
+            <h3 className="text-lg font-semibold mb-4">Active hitzone! Zone {activeTestIdx + 1}</h3>
             <button onClick={() => setActiveTestIdx(null)} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Cerrar</button>
           </div>
         </div>

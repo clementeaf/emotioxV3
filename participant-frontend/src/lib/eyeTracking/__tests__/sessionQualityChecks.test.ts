@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   MIN_BRIGHTNESS,
   REJECT_BRIGHTNESS,
@@ -13,6 +13,9 @@ import {
   checkDistance,
   checkHeadStability,
   checkFaceConfidence,
+  checkFullscreen,
+  checkLandscape,
+  checkHeadPose,
   estimateDistanceCm,
   computePositionVariance,
   evaluateGate,
@@ -341,5 +344,127 @@ describe('evaluateGate', () => {
     const checks = [pass('a'), fail('b'), warn('c')];
     const result = evaluateGate(checks);
     expect(result.checks).toEqual(checks);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// checkFullscreen
+// ---------------------------------------------------------------------------
+
+describe('checkFullscreen', () => {
+  it('returns fail when document.fullscreenElement is null', () => {
+    Object.defineProperty(document, 'fullscreenElement', { value: null, configurable: true });
+    // Also clear webkit prefix
+    Object.defineProperty(document, 'webkitFullscreenElement', { value: undefined, configurable: true });
+
+    const result = checkFullscreen();
+    expect(result.id).toBe('fullscreen');
+    expect(result.status).toBe('fail');
+    expect(result.message).toBeDefined();
+  });
+
+  it('returns pass when fullscreenElement exists', () => {
+    const fakeElement = document.createElement('div');
+    Object.defineProperty(document, 'fullscreenElement', { value: fakeElement, configurable: true });
+
+    const result = checkFullscreen();
+    expect(result.id).toBe('fullscreen');
+    expect(result.status).toBe('pass');
+  });
+
+  it('returns pass when webkitFullscreenElement exists (Safari)', () => {
+    Object.defineProperty(document, 'fullscreenElement', { value: null, configurable: true });
+    const fakeElement = document.createElement('div');
+    Object.defineProperty(document, 'webkitFullscreenElement', { value: fakeElement, configurable: true });
+
+    const result = checkFullscreen();
+    expect(result.status).toBe('pass');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// checkLandscape
+// ---------------------------------------------------------------------------
+
+describe('checkLandscape', () => {
+  it('returns fail when innerWidth < innerHeight (portrait)', () => {
+    vi.spyOn(window, 'innerWidth', 'get').mockReturnValue(400);
+    vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(800);
+
+    const result = checkLandscape();
+    expect(result.id).toBe('orientation');
+    expect(result.status).toBe('fail');
+    expect(result.message).toContain('landscape');
+  });
+
+  it('returns pass when innerWidth > innerHeight (landscape)', () => {
+    vi.spyOn(window, 'innerWidth', 'get').mockReturnValue(1024);
+    vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(768);
+
+    const result = checkLandscape();
+    expect(result.id).toBe('orientation');
+    expect(result.status).toBe('pass');
+  });
+
+  it('returns fail when innerWidth equals innerHeight (square)', () => {
+    vi.spyOn(window, 'innerWidth', 'get').mockReturnValue(500);
+    vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(500);
+
+    const result = checkLandscape();
+    expect(result.status).toBe('fail');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// checkHeadPose
+// ---------------------------------------------------------------------------
+
+describe('checkHeadPose', () => {
+  it('returns fail with yaw > 20 degrees', () => {
+    const result = checkHeadPose(25, 5);
+    expect(result.id).toBe('headPose');
+    expect(result.status).toBe('fail');
+    expect(result.message).toBeDefined();
+  });
+
+  it('returns fail with pitch > 15 degrees', () => {
+    const result = checkHeadPose(5, 20);
+    expect(result.status).toBe('fail');
+  });
+
+  it('returns fail with negative yaw exceeding threshold', () => {
+    const result = checkHeadPose(-25, 0);
+    expect(result.status).toBe('fail');
+  });
+
+  it('returns fail with negative pitch exceeding threshold', () => {
+    const result = checkHeadPose(0, -18);
+    expect(result.status).toBe('fail');
+  });
+
+  it('returns pass with yaw=10, pitch=10', () => {
+    const result = checkHeadPose(10, 10);
+    expect(result.status).toBe('pass');
+  });
+
+  it('returns pass at exact yaw boundary (20)', () => {
+    const result = checkHeadPose(20, 0);
+    expect(result.status).toBe('pass');
+  });
+
+  it('returns pass at exact pitch boundary (15)', () => {
+    const result = checkHeadPose(0, 15);
+    expect(result.status).toBe('pass');
+  });
+
+  it('value equals max of abs(yaw) and abs(pitch)', () => {
+    const result1 = checkHeadPose(10, 5);
+    expect(result1.value).toBe(10);
+
+    const result2 = checkHeadPose(3, 12);
+    expect(result2.value).toBe(12);
+
+    const result3 = checkHeadPose(-18, 8);
+    expect(result3.value).toBe(18);
   });
 });

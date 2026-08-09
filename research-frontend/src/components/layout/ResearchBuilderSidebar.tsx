@@ -334,7 +334,7 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
             await logout();
             navigate('/login');
         } catch {
-            toast.error('Error al cerrar sesión');
+            toast.error('Failed to sign out');
         }
     };
 

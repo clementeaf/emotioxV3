@@ -11,7 +11,8 @@ import {
     CheckCircle,
     Clock,
     Eye,
-    Trash2
+    Trash2,
+    Users
 } from 'lucide-react';
 import { useToast } from '../../../hooks/useToast';
 
@@ -26,28 +27,28 @@ interface ParticipantsTableProps {
 }
 
 const statusConfig = {
-    'En proceso': {
-        label: 'En proceso',
+    'In progress': {
+        label: 'In progress',
         color: 'bg-blue-100 text-blue-800',
         icon: Clock
     },
-    'Por iniciar': {
-        label: 'Por iniciar',
+    'Not started': {
+        label: 'Not started',
         color: 'bg-gray-100 text-gray-800',
         icon: AlertCircle
     },
-    'Completado': {
-        label: 'Completado',
+    'Completed': {
+        label: 'Completed',
         color: 'bg-green-100 text-green-800',
         icon: CheckCircle
     },
-    'Sobre cuota': {
-        label: 'Sobre cuota',
+    'Over quota': {
+        label: 'Over quota',
         color: 'bg-orange-100 text-orange-800',
         icon: AlertTriangle
     },
-    'Descalificado': {
-        label: 'Descalificado',
+    'Disqualified': {
+        label: 'Disqualified',
         color: 'bg-red-100 text-red-800',
         icon: AlertTriangle
     }
@@ -95,7 +96,7 @@ export function ParticipantsTable({
                 setDrawerDetails(response.data);
             }
         } catch {
-            toast.error('Error al cargar detalles del participante');
+            toast.error('Failed to load participant details');
         } finally {
             setDrawerLoading(false);
         }
@@ -145,7 +146,7 @@ export function ParticipantsTable({
     };
 
     const getStatusConfig = (status: string) => {
-        return statusConfig[status as keyof typeof statusConfig] || statusConfig['Por iniciar'];
+        return statusConfig[status as keyof typeof statusConfig] || statusConfig['Not started'];
     };
 
     // Removed unused function
@@ -189,12 +190,12 @@ export function ParticipantsTable({
                 onParticipantDeleted?.(participantToDelete.id);
                 setIsDeleteModalOpen(false);
                 setParticipantToDelete(null);
-                toast.success('Participante eliminado correctamente');
+                toast.success('Participant deleted successfully');
             } else {
-                toast.error('Error al eliminar participante');
+                toast.error('Failed to delete participant');
             }
         } catch {
-            toast.error('Error al eliminar participante');
+            toast.error('Failed to delete participant');
         } finally {
             setIsDeleting(false);
         }
@@ -229,12 +230,12 @@ export function ParticipantsTable({
             setSelectedParticipantIds(new Set());
 
             if (failed > 0) {
-                toast.error(`Se eliminaron ${successful} participante(s). ${failed} fallaron.`);
+                toast.error(`Deleted ${successful} participant(s). ${failed} failed.`);
             } else {
-                toast.success(`Se eliminaron ${successful} participante(s) correctamente`);
+                toast.success(`${successful} participant(s) deleted successfully`);
             }
         } catch {
-            toast.error('Error al eliminar participantes');
+            toast.error('Failed to delete participants');
         } finally {
             setIsDeleting(false);
         }
@@ -303,7 +304,7 @@ export function ParticipantsTable({
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                         <Eye className="h-5 w-5" />
-                        Participantes ({participants.length})
+                        Participants ({participants.length})
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -341,7 +342,7 @@ export function ParticipantsTable({
                                 className="flex items-center gap-2"
                             >
                                 <Trash2 className="h-4 w-4" />
-                                Eliminar seleccionados ({selectedParticipantIds.size})
+                                Delete selected ({selectedParticipantIds.size})
                             </Button>
                         </div>
                     )}
@@ -361,12 +362,12 @@ export function ParticipantsTable({
                                             />
                                         </th>
                                     )}
-                                    <th className="text-left py-3 px-4 font-medium">Participante</th>
-                                    <th className="text-left py-3 px-4 font-medium">Estado</th>
-                                    <th className="text-left py-3 px-4 font-medium">Progreso</th>
-                                    <th className="text-left py-3 px-4 font-medium">Duración</th>
-                                    <th className="text-left py-3 px-4 font-medium">Última actividad</th>
-                                    {!readOnly && <th className="text-left py-3 px-4 font-medium">Acciones</th>}
+                                    <th className="text-left py-3 px-4 font-medium">Participant</th>
+                                    <th className="text-left py-3 px-4 font-medium">Status</th>
+                                    <th className="text-left py-3 px-4 font-medium">Progress</th>
+                                    <th className="text-left py-3 px-4 font-medium">Duration</th>
+                                    <th className="text-left py-3 px-4 font-medium">Last activity</th>
+                                    {!readOnly && <th className="text-left py-3 px-4 font-medium">Actions</th>}
                                 </tr>
                             </thead>
                             <tbody>
@@ -374,6 +375,16 @@ export function ParticipantsTable({
                                     Array.from({ length: 5 }).map((_, index) => (
                                         <SkeletonRow key={index} />
                                     ))
+                                ) : filteredParticipants.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={readOnly ? 6 : 7} className="py-16 text-center">
+                                            <div className="flex flex-col items-center">
+                                                <Users className="h-10 w-10 text-gray-300 mb-3" />
+                                                <p className="text-sm font-semibold text-gray-700 mb-1">No participants yet</p>
+                                                <p className="text-[13px] text-gray-400">Import participants via CSV or share the study link.</p>
+                                            </div>
+                                        </td>
+                                    </tr>
                                 ) : (
                                     filteredParticipants.map((participant) => {
                                         const status = getStatusConfig(participant.status);
@@ -394,7 +405,7 @@ export function ParticipantsTable({
                                                 <td className="py-3 px-4">
                                                     <div>
                                                         <div className="font-medium">{participant.name}</div>
-                                                        <div className="text-sm text-gray-500">{participant.email}</div>
+                                                        {participant.email && <div className="text-sm text-gray-500">{participant.email}</div>}
                                                     </div>
                                                 </td>
                                                 <td className="py-3 px-4">
@@ -423,7 +434,7 @@ export function ParticipantsTable({
                                                                 variant="ghost"
                                                                 size="sm"
                                                                 onClick={() => handleViewDetails(participant.id)}
-                                                                title="Ver detalles"
+                                                                title="View details"
                                                             >
                                                                 <Eye className="h-4 w-4" />
                                                             </Button>
@@ -432,7 +443,7 @@ export function ParticipantsTable({
                                                                 size="sm"
                                                                 onClick={() => handleDeleteClick(participant)}
                                                                 className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                                                                title="Eliminar participante"
+                                                                title="Delete participant"
                                                             >
                                                                 <Trash2 className="h-4 w-4" />
                                                             </Button>
@@ -455,17 +466,17 @@ export function ParticipantsTable({
                         <div className="flex items-center gap-3 mb-4">
                             <AlertTriangle className="h-6 w-6 text-red-500" />
                             <h3 className="text-lg font-semibold text-gray-900">
-                                {participantToDelete ? 'Eliminar participante' : 'Eliminar participantes seleccionados'}
+                                {participantToDelete ? 'Delete participant' : 'Delete selected participants'}
                             </h3>
                         </div>
 
                         {participantToDelete ? (
                             <>
                                 <p className="text-gray-600 mb-6">
-                                    ¿Estás seguro de que quieres eliminar a <strong>{participantToDelete.name}</strong> ({participantToDelete.email})?
+                                    Are you sure you want to delete <strong>{participantToDelete.name}</strong>{participantToDelete.email ? ` (${participantToDelete.email})` : ''}?
                                 </p>
                                 <p className="text-sm text-red-600 mb-6">
-                                    ⚠️ Esta acción no se puede deshacer. Se eliminarán todos los datos del participante.
+                                    This action cannot be undone. All participant data will be deleted.
                                 </p>
                                 <div className="flex gap-3 justify-end">
                                     <Button
@@ -473,24 +484,24 @@ export function ParticipantsTable({
                                         onClick={handleCloseDeleteModal}
                                         disabled={isDeleting}
                                     >
-                                        Cancelar
+                                        Cancel
                                     </Button>
                                     <Button
                                         variant="danger"
                                         onClick={handleDeleteParticipant}
                                         disabled={isDeleting}
                                     >
-                                        {isDeleting ? 'Eliminando...' : 'Eliminar'}
+                                        {isDeleting ? 'Deleting...' : 'Delete'}
                                     </Button>
                                 </div>
                             </>
                         ) : (
                             <>
                                 <p className="text-gray-600 mb-6">
-                                    ¿Estás seguro de que quieres eliminar <strong>{selectedParticipantIds.size}</strong> participante(s) seleccionado(s)?
+                                    Are you sure you want to delete <strong>{selectedParticipantIds.size}</strong> selected participant(s)?
                                 </p>
                                 <p className="text-sm text-red-600 mb-6">
-                                    ⚠️ Esta acción no se puede deshacer. Se eliminarán todos los datos de los participantes seleccionados.
+                                    This action cannot be undone. All data for selected participants will be deleted.
                                 </p>
                                 <div className="flex gap-3 justify-end">
                                     <Button
@@ -498,14 +509,14 @@ export function ParticipantsTable({
                                         onClick={handleCloseDeleteModal}
                                         disabled={isDeleting}
                                     >
-                                        Cancelar
+                                        Cancel
                                     </Button>
                                     <Button
                                         variant="danger"
                                         onClick={handleDeleteSelectedParticipants}
                                         disabled={isDeleting}
                                     >
-                                        {isDeleting ? 'Eliminando...' : `Eliminar ${selectedParticipantIds.size}`}
+                                        {isDeleting ? 'Deleting...' : `Delete ${selectedParticipantIds.size}`}
                                     </Button>
                                 </div>
                             </>
@@ -517,7 +528,7 @@ export function ParticipantsTable({
             <Drawer
                 isOpen={drawerOpen}
                 onClose={() => setDrawerOpen(false)}
-                title={drawerDetails ? `Participante ${drawerDetails.id}` : 'Cargando...'}
+                title={drawerDetails ? `Participant ${drawerDetails.id}` : 'Loading...'}
                 width="md"
             >
                 {drawerLoading ? (
@@ -527,19 +538,19 @@ export function ParticipantsTable({
                         {/* Summary */}
                         <div className="grid grid-cols-2 gap-4">
                             <div className="p-3 bg-gray-50 rounded-lg">
-                                <div className="text-xs text-gray-500">Estado</div>
+                                <div className="text-xs text-gray-500">Status</div>
                                 <div className="text-sm font-semibold">{drawerDetails.status}</div>
                             </div>
                             <div className="p-3 bg-gray-50 rounded-lg">
-                                <div className="text-xs text-gray-500">Progreso</div>
+                                <div className="text-xs text-gray-500">Progress</div>
                                 <div className="text-sm font-semibold">{drawerDetails.progress}%</div>
                             </div>
                             <div className="p-3 bg-gray-50 rounded-lg">
-                                <div className="text-xs text-gray-500">Duración</div>
+                                <div className="text-xs text-gray-500">Duration</div>
                                 <div className="text-sm font-semibold">{drawerDetails.duration}</div>
                             </div>
                             <div className="p-3 bg-gray-50 rounded-lg">
-                                <div className="text-xs text-gray-500">Última actividad</div>
+                                <div className="text-xs text-gray-500">Last activity</div>
                                 <div className="text-sm font-semibold">{drawerDetails.lastActivity}</div>
                             </div>
                         </div>
@@ -547,7 +558,7 @@ export function ParticipantsTable({
                         {/* Responses */}
                         {drawerDetails.responses && drawerDetails.responses.length > 0 ? (
                             <div>
-                                <h4 className="text-sm font-semibold text-gray-700 mb-3">Respuestas ({drawerDetails.responses.length})</h4>
+                                <h4 className="text-sm font-semibold text-gray-700 mb-3">Responses ({drawerDetails.responses.length})</h4>
                                 <div className="space-y-2">
                                     {(drawerDetails.responses as Array<{ moduleName?: string; componentId?: string; value?: unknown; createdAt?: string }>).map((r, i) => (
                                         <div key={i} className="p-3 border border-gray-100 rounded-lg text-sm">
@@ -563,7 +574,7 @@ export function ParticipantsTable({
                                 </div>
                             </div>
                         ) : (
-                            <p className="text-sm text-gray-500 text-center py-4">Sin respuestas registradas</p>
+                            <p className="text-sm text-gray-500 text-center py-4">No responses recorded</p>
                         )}
                     </div>
                 ) : null}

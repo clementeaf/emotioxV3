@@ -165,7 +165,7 @@ export const ResearchConfigurationModule = ({ config, researchStatus, researchNa
     const handleLinkPreview = (): void => {
         const url = participantShareUrl ? `${participantShareUrl}?preview=true` : '';
         if (!url || url.trim().length === 0) {
-            toast.error('No se pudo generar la URL. Verifica que el dominio del participante esté configurado correctamente.');
+            toast.error('Failed to generate URL. Verify that the participant domain is configured correctly.');
             console.error('[ResearchConfigurationModule] Cannot open preview: URL is empty or invalid');
             return;
         }
@@ -175,11 +175,11 @@ export const ResearchConfigurationModule = ({ config, researchStatus, researchNa
             new URL(url);
             const opened = window.open(url, '_blank', 'noopener,noreferrer');
             if (!opened) {
-                toast.error('No se pudo abrir la ventana. Verifica que los pop-ups no estén bloqueados.');
+                toast.error('Failed to open window. Verify that pop-ups are not blocked.');
                 console.error('[ResearchConfigurationModule] window.open was blocked by browser');
             }
         } catch (error) {
-            toast.error('La URL generada no es válida. Verifica la configuración.');
+            toast.error('Generated URL is not valid. Verify the configuration.');
             console.error('[ResearchConfigurationModule] Invalid URL generated:', url, error);
         }
     };
@@ -398,13 +398,40 @@ export const ResearchConfigurationModule = ({ config, researchStatus, researchNa
         onChange({ ...config, participationMode: mode });
     };
 
-    return (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {/* Left Panel - Recruitment Link */}
-            <div className="space-y-6">
+    const [configTab, setConfigTab] = useState<'setup' | 'links' | 'settings' | 'participants'>('setup');
 
-                {/* Participation Mode Selector */}
-                <div className="space-y-4">
+    const configTabs = [
+        { id: 'setup' as const, label: 'Setup' },
+        { id: 'links' as const, label: 'Links & QR' },
+        { id: 'settings' as const, label: 'Settings' },
+        ...(!isKiosk ? [{ id: 'participants' as const, label: 'Participants' }] : []),
+    ];
+
+    return (
+        <div>
+            {/* Tab bar */}
+            <div className="flex gap-1 border-b border-gray-200 mb-4">
+                {configTabs.map(tab => (
+                    <button
+                        key={tab.id}
+                        onClick={() => setConfigTab(tab.id)}
+                        className={`px-3 py-2 text-sm border-b-2 transition-colors ${
+                            configTab === tab.id
+                                ? 'border-blue-600 text-blue-600 font-medium'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                        }`}
+                    >
+                        {tab.label}
+                    </button>
+                ))}
+            </div>
+
+            {/* Setup tab */}
+            {configTab === 'setup' && (
+            <div className="flex gap-8">
+                {/* Left: Mode + Logo */}
+                <div className="flex-1 space-y-5">
+                    {/* Participation Mode Selector */}
                     <div className="p-4 bg-gray-50 rounded-lg">
                         <h3 className="text-sm font-medium text-gray-900 mb-3">Participation mode</h3>
                         {isResearchActive && (
@@ -445,39 +472,45 @@ export const ResearchConfigurationModule = ({ config, researchStatus, researchNa
                             </button>
                         </div>
                     </div>
+
+                    {/* Custom Screening Questions — hidden in kiosk mode */}
+                    {!isKiosk && demographicEnabled && (
+                        <ScreeningQuestionsSection
+                            demographics={demographics}
+                            config={config}
+                            onChange={onChange}
+                            handleDemographicChange={handleDemographicChange}
+                            setActiveConfigModal={setActiveConfigModal}
+                        />
+                    )}
+
+                    {/* Study Logo */}
+                    <StudyLogoSection
+                        config={config}
+                        researchId={researchId}
+                        onChange={onChange}
+                    />
                 </div>
 
-                {/* Demographic Questions — hidden in kiosk mode */}
+                {/* Right: Demographics */}
                 {!isKiosk && (
-                    <DemographicsSection
-                        demographics={demographics}
-                        demographicEnabled={demographicEnabled}
-                        setDemographicEnabled={setDemographicEnabled}
-                        handleDemographicChange={handleDemographicChange}
-                        isDemographicEnabled={isDemographicEnabled}
-                        setActiveConfigModal={setActiveConfigModal}
-                    />
+                    <div className="w-[345px] flex-shrink-0">
+                        <DemographicsSection
+                            demographics={demographics}
+                            demographicEnabled={demographicEnabled}
+                            setDemographicEnabled={setDemographicEnabled}
+                            handleDemographicChange={handleDemographicChange}
+                            isDemographicEnabled={isDemographicEnabled}
+                            setActiveConfigModal={setActiveConfigModal}
+                        />
+                    </div>
                 )}
+            </div>
+            )}
 
-                {/* Custom Screening Questions — hidden in kiosk mode */}
-                {!isKiosk && demographicEnabled && (
-                    <ScreeningQuestionsSection
-                        demographics={demographics}
-                        config={config}
-                        onChange={onChange}
-                        handleDemographicChange={handleDemographicChange}
-                        setActiveConfigModal={setActiveConfigModal}
-                    />
-                )}
-
-                {/* Study Logo */}
-                <StudyLogoSection
-                    config={config}
-                    researchId={researchId}
-                    onChange={onChange}
-                />
-
-                {/* Link Configuration + Participant Limit */}
+            {/* Settings tab */}
+            {configTab === 'settings' && (
+            <div className="max-w-xl">
                 <LinkConfigurationSection
                     config={config}
                     linkConfig={linkConfig}
@@ -488,11 +521,13 @@ export const ResearchConfigurationModule = ({ config, researchStatus, researchNa
                     onChange={onChange}
                 />
             </div>
+            )}
 
-            {/* Right Panel - Research Configuration */}
-            <div className="space-y-6">
+            {/* Links tab */}
+            {configTab === 'links' && (
+            <div className="flex gap-8">
                 {/* A. Backlinks */}
-                <div className="space-y-4">
+                <div className="flex-1 space-y-4">
                     <div>
                         <h3 className="text-sm font-semibold text-gray-900 mb-2">A. Backlinks</h3>
                         <p className="text-xs text-gray-500 mb-4">
@@ -527,7 +562,7 @@ export const ResearchConfigurationModule = ({ config, researchStatus, researchNa
                 </div>
 
                 {/* B. Research Link */}
-                <div className="space-y-4">
+                <div className="flex-1 space-y-4">
                     <div>
                         <h3 className="text-sm font-semibold text-gray-900 mb-2">B. Research&apos;s link to share</h3>
                         <p className="text-xs text-gray-500 mb-4">
@@ -552,14 +587,14 @@ export const ResearchConfigurationModule = ({ config, researchStatus, researchNa
                                 onClick={async () => {
                                     const url = isKiosk ? participantShareUrl : `${participantShareUrl}?ECX=@id`;
                                     if (!url) {
-                                        toast.error('No se pudo generar la URL.');
+                                        toast.error('Failed to generate URL.');
                                         return;
                                     }
                                     try {
                                         await navigator.clipboard.writeText(url);
-                                        toast.success('URL copiada al portapapeles');
+                                        toast.success('URL copied to clipboard');
                                     } catch {
-                                        toast.error('Error al copiar la URL');
+                                        toast.error('Failed to copy URL');
                                     }
                                 }}
                             >
@@ -582,7 +617,7 @@ export const ResearchConfigurationModule = ({ config, researchStatus, researchNa
                                 onClick={() => {
                                     const url = participantShareUrl;
                                     if (!url || url.trim().length === 0) {
-                                        toast.error('No se pudo generar la URL. Verifica que el dominio del participante esté configurado correctamente.');
+                                        toast.error('Failed to generate URL. Verify that the participant domain is configured correctly.');
                                         return;
                                     }
                                     setShowQRModal(true);
@@ -595,9 +630,10 @@ export const ResearchConfigurationModule = ({ config, researchStatus, researchNa
                     </div>
                 </div>
             </div>
+            )}
 
-            {/* Panel Participants — import, links, tracking (only in panel mode) */}
-            {!isKiosk && researchId && participantShareUrl && (
+            {/* Participants tab */}
+            {configTab === 'participants' && !isKiosk && researchId && participantShareUrl && (
                 <PanelParticipantsSection
                     researchId={researchId}
                     participantShareUrl={participantShareUrl}

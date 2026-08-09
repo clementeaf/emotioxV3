@@ -477,11 +477,17 @@ export function buildAttentionLayerPreset(
             return {
                 heatmap: context.hasHeatmap,
                 aiAois: false,
-                manualAois: context.hasManualAois,
+                manualAois: true,
+                gaze: false,
+            };
+        case 'original':
+            return {
+                heatmap: false,
+                aiAois: false,
+                manualAois: false,
                 gaze: false,
             };
         case 'gaze-paths':
-        case 'original':
         default:
             return {
                 heatmap: context.hasHeatmap,

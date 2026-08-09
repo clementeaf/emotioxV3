@@ -91,6 +91,7 @@ export default defineConfig(({ mode }) => ({
   },
   resolve: {
     dedupe: ['react', 'react-dom'],
+    alias: {},
   },
   optimizeDeps: {
     include: ['react', 'react-dom', 'react-router-dom', '@tanstack/react-query'],

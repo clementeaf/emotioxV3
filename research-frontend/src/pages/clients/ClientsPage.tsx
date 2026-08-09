@@ -78,23 +78,6 @@ export const ClientsPage = () => {
         } catch { toast.error('Failed to delete'); }
     };
 
-    if (loading) {
-        return (
-            <div className="flex flex-col h-full p-6 space-y-4 animate-pulse">
-                <div className="flex items-center justify-between">
-                    <div className="space-y-2"><div className="h-5 w-32 bg-gray-100 rounded" /><div className="h-3 w-56 bg-gray-100 rounded" /></div>
-                    <div className="h-8 w-48 bg-gray-100 rounded-lg" />
-                </div>
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                    <div className="lg:col-span-2 h-64 bg-gray-100 rounded-xl" />
-                    <div className="h-64 bg-gray-100 rounded-xl" />
-                </div>
-                <div className="grid grid-cols-4 gap-3">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-24 bg-gray-100 rounded-xl" />)}</div>
-                <div className="h-40 bg-gray-100 rounded-xl" />
-            </div>
-        );
-    }
-
     return (
         <div className="flex flex-col h-full overflow-hidden">
             {/* Header */}
@@ -115,6 +98,17 @@ export const ClientsPage = () => {
 
             {/* Content */}
             <div className="flex-1 overflow-y-auto px-6 pb-4 space-y-4">
+                {loading ? (
+                    <div className="space-y-4 animate-pulse">
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                            <div className="lg:col-span-2 h-64 bg-gray-100 rounded-xl" />
+                            <div className="h-64 bg-gray-100 rounded-xl" />
+                        </div>
+                        <div className="grid grid-cols-4 gap-3">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-24 bg-gray-100 rounded-xl" />)}</div>
+                        <div className="h-40 bg-gray-100 rounded-xl" />
+                    </div>
+                ) : (
+                <>
                 {/* Chart + Client Info */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                     <div className="lg:col-span-2 rounded-xl border border-gray-100 bg-white p-4">
@@ -222,7 +216,7 @@ export const ClientsPage = () => {
                         </thead>
                         <tbody className="divide-y divide-gray-50">
                             {researches.length === 0 ? (
-                                <tr><td colSpan={6} className="px-3 py-12 text-center text-[13px] text-gray-400">No researches for this client</td></tr>
+                                <tr><td colSpan={6} className="px-3 py-12 text-center text-[13px] text-gray-400">No projects found for this client. Create a research to get started.</td></tr>
                             ) : researches.map(r => {
                                 const s = STATUS_STYLES[r.status] ?? STATUS_STYLES.draft;
                                 return (
@@ -257,6 +251,8 @@ export const ClientsPage = () => {
                         </tbody>
                     </table>
                 </div>
+                </>
+                )}
             </div>
         </div>
     );

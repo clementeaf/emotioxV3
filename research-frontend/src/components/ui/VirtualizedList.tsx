@@ -45,7 +45,7 @@ export const VirtualizedList = <T,>({
             ))}
             {items.length > visibleCount && (
                 <div className="text-center text-gray-500 text-sm py-4">
-                    ... y {items.length - visibleCount} más
+                    ... and {items.length - visibleCount} more
                 </div>
             )}
         </div>

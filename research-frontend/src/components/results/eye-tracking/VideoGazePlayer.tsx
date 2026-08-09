@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import simpleheat from 'simpleheat';
 import type { EyeTrackingStimulus } from '../../../services/analytics.service';
+import { CustomSelect } from '../../ui/CustomSelect';
 
 type OverlayMode = 'dots' | 'heatmap';
 
@@ -163,16 +164,16 @@ export const VideoGazePlayer = ({
         {participantIds.length > 1 && (
           <div className="flex items-center gap-2">
             <label className="text-xs font-medium text-slate-500">Participant:</label>
-            <select
-              value={selectedParticipant}
-              onChange={e => setSelectedParticipant(e.target.value)}
-              className="text-xs border border-gray-200 rounded-md px-2 py-1 bg-white text-slate-700"
-            >
-              <option value="all">All ({participantIds.length})</option>
-              {participantIds.map(id => (
-                <option key={id} value={id}>{id}</option>
-              ))}
-            </select>
+            <div className="w-40">
+              <CustomSelect
+                value={selectedParticipant}
+                onChange={(v) => setSelectedParticipant(v)}
+                options={[
+                  { value: 'all', label: `All (${participantIds.length})` },
+                  ...participantIds.map(id => ({ value: id, label: id })),
+                ]}
+              />
+            </div>
           </div>
         )}
         <div className="flex items-center gap-1 ml-auto">

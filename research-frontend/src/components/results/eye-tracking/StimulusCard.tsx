@@ -1,11 +1,13 @@
-import { useState, useCallback, useMemo } from 'react';
-import { Eye, Users, Clock, Crosshair, Image, Download, SmilePlus, Sparkles, ShieldCheck, Settings, Grid3X3, Film, Signal } from 'lucide-react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
+import { Eye, Users, Clock, Crosshair, Image, Download, SmilePlus, Sparkles, ShieldCheck, Settings, Grid3X3, Film, Signal, PenTool } from 'lucide-react';
 import { toPng } from 'html-to-image';
 import { HeatmapRenderer } from '../cognitive-task/components/HeatmapRenderer';
 import type { EyeTrackingStimulus } from '../../../services/analytics.service';
 import { resolveStimulusUrl, MetricBadge, ViewModeTab, AOIRow } from './shared';
 import type { ViewMode } from './shared';
 import { ZoneHeatmapOverlay } from './ZoneHeatmapOverlay';
+import { AOIDrawer, type AOI } from '../../research/AOIDrawer';
+import { modulesService } from '../../../services/modules.service';
 import { EmotionPanel } from './EmotionPanel';
 import { SequencePanel } from './SequencePanel';
 import { TransparencyMap } from './TransparencyMap';
@@ -30,6 +32,7 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
   const [imageContainerRef, setImageContainerRef] = useState<HTMLDivElement | null>(null);
   const [heatmapSettings, setHeatmapSettings] = useState<HeatmapSettings>(DEFAULT_HEATMAP_SETTINGS);
   const [showSettings, setShowSettings] = useState(false);
+  const [showAoiModal, setShowAoiModal] = useState(false);
 
   /** Decode a base64 Float64Array grid into cell-center points with values. */
   const decodeGridToPoints = useCallback((base64: string, cols: number, rows: number, cellW: number, cellH: number, minVal = 0.01) => {
@@ -149,8 +152,8 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
       )}
 
       {/* View mode tabs + Download */}
-      <div className="flex items-center justify-between px-5 pt-4 pb-2">
-        <div className="flex gap-2">
+      <div className="flex items-center justify-between px-4 pt-3 pb-2">
+        <div className="flex gap-1 flex-wrap">
           <ViewModeTab
             active={viewMode === 'heatmap'}
             onClick={() => setViewMode('heatmap')}
@@ -239,11 +242,21 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
           )}
           {stimulus.stimulusUrl && (
             <button
+              onClick={() => setShowAoiModal(true)}
+              className="flex items-center gap-1 px-2 py-1 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
+              title="Draw and view AOI metrics"
+            >
+              <PenTool className="h-3.5 w-3.5" />
+              AOI{stimulus.aois.length > 0 ? ` (${stimulus.aois.length})` : ''}
+            </button>
+          )}
+          {stimulus.stimulusUrl && (
+            <button
               onClick={handleDownload}
-              className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700 transition-colors"
+              className="p-1.5 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-md transition-colors"
+              title="Download image"
             >
               <Download className="h-4 w-4" />
-              Download image
             </button>
           )}
         </div>
@@ -252,7 +265,7 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
       {/* Stimulus image / heatmap / emotions / prediction */}
       <div className="px-5 pb-4">
         {viewMode === 'density' && hasV3 && stimulus.stimulusUrl ? (
-          <div ref={setImageContainerRef} className="w-fit mx-auto">
+          <div ref={setImageContainerRef} className="w-fit mx-auto relative">
             {hasV3Temporal && (
               <div className="flex items-center gap-1 mb-3">
                 {(['density', 'firstlook', 'peak'] as const).map(mode => (
@@ -273,7 +286,7 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
             <HeatmapRenderer
               imageUrl={stimulus.stimulusUrl}
               data={densityMode === 'density' || !hasV3Temporal ? v3HeatmapPoints : v3TemporalPoints}
-              coordSystem="pixel"
+              coordSystem="percent"
               blur={heatmapSettings.blur}
               opacity={heatmapSettings.opacity}
               threshold={heatmapSettings.threshold}
@@ -327,7 +340,7 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
         ) : viewMode === 'prediction' ? (
           <PredictionPanel stimulus={stimulus} researchId={researchId} onPredictionComplete={onRefresh} />
         ) : stimulus.stimulusUrl ? (
-          <div ref={setImageContainerRef} className="w-fit mx-auto">
+          <div ref={setImageContainerRef} className="w-fit mx-auto relative">
             {viewMode === 'heatmap' && hasHeatData ? (
               hasZoneMass ? (
                 <ZoneHeatmapOverlay imageUrl={stimulus.stimulusUrl} zoneMass={stimulus.zoneMass!} />
@@ -335,7 +348,7 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
                 <HeatmapRenderer
                   imageUrl={stimulus.stimulusUrl}
                   data={stimulus.heatmapData.map(p => ({ x: p.x, y: p.y, value: p.duration }))}
-                  coordSystem="pixel"
+                  coordSystem="percent"
                   blur={heatmapSettings.blur}
                   opacity={heatmapSettings.opacity}
                   threshold={heatmapSettings.threshold}
@@ -343,13 +356,33 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
                 />
               )
             ) : (
-              <div className="rounded-lg overflow-hidden border bg-gray-100 w-fit mx-auto">
+              <div className="rounded-lg overflow-hidden border bg-gray-100 w-fit mx-auto relative">
                 <img
                   src={stimulus.stimulusUrl}
                   alt={stimulus.moduleName}
                   className="max-h-[60vh] w-auto block"
                 />
+                {stimulus.aois.length > 0 && (
+                  <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
+                    {stimulus.aois.map((aoi) => (
+                      <g key={aoi.id}>
+                        <rect x={aoi.x} y={aoi.y} width={aoi.width} height={aoi.height} fill="none" stroke="#3b82f6" strokeWidth="0.5" strokeDasharray="1.5 1" />
+                        <text x={aoi.x + 0.5} y={aoi.y + 2.5} fontSize="2.2" fill="#3b82f6" fontWeight="600">{aoi.label}</text>
+                      </g>
+                    ))}
+                  </svg>
+                )}
               </div>
+            )}
+            {stimulus.aois.length > 0 && viewMode === 'heatmap' && (
+              <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
+                {stimulus.aois.map((aoi) => (
+                  <g key={aoi.id}>
+                    <rect x={aoi.x} y={aoi.y} width={aoi.width} height={aoi.height} fill="none" stroke="#3b82f6" strokeWidth="0.5" strokeDasharray="1.5 1" />
+                    <text x={aoi.x + 0.5} y={aoi.y + 2.5} fontSize="2.2" fill="#3b82f6" fontWeight="600">{aoi.label}</text>
+                  </g>
+                ))}
+              </svg>
             )}
           </div>
         ) : (
@@ -362,37 +395,17 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
         )}
       </div>
 
-      {/* AOI list */}
-      {stimulus.aois.length > 0 && (
-        <div className="px-5 pb-5">
-          <h4 className="text-sm font-semibold text-gray-700 mb-3">Areas of Interest</h4>
-          <div className="space-y-2">
-            {stimulus.aois.map((aoi, idx) => (
-              <AOIRow key={aoi.id} aoi={aoi} index={idx} stimulusUrl={stimulus.stimulusUrl} />
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* No data message */}
       {stimulus.totalResponses === 0 && (
         <div className="px-5 pb-5">
-          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-center">
-            <p className="text-sm text-gray-500">
-              No responses yet. Data will appear here once participants complete this eye tracking test.
-            </p>
+          <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 text-center">
+            <p className="text-sm font-semibold text-gray-700 mb-1">No responses yet</p>
+            <p className="text-[13px] text-gray-400">Share the study link with participants or use Live Test to preview results.</p>
           </div>
         </div>
       )}
 
-      {/* Response count footer */}
-      {stimulus.totalResponses > 0 && (
-        <div className="px-5 pb-4">
-          <p className="text-xs text-gray-400 text-right">
-            {stimulus.totalResponses} response{stimulus.totalResponses !== 1 ? 's' : ''} from {stimulus.uniqueParticipants} participant{stimulus.uniqueParticipants !== 1 ? 's' : ''}
-          </p>
-        </div>
-      )}
 
       {/* Heatmap settings modal */}
       {showSettings && stimulus.stimulusUrl && (
@@ -400,11 +413,116 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
           imageUrl={stimulus.stimulusUrl}
           heatmapData={stimulus.heatmapData.map(p => ({ x: p.x, y: p.y, value: p.duration }))}
           settings={heatmapSettings}
-          coordSystem="pixel"
+          coordSystem="percent"
           onApply={setHeatmapSettings}
           onClose={() => setShowSettings(false)}
+        />
+      )}
+
+      {/* AOI draw + metrics modal */}
+      {showAoiModal && (
+        <AoiModal
+          stimulus={stimulus}
+          onClose={() => setShowAoiModal(false)}
+          onSave={onRefresh}
         />
       )}
     </div>
   );
 };
+
+// ─── AOI Modal ──────────────────────────────────────────────────
+
+function AoiModal({ stimulus, onClose, onSave }: {
+  stimulus: EyeTrackingStimulus & { stimulusUrl: string };
+  onClose: () => void;
+  onSave: () => void;
+}) {
+  const drawableAois: AOI[] = stimulus.aois.map(a => ({
+    id: a.id, label: a.label, x: a.x, y: a.y, width: a.width, height: a.height,
+  }));
+  const [aois, setAois] = useState<AOI[]>(drawableAois);
+  const [saving, setSaving] = useState(false);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    requestAnimationFrame(() => setVisible(true));
+  }, []);
+
+  const handleClose = useCallback(() => {
+    setVisible(false);
+    setTimeout(onClose, 200);
+  }, [onClose]);
+
+  const handleSave = useCallback(async () => {
+    setSaving(true);
+    try {
+      const res = await modulesService.getById(stimulus.moduleId);
+      const mod = res.module;
+      const config = typeof mod.config === 'string' ? JSON.parse(mod.config) : (mod.config || {});
+      const comps = config.structure?.components || [];
+      const aoiComp = comps.find((c: { id: string }) => c.id === 'aois');
+      if (aoiComp) {
+        aoiComp.value = JSON.stringify(aois);
+      } else {
+        comps.push({ id: 'aois', type: 'hidden', label: 'AOIs', value: JSON.stringify(aois), order: 99, hidden: true });
+      }
+      await modulesService.update(stimulus.moduleId, { config });
+      onSave();
+      handleClose();
+    } catch {
+      console.error('Failed to save AOIs');
+    } finally {
+      setSaving(false);
+    }
+  }, [aois, stimulus.moduleId, onSave, handleClose]);
+
+  return (
+    <div
+      className={`fixed inset-0 z-50 flex items-center justify-center transition-colors duration-200 ${visible ? 'bg-black/40' : 'bg-black/0'}`}
+      onClick={handleClose}
+    >
+      <div
+        className={`bg-white rounded-xl shadow-lg w-[90vw] max-w-4xl max-h-[85vh] flex flex-col transition-all duration-200 ${visible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200">
+          <div className="flex items-center gap-2">
+            <PenTool className="h-4 w-4 text-gray-500" />
+            <h3 className="text-sm font-semibold text-gray-900">Areas of Interest</h3>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors"
+            >
+              {saving ? 'Saving...' : 'Save AOIs'}
+            </button>
+            <button onClick={handleClose} className="p-1 text-gray-400 hover:text-gray-600 rounded-md hover:bg-gray-100 transition-colors">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+          </div>
+        </div>
+        <div className="flex-1 overflow-y-auto p-5">
+          {stimulus.stimulusUrl && (
+            <AOIDrawer
+              imageUrl={stimulus.stimulusUrl}
+              aois={aois}
+              onChange={setAois}
+              maxHeight={400}
+            />
+          )}
+          {stimulus.aois.length > 0 && (
+            <div className="mt-4 space-y-2">
+              <h4 className="text-xs font-semibold text-gray-700">Metrics</h4>
+              {stimulus.aois.map((aoi, idx) => (
+                <AOIRow key={aoi.id} aoi={aoi} index={idx} stimulusUrl={stimulus.stimulusUrl} />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -750,7 +750,6 @@ interface AttentionPredictionCardProps {
     onAoiSkippedChange?: (skipped: boolean) => void;
     onAoiListChange?: (aois: ManualAOI[]) => void;
     autoPresets?: { blur: number; opacity: number; threshold: number };
-    griddedAOIs?: Array<{ label: string; x: number; y: number; width: number; height: number; attention: number; rank: number }>;
     isAnalyzing?: boolean;
     analyzeElapsed?: number;
     headerExtra?: ReactNode;
@@ -798,7 +797,6 @@ export const AttentionPredictionCard = ({
     onAoiSkippedChange,
     onAoiListChange,
     autoPresets,
-    griddedAOIs,
     isAnalyzing = false,
     analyzeElapsed = 0,
     headerExtra,
@@ -969,7 +967,7 @@ export const AttentionPredictionCard = ({
             setAoiCurrent(prev => {
                 if (prev && prev.w > 1 && prev.h > 1) {
                     setPendingRect(prev);
-                    setPendingLabel(`Zona ${aoiList.length + 1}`);
+                    setPendingLabel(`Zone ${aoiList.length + 1}`);
                     setSelectedAoiId(null);
                     setShowNameModal(true);
                 }
@@ -1048,7 +1046,7 @@ export const AttentionPredictionCard = ({
 
     const confirmPendingAoi = useCallback(() => {
         if (!pendingRect) return;
-        const label = pendingLabel.trim() || `Zona ${aoiList.length + 1}`;
+        const label = pendingLabel.trim() || `Zone ${aoiList.length + 1}`;
         const aoi: ManualAOI = clampAoiBounds({
             id: `aoi_${crypto.randomUUID()}`,
             label,
@@ -1100,7 +1098,7 @@ export const AttentionPredictionCard = ({
     }, [persistAois]);
 
     const updateAoiLabel = useCallback((aoiId: string, label: string) => {
-        const trimmed = label.trim() || 'Zona sin nombre';
+        const trimmed = label.trim() || 'Unnamed zone';
         setAoiList(prev => {
             const next = prev.map(a => (a.id === aoiId ? { ...a, label: trimmed } : a));
             void persistAois(next);
@@ -1405,16 +1403,16 @@ export const AttentionPredictionCard = ({
 
                 {showLegacyHeatmapBanner && (
                     <div className="mx-4 mt-3 px-3 py-2 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md">
-                        Datos de heatmap antiguos — usa «Regenerar heatmap» para obtener un mapa fino con hotspots precisos.
+                        Legacy heatmap data — use "Regenerate heatmap" to get a refined map with precise hotspots.
                     </div>
                 )}
 
                 {predictionError && (
                     <div className="mx-4 mt-3 px-3 py-2 text-xs text-red-700 bg-red-50 border border-red-200 rounded-md flex items-center justify-between gap-2">
-                        <span>Error al generar heatmap: {predictionError}</span>
+                        <span>Error generating heatmap: {predictionError}</span>
                         {onRunPrediction && (
                             <button type="button" onClick={handlePredictClick} className="text-red-800 underline font-medium shrink-0">
-                                Reintentar
+                                Retry
                             </button>
                         )}
                     </div>
@@ -1445,7 +1443,7 @@ export const AttentionPredictionCard = ({
                                 type="button"
                                 onClick={() => setShowFullscreen(true)}
                                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 rounded hover:bg-gray-200 transition-colors mr-2"
-                                title="Vista completa"
+                                title="Full view"
                             >
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5" />
@@ -1497,7 +1495,7 @@ export const AttentionPredictionCard = ({
                 {/* Grid preset selector — heatmap tab */}
                 {activeTab === 'heatmap' && (
                     <div className="px-4 py-2 border-b bg-slate-50 flex items-center gap-3">
-                        <span className="text-xs text-gray-500">Malla</span>
+                        <span className="text-xs text-gray-500">Grid</span>
                         <div className="flex items-center gap-1 border border-gray-200 rounded bg-white p-0.5">
                             {GRID_PRESETS.map(preset => (
                                 <button
@@ -1539,10 +1537,8 @@ export const AttentionPredictionCard = ({
                         aoiList={aoiList}
                         onAoiSkippedChange={onAoiSkippedChange}
                         onShowSkipConfirm={() => { setSkipConfirmAction('gate-only'); setShowSkipConfirm(true); }}
-                        griddedAOIs={griddedAOIs}
                         computedAois={computedAois}
                         isSavingAois={isSavingAois}
-                        onImportGridded={(imported) => { setAoiList(imported); void persistAois(imported); }}
                         isVideo={isVideo}
                         activeGridPreset={activeGridPreset}
                         onGridPresetChange={handleGridPresetChange}
@@ -1628,14 +1624,14 @@ export const AttentionPredictionCard = ({
                                                         {isPredicting && (
                                                             <div className="absolute inset-0 flex items-center justify-center bg-black/40 pointer-events-none animate-pulse">
                                                                 <p className="text-white text-sm bg-black/60 px-4 py-2 rounded-lg">
-                                                                    Generando heatmap… {predictElapsed}s
+                                                                    Generating heatmap… {predictElapsed}s
                                                                 </p>
                                                             </div>
                                                         )}
                                                         {!isPredicting && layers.heatmap && !hasHeatmap && (
                                                             <div className="absolute inset-0 flex items-center justify-center bg-black/30 pointer-events-none">
                                                                 <p className="text-white text-sm bg-black/50 px-4 py-2 rounded-lg">
-                                                                    Genera el heatmap para ver la predicción TranSalNet
+                                                                    Generate the heatmap to see the TranSalNet prediction
                                                                 </p>
                                                             </div>
                                                         )}
@@ -1693,6 +1689,7 @@ export const AttentionPredictionCard = ({
                                                                 onSelect={() => setSelectedAoiId(aoi.id)}
                                                                 onChange={updateAoi}
                                                                 containerRef={aoiContainerRef}
+                                                                disabled={drawingAoi}
                                                             />
                                                         );
                                                     }
@@ -1750,7 +1747,7 @@ export const AttentionPredictionCard = ({
 
                     {isAoiEditMode && isPredicting && (
                         <p className="mt-2 shrink-0 text-xs text-indigo-600">
-                            Regenerando heatmap ({predictElapsed}s). Los % se actualizan al mover zonas; el mapa se refrescará al terminar.
+                            Regenerating heatmap ({predictElapsed}s). Percentages update when zones move; the map will refresh when done.
                         </p>
                     )}
                     {isAoiEditMode && computedAois.length > 0 && (
@@ -1904,13 +1901,13 @@ const CardHeader = ({
                             : hasHeatmap ? 'text-gray-600 bg-gray-100 hover:bg-gray-200' : 'text-white bg-indigo-600 hover:bg-indigo-700',
                         isPredicting && 'opacity-50 cursor-not-allowed',
                     )}
-                    title={!predictionGateOpen ? 'Define al menos una zona o continúa sin zonas' : hasHeatmap ? 'Regenerar heatmap TranSalNet' : 'Generar heatmap TranSalNet'}
+                    title={!predictionGateOpen ? 'Define at least one zone or continue without zones' : hasHeatmap ? 'Regenerate TranSalNet heatmap' : 'Generate TranSalNet heatmap'}
                 >
                     {isPredicting
-                        ? (videoProgressMessage || `Generando heatmap... ${predictElapsed}s`)
+                        ? (videoProgressMessage || `Generating heatmap... ${predictElapsed}s`)
                         : heatmapStale
-                            ? 'Recalcular con zonas actuales'
-                            : hasHeatmap ? 'Regenerar heatmap' : 'Generar heatmap'}
+                            ? 'Recalculate with current zones'
+                            : hasHeatmap ? 'Regenerate heatmap' : 'Generate heatmap'}
                 </button>
             )}
             {heatmapVideoUrl && downloadVideo && imageUrl && (
@@ -1943,7 +1940,7 @@ const CardHeader = ({
                         aiAnalysis ? 'text-gray-600 bg-gray-100 hover:bg-gray-200' : 'text-white bg-blue-600 hover:bg-blue-700',
                         (isAnalyzing || !analysisGateOpen) && 'opacity-50 cursor-not-allowed',
                     )}
-                    title={!analysisGateOpen ? (!hasHeatmap ? 'Genera el heatmap antes del análisis IA' : 'Define al menos una zona o continúa sin zonas') : aiAnalysis ? 'Re-ejecutar análisis IA' : 'Ejecutar análisis IA'}
+                    title={!analysisGateOpen ? (!hasHeatmap ? 'Generate the heatmap before AI analysis' : 'Define at least one zone or continue without zones') : aiAnalysis ? 'Re-run AI analysis' : 'Run AI analysis'}
                 >
                     <svg className={cn("h-3.5 w-3.5", isAnalyzing && "animate-spin")} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
                         {isAnalyzing
@@ -1951,7 +1948,7 @@ const CardHeader = ({
                             : <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
                         }
                     </svg>
-                    {isAnalyzing ? `Analizando... ${analyzeElapsed}s` : aiAnalysis ? 'Re-analizar' : 'Análisis IA'}
+                    {isAnalyzing ? `Analyzing... ${analyzeElapsed}s` : aiAnalysis ? 'Re-analyze' : 'AI Analysis'}
                 </button>
             )}
         </div>
@@ -1971,7 +1968,7 @@ const LayerToggles = ({
     onApplyComposite: () => void;
 }) => (
     <div className="px-4 py-2 border-b bg-white flex flex-wrap items-center gap-x-4 gap-y-1">
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mr-1">Capas</span>
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mr-1">Layers</span>
         <label className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer">
             <input type="checkbox" checked={layers.heatmap} disabled={!hasHeatmap} onChange={() => onToggleLayer('heatmap')} className="rounded border-gray-300" />
             Heatmap
@@ -1979,24 +1976,24 @@ const LayerToggles = ({
         {displayAutoAois.length > 0 && (
             <label className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer">
                 <input type="checkbox" checked={layers.aiAois} onChange={() => onToggleLayer('aiAois')} className="rounded border-gray-300" />
-                Zonas IA
+                AI Zones
             </label>
         )}
         {computedAois.length > 0 && (
             <label className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer">
                 <input type="checkbox" checked={layers.manualAois} onChange={() => onToggleLayer('manualAois')} className="rounded border-gray-300" />
-                Zonas manuales
+                Manual Zones
             </label>
         )}
         {gazeRoutes.length > 0 && (
             <label className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer">
                 <input type="checkbox" checked={layers.gaze} onChange={() => onToggleLayer('gaze')} className="rounded border-gray-300" />
-                Rutas de mirada
+                Gaze Routes
             </label>
         )}
         {(hasHeatmap || gazeRoutes.length > 0) && (
             <button type="button" onClick={onApplyComposite} className="ml-1 px-2 py-0.5 text-[11px] font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded hover:bg-blue-100 transition-colors">
-                Vista completa
+                Full view
             </button>
         )}
     </div>
@@ -2075,7 +2072,7 @@ const GRID_PRESETS = [
 
 const AoiEditorToolbar = ({
     drawingAoi, onToggleDrawing, aoiSkipped, aoiList, onAoiSkippedChange,
-    onShowSkipConfirm, griddedAOIs, computedAois, isSavingAois, onImportGridded,
+    onShowSkipConfirm, computedAois, isSavingAois,
     isVideo, activeGridPreset, onGridPresetChange,
 }: {
     drawingAoi: boolean;
@@ -2084,10 +2081,8 @@ const AoiEditorToolbar = ({
     aoiList: ManualAOI[];
     onAoiSkippedChange?: (v: boolean) => void;
     onShowSkipConfirm: () => void;
-    griddedAOIs?: Array<{ label: string; x: number; y: number; width: number; height: number; attention: number; rank: number }>;
     computedAois: AOIWithStats[];
     isSavingAois: boolean;
-    onImportGridded: (imported: ManualAOI[]) => void;
     isVideo?: boolean;
     activeGridPreset?: string;
     onGridPresetChange?: (preset: { label: string; cols: number; rows: number }) => void;
@@ -2121,37 +2116,21 @@ const AoiEditorToolbar = ({
                     drawingAoi ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200',
                 )}
             >
-                {drawingAoi ? 'Dibujando zona...' : '+ Crear zona manual'}
+                {drawingAoi ? 'Drawing zone...' : '+ Create manual zone'}
             </button>
             {!aoiSkipped && aoiList.length === 0 && onAoiSkippedChange && (
                 <button type="button" onClick={onShowSkipConfirm}
                     className="px-3 py-1.5 text-xs font-medium text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded transition-colors">
-                    Continuar sin zonas
+                    Continue without zones
                 </button>
             )}
             {aoiSkipped && (
-                <span className="text-xs text-amber-700 bg-amber-50 px-2 py-1 rounded border border-amber-200">Sin zonas definidas</span>
-            )}
-            {!isVideo && griddedAOIs && griddedAOIs.length > 0 && computedAois.length === 0 && (
-                <button
-                    type="button"
-                    onClick={() => {
-                        const imported: ManualAOI[] = griddedAOIs.map((g, i) => ({
-                            id: `grid-${Date.now()}-${i}`,
-                            label: g.label, x: g.x, y: g.y, width: g.width, height: g.height,
-                            source: 'imported-grid' as const,
-                        }));
-                        onImportGridded(imported);
-                    }}
-                    className="px-3 py-1.5 text-xs font-medium text-green-700 bg-green-50 hover:bg-green-100 border border-green-200 rounded transition-colors"
-                >
-                    Importar zonas detectadas ({griddedAOIs.length})
-                </button>
+                <span className="text-xs text-amber-700 bg-amber-50 px-2 py-1 rounded border border-amber-200">No zones defined</span>
             )}
             {computedAois.length > 0 && (
                 <span className="text-xs text-gray-500">
-                    {computedAois.length} zonas definidas
-                    {isSavingAois && ' — guardando...'}
+                    {computedAois.length} zones defined
+                    {isSavingAois && ' — saving...'}
                 </span>
             )}
         </div>
@@ -2209,7 +2188,7 @@ const AoiChipList = ({
                             {aoi.label}
                         </span>
                     )}
-                    <span className="font-semibold" style={{ color }} title={`~${estimateExposureTime(aoi.percentage)} exposición estimada`}>
+                    <span className="font-semibold" style={{ color }} title={`~${estimateExposureTime(aoi.percentage)} estimated exposure`}>
                         {aoi.percentage}%
                     </span>
                     <button
@@ -2235,7 +2214,7 @@ const AoiNameModal = ({
 }) => (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
         <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-5">
-            <h3 className="text-sm font-semibold text-gray-900 mb-3">Nombre de la zona</h3>
+            <h3 className="text-sm font-semibold text-gray-900 mb-3">Zone name</h3>
             <input
                 value={label}
                 onChange={(e) => onLabelChange(e.target.value)}
@@ -2248,8 +2227,8 @@ const AoiNameModal = ({
                 }}
             />
             <div className="flex justify-end gap-2 mt-4">
-                <button type="button" onClick={onCancel} className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-md">Cancelar</button>
-                <button type="button" onClick={onConfirm} className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md">Guardar zona</button>
+                <button type="button" onClick={onCancel} className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-md">Cancel</button>
+                <button type="button" onClick={onConfirm} className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md">Save zone</button>
             </div>
         </div>
     </div>
@@ -2263,13 +2242,13 @@ const SkipAoiConfirmModal = ({
 }) => (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
         <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-5">
-            <h3 className="text-sm font-semibold text-gray-900 mb-2">Continuar sin zonas</h3>
+            <h3 className="text-sm font-semibold text-gray-900 mb-2">Continue without zones</h3>
             <p className="text-sm text-gray-600 mb-4">
-                No has definido AOIs. Puedes generar el heatmap igualmente, pero el análisis IA tendrá menos contexto espacial.
+                No AOIs have been defined. You can still generate the heatmap, but the AI analysis will have less spatial context.
             </p>
             <div className="flex justify-end gap-2">
-                <button type="button" onClick={onCancel} className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-md">Cancelar</button>
-                <button type="button" onClick={onConfirm} className="px-3 py-1.5 text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 rounded-md">Continuar sin zonas</button>
+                <button type="button" onClick={onCancel} className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-md">Cancel</button>
+                <button type="button" onClick={onConfirm} className="px-3 py-1.5 text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 rounded-md">Continue without zones</button>
             </div>
         </div>
     </div>

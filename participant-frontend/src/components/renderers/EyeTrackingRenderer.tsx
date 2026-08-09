@@ -766,6 +766,8 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
                 validationRmsePx: isDesktop ? validationRmse : undefined,
                 emotions: hasEmotionRecognition ? faceEmotions.getSamples() : undefined,
                 microExpressions: hasEmotionRecognition ? detectMicroExpressions(faceEmotions.getSamples()) : undefined,
+                viewportWidth: window.innerWidth,
+                viewportHeight: window.innerHeight,
                 stimulusType: isShelf ? 'shelf' : isVideo ? 'video' : 'image',
                 ...(isVideo && { videoEnded: videoEndedRef.current }),
                 ...(isShelf && { displayMode, shelfCount, shelfItems, stimulusCount: resolvedShelfUrls.length }),
