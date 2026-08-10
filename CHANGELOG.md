@@ -1,3 +1,24 @@
+## v0.93.1 — Website Tracking fixes: emotions/gaze fallback, replay modal, status activation (2026-08-10)
+
+### fix: emotions/gaze tabs show data
+- **Page fallback.** Emotions and Attention tabs now auto-fallback to all-pages-combined data when the selected page has no emotion/gaze samples. Previously showed empty state even when other pages had data.
+- **DB migration.** `gaze_samples LONGTEXT` column added to `tracking_sessions` (was missing in production).
+- **face-api.js models.** Uploaded to `media/face-api-models/` on server — snippet emotion capture requires these models to initialize the camera pipeline.
+
+### fix: Website Tracking status activation
+- **Sidebar status button.** Website Tracking researches now show a clickable status badge (like other research types) instead of a static "Tracking" label. Researchers can activate/deactivate from the sidebar via StatusModal.
+
+### fix: Session Replay modal sizing
+- **Wider modal.** `90vw/1200px/85vh` → `95vw/1600px/90vh` — accommodates wide viewport recordings without cutting.
+- **Proportional scale.** `fitScale` now considers both width AND height (`min(parentW/vpW, parentH/vpH, 1)`), sets frame height explicitly.
+
+### fix: Eye Tracking results tabs
+- **ViewModeTab icon optional.** `icon` prop now optional (was required but unused after text-only compaction).
+- **AOI modal `modulesService.get`** → `modulesService.getById` (correct method name).
+- **AOI modal config access** via `res.module.config` (not `res.config`).
+
+---
+
 ## v0.93.0 — Eye Tracking builder UX, quality pipeline, consistency sweep + onboarding (2026-08-09)
 
 ### feat: Eye Tracking builder — zero-scroll layout

@@ -58,15 +58,17 @@ export const SessionReplayPlayer = ({ researchId, sessionId, onClose }: SessionR
 
         const vpW = session?.viewportWidth || 1440;
 
+        const vpH = session?.viewportHeight || 900;
         const fitScale = () => {
             const parentW = wrapper.clientWidth;
-            if (parentW <= 0) return;
-            const scale = Math.min(parentW / vpW, 1);
+            const parentH = wrapper.clientHeight;
+            if (parentW <= 0 || parentH <= 0) return;
+            const scale = Math.min(parentW / vpW, parentH / vpH, 1);
             target.style.transformOrigin = 'top center';
             target.style.transform = `scale(${scale})`;
-            // Prevent rrweb's internal fixed dimensions from overflowing
             if (frame) {
                 frame.style.width = `${vpW}px`;
+                frame.style.height = `${vpH}px`;
             }
         };
 
@@ -317,7 +319,7 @@ export const SessionReplayPlayer = ({ researchId, sessionId, onClose }: SessionR
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
             <div
                 className="bg-white rounded-xl shadow-2xl overflow-hidden flex flex-col"
-                style={{ width: '90vw', maxWidth: 1200, height: '85vh' }}
+                style={{ width: '95vw', maxWidth: 1600, height: '90vh' }}
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Header */}

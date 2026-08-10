@@ -37,10 +37,21 @@ interface TrackingEmotionsTabProps {
 }
 
 export const TrackingEmotionsTab = ({ researchId, selectedPageUrl }: TrackingEmotionsTabProps) => {
-    const { data, isLoading } = useQuery({
+    const { data: pageData, isLoading: pageLoading } = useQuery({
         queryKey: ['tracking', researchId, 'emotions', selectedPageUrl],
         queryFn: () => trackingService.getTrackingEmotions(researchId, selectedPageUrl),
     });
+
+    // Fallback: if selected page has no data, fetch all pages combined
+    const pageHasData = (pageData?.totalSamples ?? 0) > 0;
+    const { data: allData, isLoading: allLoading } = useQuery({
+        queryKey: ['tracking', researchId, 'emotions', '__all__'],
+        queryFn: () => trackingService.getTrackingEmotions(researchId, undefined),
+        enabled: !pageLoading && !pageHasData,
+    });
+
+    const data = pageHasData ? pageData : allData;
+    const isLoading = pageLoading || (!pageHasData && allLoading);
 
     if (isLoading) {
         return (

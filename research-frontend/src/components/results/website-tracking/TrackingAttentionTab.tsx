@@ -39,10 +39,20 @@ interface TrackingAttentionTabProps {
 }
 
 export const TrackingAttentionTab = ({ researchId, selectedPageUrl }: TrackingAttentionTabProps) => {
-    const { data, isLoading } = useQuery({
+    const { data: pageData, isLoading: pageLoading } = useQuery({
         queryKey: ['tracking', researchId, 'gaze', selectedPageUrl],
         queryFn: () => trackingService.getTrackingGaze(researchId, selectedPageUrl),
     });
+
+    const pageHasData = (pageData?.totalSamples ?? 0) > 0;
+    const { data: allData, isLoading: allLoading } = useQuery({
+        queryKey: ['tracking', researchId, 'gaze', '__all__'],
+        queryFn: () => trackingService.getTrackingGaze(researchId, undefined),
+        enabled: !pageLoading && !pageHasData,
+    });
+
+    const data = pageHasData ? pageData : allData;
+    const isLoading = pageLoading || (!pageHasData && allLoading);
 
     if (isLoading) {
         return (

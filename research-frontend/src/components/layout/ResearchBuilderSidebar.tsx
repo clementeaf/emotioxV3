@@ -453,7 +453,7 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
                             Status
                         </h3>
                     )}
-                    {isFileBasedResearch ? (
+                    {isFileBasedResearch && !isWebsiteTracking ? (
                         <span
                             title={isCollapsed ? activeResearch.research_type_name || 'Analysis' : undefined}
                             className={cn(
@@ -461,14 +461,12 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
                                 isCollapsed ? 'px-1.5 py-1' : 'px-2.5 py-0.5',
                                 isAttentionPrediction ? 'bg-purple-100 text-purple-800' :
                                 isInsightsFinding ? 'bg-indigo-100 text-indigo-800' :
-                                isWebsiteTracking ? 'bg-cyan-100 text-cyan-800' :
                                 'bg-amber-100 text-amber-800'
                             )}
                         >
-                            {isCollapsed ? (isAttentionPrediction ? 'P' : isInsightsFinding ? 'I' : isWebsiteTracking ? 'T' : 'A')
+                            {isCollapsed ? (isAttentionPrediction ? 'P' : isInsightsFinding ? 'I' : 'A')
                                 : isAttentionPrediction ? 'Prediction'
                                 : isInsightsFinding ? 'Analysis'
-                                : isWebsiteTracking ? 'Tracking'
                                 : 'Active'}
                         </span>
                     ) : (
