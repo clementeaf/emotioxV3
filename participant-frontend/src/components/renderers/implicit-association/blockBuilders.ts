@@ -29,12 +29,14 @@ export const padAndShuffle = (trials: IATTrial[], min: number): IATTrial[] => {
 /**
  * Attribute Testing — Implicit Priming Test (2 steps)
  *
- * Step 1 (Practice): Classify targets WITHOUT criteria context.
+ * Step 1 (Practice): Classify targets alone — learn which button = which target.
  *   Stimulus = target image/name. Buttons = target names.
  *
- * Step 2 (Test): Criteria label shown as stimulus + target image below.
- *   Correct answer = the target assigned by the researcher via targetId.
- *   RT differences reveal implicit associations.
+ * Step 2 (Test): Criterion flashes briefly as prime → target appears → classify target.
+ *   Prime = criterion word (200-400ms). Stimulus = target.
+ *   Congruent prime (criterion assigned to this target) → fast RT.
+ *   Incongruent prime → slow RT. The RT difference reveals implicit association.
+ *   All criterion × target combinations are tested.
  */
 export function buildBlocksAttributeTesting(
     targets: IATTarget[],
@@ -44,15 +46,6 @@ export function buildBlocksAttributeTesting(
 
     const tLeft = targets[0];
     const tRight = targets[targets.length - 1];
-
-    // Map groupLabel IDs (e.g. "Target 1") to left/right side
-    const targetSideMap = new Map<string, 'left' | 'right'>();
-    targets.forEach((t, idx) => {
-        targetSideMap.set(t.id, idx === 0 ? 'left' : 'right');
-        // Also map groupLabel format (e.g. "Target 1", "Object 1")
-        const groupLabel = t.id.replace(/^(target|object)-/, (_, prefix) => `${prefix.charAt(0).toUpperCase()}${prefix.slice(1)} `);
-        targetSideMap.set(groupLabel, idx === 0 ? 'left' : 'right');
-    });
 
     // Step 1: Practice — classify targets alone
     const step1Trials: IATTrial[] = [];
@@ -67,24 +60,21 @@ export function buildBlocksAttributeTesting(
         });
     }
 
-    // Step 2: Test — criteria label + assigned target determines correct side
+    // Step 2: Test — criterion × target combinations with priming
+    // Prime = criterion (brief flash), Stimulus = target (classify it)
     const step2Trials: IATTrial[] = [];
     for (const crit of criteria) {
-        // Determine correct side from researcher's target assignment
-        const assignedSide = crit.targetId ? targetSideMap.get(crit.targetId) : undefined;
-        // Find assigned target to show its image
-        const assignedTarget = crit.targetId
-            ? targets.find(t => t.id === crit.targetId || `Target ${targets.indexOf(t) + 1}` === crit.targetId || `Object ${targets.indexOf(t) + 1}` === crit.targetId)
-            : undefined;
-
-        step2Trials.push({
-            stimulusId: crit.id,
-            stimulusLabel: crit.label,
-            stimulusImage: undefined, // criteria shown as text
-            stimulusSecondaryLabel: assignedTarget?.name,
-            correctSide: assignedSide ?? 'left', // fallback left if not assigned
-            phase: 'test',
-        });
+        for (let idx = 0; idx < targets.length; idx++) {
+            const t = targets[idx];
+            step2Trials.push({
+                stimulusId: `${crit.id}__${t.id}`,
+                primingLabel: crit.label,
+                stimulusLabel: t.name,
+                stimulusImage: t.imageUrl,
+                correctSide: idx === 0 ? 'left' : 'right',
+                phase: 'test',
+            });
+        }
     }
 
     return [
@@ -102,7 +92,7 @@ export function buildBlocksAttributeTesting(
             rightLabel: tRight.name,
             leftId: tLeft.id,
             rightId: tRight.id,
-            trials: padAndShuffle(step2Trials, Math.max(8, criteria.length * targets.length)),
+            trials: padAndShuffle(step2Trials, Math.max(20, criteria.length * targets.length * 2)),
         },
     ];
 }
@@ -149,16 +139,17 @@ export function buildBlocksComparingAttribute(
 }
 
 /**
- * Objects Comparing — Reaction Time Test (3-step classic IAT)
+ * Objects Comparing — Classic IAT (Greenwald et al. 1998, 7 blocks)
  *
- * Step 1: Classify CRITERIA items → criteria category buttons (e.g. RIcoooo / Malooo).
- *   Stimulus = criteria word/image. First half → left, second half → right.
+ * Block 1: Target practice          — classify targets (A=left, B=right)
+ * Block 2: Attribute practice       — classify criteria (Good=left, Bad=right)
+ * Block 3: Combined congruent pract — A+Good=left, B+Bad=right (mixed)
+ * Block 4: Combined congruent test  — same pairing, more trials
+ * Block 5: Target practice REVERSED — B=left, A=right (key reversal)
+ * Block 6: Combined incongruent pract — B+Good=left, A+Bad=right
+ * Block 7: Combined incongruent test  — same pairing, more trials
  *
- * Step 2: Classify TARGETS → target name buttons.
- *   Stimulus = target image/name.
- *
- * Step 3: Combined — both criteria and target stimuli mixed.
- *   Buttons = combined labels (e.g. "Coca cola or RIcoooo" / "Fanta or Malooo").
+ * D-score = f(blocks 3,4 vs 6,7) per Greenwald improved method.
  */
 export function buildBlocksObjectsComparing(
     targets: IATTarget[],
@@ -171,79 +162,105 @@ export function buildBlocksObjectsComparing(
     const tRight = targets[targets.length - 1];
     const half = Math.ceil(criteria.length / 2);
 
-    // Step 1: Classify criteria items
-    const step1Trials: IATTrial[] = [];
-    for (let idx = 0; idx < criteria.length; idx++) {
-        const crit = criteria[idx];
-        step1Trials.push({
-            stimulusId: crit.id,
-            stimulusLabel: crit.label,
-            stimulusImage: crit.imageUrl,
-            correctSide: idx < half ? 'left' : 'right',
-            phase: 'test',
-        });
-    }
+    const targetSide = (idx: number) => idx < targets.length / 2 ? 'left' as const : 'right' as const;
+    const critSide = (idx: number) => idx < half ? 'left' as const : 'right' as const;
 
-    // Step 2: Classify targets
-    const step2Trials: IATTrial[] = [];
-    for (let idx = 0; idx < targets.length; idx++) {
-        const t = targets[idx];
-        step2Trials.push({
+    // Helpers to build trial sets
+    const makeTargetTrials = (reversed: boolean): IATTrial[] =>
+        targets.map((t, idx) => ({
             stimulusId: t.id,
             stimulusLabel: t.name,
             stimulusImage: t.imageUrl,
-            correctSide: idx < targets.length / 2 ? 'left' : 'right',
-            phase: 'test',
-        });
-    }
+            correctSide: reversed
+                ? (targetSide(idx) === 'left' ? 'right' as const : 'left' as const)
+                : targetSide(idx),
+            phase: 'test' as const,
+        }));
 
-    // Step 3: Combined (criteria + targets mixed)
-    const step3Trials: IATTrial[] = [];
-    for (let idx = 0; idx < targets.length; idx++) {
-        const t = targets[idx];
-        step3Trials.push({
-            stimulusId: t.id,
-            stimulusLabel: t.name,
-            stimulusImage: t.imageUrl,
-            correctSide: idx < targets.length / 2 ? 'left' : 'right',
-            phase: 'test',
-        });
-    }
-    for (let idx = 0; idx < criteria.length; idx++) {
-        const crit = criteria[idx];
-        step3Trials.push({
+    const makeCriteriaTrials = (): IATTrial[] =>
+        criteria.map((crit, idx) => ({
             stimulusId: crit.id,
             stimulusLabel: crit.label,
             stimulusImage: crit.imageUrl,
-            correctSide: idx < half ? 'left' : 'right',
-            phase: 'test',
-        });
-    }
+            correctSide: critSide(idx),
+            phase: 'test' as const,
+        }));
+
+    const makeCombinedTrials = (reversed: boolean): IATTrial[] => [
+        ...makeTargetTrials(reversed),
+        ...makeCriteriaTrials(),
+    ];
+
+    // Congruent labels: target-1 + criteria-1 on same side
+    const congruentLeft = `${tLeft.name} / ${categories.left}`;
+    const congruentRight = `${tRight.name} / ${categories.right}`;
+    // Incongruent labels: target sides reversed, criteria stay
+    const incongruentLeft = `${tRight.name} / ${categories.left}`;
+    const incongruentRight = `${tLeft.name} / ${categories.right}`;
 
     return [
+        // Block 1: Target practice
         {
             step: 1,
-            leftLabel: categories.left,
-            rightLabel: categories.right,
-            leftId: categories.leftId,
-            rightId: categories.rightId,
-            trials: padAndShuffle(step1Trials, Math.max(6, criteria.length * 2)),
-        },
-        {
-            step: 2,
             leftLabel: tLeft.name,
             rightLabel: tRight.name,
             leftId: tLeft.id,
             rightId: tRight.id,
-            trials: padAndShuffle(step2Trials, Math.max(6, targets.length * 2)),
+            trials: padAndShuffle(makeTargetTrials(false), 20),
         },
+        // Block 2: Attribute practice
+        {
+            step: 2,
+            leftLabel: categories.left,
+            rightLabel: categories.right,
+            leftId: categories.leftId,
+            rightId: categories.rightId,
+            trials: padAndShuffle(makeCriteriaTrials(), 20),
+        },
+        // Block 3: Combined congruent practice
         {
             step: 3,
-            leftLabel: `${tLeft.name} / ${categories.left}`,
-            rightLabel: `${tRight.name} / ${categories.right}`,
-            leftId: 'combined-left',
-            rightId: 'combined-right',
-            trials: padAndShuffle(step3Trials, Math.max(8, (targets.length + criteria.length) * 2)),
+            leftLabel: congruentLeft,
+            rightLabel: congruentRight,
+            leftId: 'congruent-left',
+            rightId: 'congruent-right',
+            trials: padAndShuffle(makeCombinedTrials(false), 20),
+        },
+        // Block 4: Combined congruent test
+        {
+            step: 4,
+            leftLabel: congruentLeft,
+            rightLabel: congruentRight,
+            leftId: 'congruent-left',
+            rightId: 'congruent-right',
+            trials: padAndShuffle(makeCombinedTrials(false), 40),
+        },
+        // Block 5: Target practice REVERSED
+        {
+            step: 5,
+            leftLabel: tRight.name,
+            rightLabel: tLeft.name,
+            leftId: tRight.id,
+            rightId: tLeft.id,
+            trials: padAndShuffle(makeTargetTrials(true), 20),
+        },
+        // Block 6: Combined incongruent practice
+        {
+            step: 6,
+            leftLabel: incongruentLeft,
+            rightLabel: incongruentRight,
+            leftId: 'incongruent-left',
+            rightId: 'incongruent-right',
+            trials: padAndShuffle(makeCombinedTrials(true), 20),
+        },
+        // Block 7: Combined incongruent test
+        {
+            step: 7,
+            leftLabel: incongruentLeft,
+            rightLabel: incongruentRight,
+            leftId: 'incongruent-left',
+            rightId: 'incongruent-right',
+            trials: padAndShuffle(makeCombinedTrials(true), 40),
         },
     ];
 }

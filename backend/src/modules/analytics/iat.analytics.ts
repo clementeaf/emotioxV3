@@ -227,11 +227,12 @@ const computeIATScores = (
     try {
       const parsed = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
       const trials: Trial[] = Array.isArray(parsed) ? parsed : parsed?.trials ?? [];
-      // Include all block trials (block-1, block-2, block-3, test), exclude practice/exercise
       for (const t of trials) {
-        if (t.rt > 0 && (t.phase?.startsWith('block') || t.phase === 'test')) {
-          allTrials.push(t);
-        }
+        if (t.rt <= 0) continue;
+        if (!(t.phase?.startsWith('block') || t.phase === 'test')) continue;
+        // Attribute Testing block-1 is practice (classify targets alone) — exclude from scoring
+        if (testType === 'attribute_testing' && t.phase === 'block-1') continue;
+        allTrials.push(t);
       }
     } catch { /* skip malformed */ }
   }
@@ -253,39 +254,37 @@ const computeIATScores = (
     ? Math.sqrt(allRTs.reduce((sum, rt) => sum + (rt - overallMean) ** 2, 0) / (allRTs.length - 1))
     : 1;
 
-  // For Objects Comparing: trials use combined-left/combined-right as criterionId, not criteria-1/criteria-2.
-  // Group target trials by block to derive dimension association from RT differences.
+  // Objects Comparing (classic IAT): Greenwald improved D-score method.
+  // Congruent = blocks 3,4 (target-1+criteria-1 same side).
+  // Incongruent = blocks 6,7 (target sides reversed).
+  // D = (mean_incongruent - mean_congruent) / pooled_SD
   if (testType === 'objects_comparing' && attributes.length === 2) {
-    // Collect mean RT per target per block (only trials where targetId starts with "target-")
-    const targetBlockRTs: Record<string, Record<string, number[]>> = {};
+    const congruentRTs: number[] = [];
+    const incongruentRTs: number[] = [];
     for (const t of allTrials) {
-      if (!t.targetId.startsWith('target-')) continue;
-      if (!targetBlockRTs[t.targetId]) targetBlockRTs[t.targetId] = {};
-      if (!targetBlockRTs[t.targetId][t.phase]) targetBlockRTs[t.targetId][t.phase] = [];
-      targetBlockRTs[t.targetId][t.phase].push(t.rt);
+      if (t.phase === 'block-3' || t.phase === 'block-4') congruentRTs.push(t.rt);
+      else if (t.phase === 'block-6' || t.phase === 'block-7') incongruentRTs.push(t.rt);
     }
 
-    // For each target, compute mean RT in block-2 vs block-3.
-    // Faster in block-2 → stronger association with the dimension on that side.
-    // We score as: dim1 strength = normalized(block-3 mean - block-2 mean), dim2 = inverse.
+    // Per-target dimension scores from congruent vs incongruent RT
     const dim1Scores: Record<string, number> = {};
     const dim2Scores: Record<string, number> = {};
 
-    for (const target of targets) {
-      const b2rts = targetBlockRTs[target.id]?.['block-2'] ?? [];
-      const b3rts = targetBlockRTs[target.id]?.['block-3'] ?? [];
-      if (b2rts.length === 0 && b3rts.length === 0) {
+    if (congruentRTs.length > 0 && incongruentRTs.length > 0) {
+      const meanCong = congruentRTs.reduce((a, b) => a + b, 0) / congruentRTs.length;
+      const meanIncong = incongruentRTs.reduce((a, b) => a + b, 0) / incongruentRTs.length;
+      const d = overallSD > 0 ? (meanIncong - meanCong) / overallSD : 0;
+
+      for (const target of targets) {
+        const score = Math.max(-100, Math.min(100, Math.round(d * 50)));
+        dim1Scores[target.id] = Math.max(0, score);
+        dim2Scores[target.id] = Math.max(0, -score);
+      }
+    } else {
+      for (const target of targets) {
         dim1Scores[target.id] = 0;
         dim2Scores[target.id] = 0;
-        continue;
       }
-      const meanB2 = b2rts.length > 0 ? b2rts.reduce((a, b) => a + b, 0) / b2rts.length : overallMean;
-      const meanB3 = b3rts.length > 0 ? b3rts.reduce((a, b) => a + b, 0) / b3rts.length : overallMean;
-      // Positive D = faster in block-2 (associated with dim1), negative = faster in block-3 (dim2)
-      const d = overallSD > 0 ? (meanB3 - meanB2) / overallSD : 0;
-      const score = Math.max(-100, Math.min(100, Math.round(d * 50)));
-      dim1Scores[target.id] = Math.max(0, score);
-      dim2Scores[target.id] = Math.max(0, -score);
     }
 
     return [
@@ -450,9 +449,13 @@ function computeAggregateDScore(individualDScores: number[]): DScoreResult | und
  * Readable phase labels for IAT blocks.
  */
 const PHASE_LABELS: Record<string, string> = {
-  'block-1': 'Practice',
-  'block-2': 'Test A',
-  'block-3': 'Test B',
+  'block-1': 'Target Practice',
+  'block-2': 'Attribute Practice',
+  'block-3': 'Congruent Practice',
+  'block-4': 'Congruent Test',
+  'block-5': 'Target Reversed',
+  'block-6': 'Incongruent Practice',
+  'block-7': 'Incongruent Test',
   'test': 'Test',
   'practice': 'Practice',
 };
@@ -552,6 +555,7 @@ const computeIATParticipantData = (
   rows: Array<{ value: string | unknown; participant_id: string }>,
   targets: IATTarget[],
   attributes: IATAttribute[],
+  testType?: IATModuleResult['testType'],
 ): IATParticipantData[] => {
   type Trial = { targetId: string; criterionId: string; rt: number; correct: boolean; phase: string };
 
@@ -564,8 +568,9 @@ const computeIATParticipantData = (
       const pid = row.participant_id;
       if (!byParticipant.has(pid)) byParticipant.set(pid, []);
       for (const t of trials) {
-        // Include test-phase trials: 'test' (legacy), block-2+ (attribute_testing/objects_comparing)
-        if (t.phase === 'test' || t.phase?.startsWith('block')) byParticipant.get(pid)!.push(t);
+        if (!(t.phase === 'test' || t.phase?.startsWith('block'))) continue;
+        if (testType === 'attribute_testing' && t.phase === 'block-1') continue;
+        byParticipant.get(pid)!.push(t);
       }
     } catch { /* skip */ }
   }
@@ -618,29 +623,31 @@ const computeIATParticipantData = (
     }
 
     // Greenwald D-score per participant
-    // Compatible = criterion paired with its assigned target (correct pairing)
-    // Incompatible = criterion paired with non-assigned target
     const compatibleRTs: number[] = [];
     const incompatibleRTs: number[] = [];
-    for (const t of trials) {
-      if (t.correct === false || t.rt > 10000) continue;
-      // Find which target this criterion is assigned to
-      const attr = attributes.find(a => a.id === t.criterionId);
-      if (!attr) continue;
-      const assignedTargetId = attr.targetId;
-      if (assignedTargetId) {
-        if (t.targetId === assignedTargetId) {
-          compatibleRTs.push(t.rt);
-        } else {
-          incompatibleRTs.push(t.rt);
-        }
-      } else if (targets.length === 2) {
-        // Objects Comparing: first target = compatible, second = incompatible (convention)
-        if (t.targetId === targets[0].id) {
-          compatibleRTs.push(t.rt);
-        } else {
-          incompatibleRTs.push(t.rt);
-        }
+
+    if (testType === 'objects_comparing') {
+      // Classic IAT: congruent (blocks 3,4) vs incongruent (blocks 6,7)
+      for (const t of trials) {
+        if (t.correct === false || t.rt > 10000) continue;
+        if (t.phase === 'block-3' || t.phase === 'block-4') compatibleRTs.push(t.rt);
+        else if (t.phase === 'block-6' || t.phase === 'block-7') incompatibleRTs.push(t.rt);
+      }
+    } else {
+      // Attribute Testing: congruent = criterion primed its assigned target
+      // stimulusId = "criterionId__targetId" (compound)
+      for (const t of trials) {
+        if (t.correct === false || t.rt > 10000) continue;
+        const parts = t.targetId.includes('__') ? t.targetId.split('__') : null;
+        if (!parts) continue;
+        const [critId, tgtId] = parts;
+        const attr = attributes.find(a => a.id === critId);
+        if (!attr?.targetId) continue;
+        // Resolve assigned target — may be stored as "Target 1" or "target-1"
+        const isAssigned = attr.targetId === tgtId
+          || targets.some((tg, i) => tg.id === tgtId && (`Target ${i + 1}` === attr.targetId || `Object ${i + 1}` === attr.targetId));
+        if (isAssigned) compatibleRTs.push(t.rt);
+        else incompatibleRTs.push(t.rt);
       }
     }
 
@@ -883,7 +890,7 @@ export const getImplicitAssociationResults = async (researchId: string) => {
     // D-score and error analysis only apply to paradigms with correct/incorrect trials
     const hasDScore = testType !== 'comparing_attribute';
     const participantData = hasDScore
-      ? computeIATParticipantData(responsesResult.rows as Array<{ value: string | unknown; participant_id: string }>, targets, attributes)
+      ? computeIATParticipantData(responsesResult.rows as Array<{ value: string | unknown; participant_id: string }>, targets, attributes, testType)
       : undefined;
 
     const dScore = hasDScore && participantData

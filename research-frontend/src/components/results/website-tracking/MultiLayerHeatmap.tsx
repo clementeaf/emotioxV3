@@ -18,7 +18,7 @@ interface MultiLayerHeatmapProps {
     device?: 'mobile' | 'tablet' | 'desktop';
     screenshotUrl?: string | null;
     hasSnapshot?: boolean;
-    layers: { click: boolean; scroll: boolean; attention: boolean; density: boolean };
+    layers: { click: boolean; scroll: boolean; attention: boolean; density: boolean; mouseAttention: boolean };
     intensity: number;
     opacity: number;
 }
@@ -58,6 +58,7 @@ export const MultiLayerHeatmap = ({
     const scrollCanvasRef = useRef<HTMLCanvasElement>(null);
     const attentionCanvasRef = useRef<HTMLCanvasElement>(null);
     const densityCanvasRef = useRef<HTMLCanvasElement>(null);
+    const mouseAttentionCanvasRef = useRef<HTMLCanvasElement>(null);
     const iframeRef = useRef<HTMLIFrameElement>(null);
     const imgRef = useRef<HTMLImageElement>(null);
     const [ready, setReady] = useState(false);
@@ -105,6 +106,13 @@ export const MultiLayerHeatmap = ({
         queryKey: ['tracking', researchId, 'scroll', pageUrl],
         queryFn: () => trackingService.getScrollDepth(researchId, pageUrl),
         enabled: layers.scroll && hasBackdrop,
+        staleTime: 10_000,
+    });
+
+    const { data: mouseAttentionData } = useQuery({
+        queryKey: ['tracking', researchId, 'mouse-attention', pageUrl, device || 'all'],
+        queryFn: () => trackingService.getMouseAttentionHeatmap(researchId, pageUrl, device),
+        enabled: layers.mouseAttention && hasBackdrop,
         staleTime: 10_000,
     });
 
@@ -393,6 +401,48 @@ export const MultiLayerHeatmap = ({
         }
     }, [ready, dimensions, layers.density, clickData]);
 
+    // ─── Render mouse-attention layer (cursor weighted by gaze) ───────
+    useEffect(() => {
+        const canvas = mouseAttentionCanvasRef.current;
+        if (!ready || !canvas || dimensions.width === 0 || !layers.mouseAttention) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        const w = dimensions.width;
+        const h = dimensions.height;
+        canvas.width = w;
+        canvas.height = h;
+        ctx.clearRect(0, 0, w, h);
+
+        ctx.fillStyle = `rgba(0, 0, 0, ${(opacity / 100) * 0.7})`;
+        ctx.fillRect(0, 0, w, h);
+
+        if (mouseAttentionData?.points && mouseAttentionData.points.length > 0) {
+            const heatCanvas = document.createElement('canvas');
+            heatCanvas.width = w;
+            heatCanvas.height = h;
+            const heat = simpleheat(heatCanvas);
+            const baseR = Math.max(25, Math.round(Math.min(w, h) * 0.05));
+            const r = Math.round(baseR * (intensity / 50));
+            heat.radius(r, Math.round(r * 0.9));
+            heat.gradient({
+                0.15: '#0f0', 0.35: '#8f0', 0.5: '#ff0',
+                0.7: '#f80', 0.85: '#f00', 1.0: '#f00',
+            });
+
+            const points: Array<[number, number, number]> = mouseAttentionData.points.map(p => [
+                (p.x / 100) * w, (p.y / 100) * w, p.weight,
+            ]);
+            heat.data(points);
+            const maxW = Math.max(...mouseAttentionData.points.map(p => p.weight));
+            heat.max(Math.max(1, maxW * 0.6));
+            heat.draw(0.05);
+            ctx.globalAlpha = 0.75;
+            ctx.drawImage(heatCanvas, 0, 0);
+            ctx.globalAlpha = 1;
+        }
+    }, [ready, dimensions, layers.mouseAttention, mouseAttentionData, intensity, opacity]);
+
     // Clear canvas when layer toggled off
     useEffect(() => {
         if (!layers.click && clickCanvasRef.current) {
@@ -421,6 +471,13 @@ export const MultiLayerHeatmap = ({
             ctx?.clearRect(0, 0, densityCanvasRef.current.width, densityCanvasRef.current.height);
         }
     }, [layers.density]);
+
+    useEffect(() => {
+        if (!layers.mouseAttention && mouseAttentionCanvasRef.current) {
+            const ctx = mouseAttentionCanvasRef.current.getContext('2d');
+            ctx?.clearRect(0, 0, mouseAttentionCanvasRef.current.width, mouseAttentionCanvasRef.current.height);
+        }
+    }, [layers.mouseAttention]);
 
     const canvasStyle = 'absolute top-0 left-0 pointer-events-none w-full h-full';
 
@@ -454,6 +511,7 @@ export const MultiLayerHeatmap = ({
                                 <canvas ref={scrollCanvasRef} className={canvasStyle} style={{ width: '100%', height: '100%' }} />
                                 <canvas ref={attentionCanvasRef} className={canvasStyle} style={{ width: '100%', height: '100%' }} />
                                 <canvas ref={densityCanvasRef} className={canvasStyle} style={{ width: '100%', height: '100%' }} />
+                                <canvas ref={mouseAttentionCanvasRef} className={canvasStyle} style={{ width: '100%', height: '100%' }} />
                             </>
                         )}
                         {!ready && (
@@ -480,6 +538,7 @@ export const MultiLayerHeatmap = ({
                                 <canvas ref={scrollCanvasRef} className={canvasStyle} style={{ width: '100%', height: '100%' }} />
                                 <canvas ref={attentionCanvasRef} className={canvasStyle} style={{ width: '100%', height: '100%' }} />
                                 <canvas ref={densityCanvasRef} className={canvasStyle} style={{ width: '100%', height: '100%' }} />
+                                <canvas ref={mouseAttentionCanvasRef} className={canvasStyle} style={{ width: '100%', height: '100%' }} />
                             </>
                         )}
                     </div>

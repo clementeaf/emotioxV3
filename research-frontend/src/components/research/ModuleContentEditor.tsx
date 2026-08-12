@@ -430,7 +430,7 @@ export const ModuleContentEditor = ({
                                 screenerSingleChoiceLocked={screenerSingleChoiceLocked}
                                 screenerMultipleChoiceMinOptions={screenerMultipleChoiceMinOptions}
                                 iatTargets={iatTargetOptions}
-                                iatHideTargetSelector={isAttributeTesting}
+                                iatHideTargetSelector={isComparingAttribute}
                             />
                         </div>
                     );

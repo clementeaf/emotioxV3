@@ -1,3 +1,34 @@
+## v0.94.0 — IAT paradigm corrections + Website Tracking mouse-attention heatmap (2026-08-12)
+
+### fix: IAT Attribute Testing (Implicit Priming Test) — 3 critical corrections
+- **Priming inverted.** Criterion now flashes as the prime (200-400ms) before the target appears as the stimulus. Previously the target was shown simultaneously as secondary text — made the task explicit instead of implicit.
+- **Target selector inverted.** Builder now shows the target assignment selector for Attribute Testing (where researchers must assign criteria to targets) and hides it for Comparing Attribute (where assignment is irrelevant). Was backwards.
+- **Practice contamination.** Block-1 practice trials (classify targets alone) excluded from score computation and D-score calculation. Previously practice RT contaminated test metrics.
+- **Compound stimulusId.** Step 2 trials now use `criterionId__targetId` format so analytics can trace which prime was shown for each response and compute congruent vs incongruent RT.
+
+### fix: IAT Objects Comparing (Classic IAT) — Greenwald 7-block structure
+- **7 blocks.** Replaced 3-block structure with the standard Greenwald et al. (1998) 7-block IAT:
+  - Block 1: Target practice (A=left, B=right)
+  - Block 2: Attribute practice (Good=left, Bad=right)
+  - Block 3: Congruent combined practice
+  - Block 4: Congruent combined test (40 trials)
+  - Block 5: Target practice REVERSED (B=left, A=right)
+  - Block 6: Incongruent combined practice
+  - Block 7: Incongruent combined test (40 trials)
+- **D-score.** Now computed from congruent (blocks 3,4) vs incongruent (blocks 6,7) as per Greenwald improved method, instead of the previous block-2 vs block-3 comparison which measured cognitive interference, not implicit association.
+- **Phase labels.** Error analysis shows readable labels: Target Practice, Congruent Test, Incongruent Test, etc.
+
+### feat: Website Tracking mouse-attention heatmap
+- **Gaze Focus layer.** New "Gaze Focus" toggle (orange) in the heatmap toolbar. Renders a simpleheat heatmap from cursor positions weighted by iris-based gaze attention score — mouse position is the spatial signal, iris tracking validates attention.
+- **Backend.** `getMouseAttentionHeatmapData()` aggregates `pageX/pageY` from gaze samples, weighted by attention score (0-1). Points with score=0 (away) are discarded. Coordinates normalized to viewport-width percentage (same system as click heatmap).
+- **Endpoint.** `GET /tracking/:id/mouse-attention?page=URL&device=X`.
+- **Snippet.** Gaze samples now include `pageX/pageY` (absolute position with scroll) alongside existing `cursorX/cursorY` (viewport-relative). Backward compatible — aggregation falls back to `cursorX/cursorY` for pre-v0.94 data.
+
+### quality
+- **TypeScript strict** — 0 errors, 0 warnings in all 3 subprojects.
+
+---
+
 ## v0.93.1 — Website Tracking fixes: emotions/gaze fallback, replay modal, status activation (2026-08-10)
 
 ### fix: emotions/gaze tabs show data

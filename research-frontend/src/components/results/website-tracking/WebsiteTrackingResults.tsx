@@ -9,7 +9,7 @@ import { createPortal } from 'react-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
     MousePointerClick, Users, Activity, AlertTriangle,
-    Download, ArrowDownUp, PlayCircle, TrendingDown, Eye, Grid3X3, SmilePlus,
+    Download, ArrowDownUp, PlayCircle, TrendingDown, Eye, Grid3X3, SmilePlus, Scan,
 } from 'lucide-react';
 import * as trackingService from '../../../services/tracking.service';
 import { EmptyState } from '../../ui/EmptyState';
@@ -31,7 +31,7 @@ const formatDateTime = (iso: string): string => {
 };
 
 type ResultTab = 'funnels' | 'heatmaps' | 'sessions' | 'friction' | 'live' | 'emotions' |'attention';
-type HeatmapSubTab = 'click' | 'scroll' | 'attention' | 'density';
+type HeatmapSubTab = 'click' | 'scroll' | 'attention' | 'density' | 'mouseAttention';
 type FunnelSubTab = 'custom-funnels' | 'page-flow' | 'comparison';
 
 interface WebsiteTrackingResultsProps {
@@ -40,7 +40,7 @@ interface WebsiteTrackingResultsProps {
 
 export const WebsiteTrackingResults = ({ researchId }: WebsiteTrackingResultsProps) => {
     const [activeTab, setActiveTab] = useState<ResultTab>('funnels');
-    const [heatmapLayers, setHeatmapLayers] = useState<Record<HeatmapSubTab, boolean>>({ click: true, scroll: true, attention: true, density: false });
+    const [heatmapLayers, setHeatmapLayers] = useState<Record<HeatmapSubTab, boolean>>({ click: true, scroll: true, attention: true, density: false, mouseAttention: false });
     const [heatmapIntensity, setHeatmapIntensity] = useState(50);
     const [heatmapOpacity, setHeatmapOpacity] = useState(45);
     const [funnelSubTab, setFunnelSubTab] = useState<FunnelSubTab>('custom-funnels');
@@ -253,6 +253,7 @@ export const WebsiteTrackingResults = ({ researchId }: WebsiteTrackingResultsPro
                                 { id: 'scroll' as const, label: 'Scroll', icon: <ArrowDownUp className="h-3.5 w-3.5" />, color: 'green', tip: 'How far down users scroll' },
                                 { id: 'attention' as const, label: 'Attention', icon: <Eye className="h-3.5 w-3.5" />, color: 'blue', tip: 'Time spent viewing each zone' },
                                 { id: 'density' as const, label: 'Density', icon: <Grid3X3 className="h-3.5 w-3.5" />, color: 'purple', tip: 'Click concentration areas' },
+                                { id: 'mouseAttention' as const, label: 'Gaze Focus', icon: <Scan className="h-3.5 w-3.5" />, color: 'orange', tip: 'Cursor position weighted by gaze attention — shows where users look based on mouse + eye correlation' },
                             ]).map((layer) => (
                                 <Tip key={layer.id} tip={layer.tip}>
                                     <button
@@ -265,7 +266,9 @@ export const WebsiteTrackingResults = ({ researchId }: WebsiteTrackingResultsPro
                                                         ? 'bg-green-50 border-green-200 text-green-700'
                                                         : layer.color === 'purple'
                                                             ? 'bg-purple-50 border-purple-200 text-purple-700'
-                                                            : 'bg-blue-50 border-blue-200 text-blue-700'
+                                                            : layer.color === 'orange'
+                                                                ? 'bg-orange-50 border-orange-200 text-orange-700'
+                                                                : 'bg-blue-50 border-blue-200 text-blue-700'
                                                 : 'bg-white border-gray-200 text-gray-400'
                                         }`}
                                     >

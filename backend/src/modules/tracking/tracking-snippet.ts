@@ -684,7 +684,9 @@ function sampleFrame(){
                 attention:st,
                 score:Math.round(score*100)/100,
                 cursorX:Math.round(lastCursorX),
-                cursorY:Math.round(lastCursorY)
+                cursorY:Math.round(lastCursorY),
+                pageX:Math.round(lastCursorX+window.scrollX),
+                pageY:Math.round(lastCursorY+window.scrollY)
             });
         }
     }catch(e){}
