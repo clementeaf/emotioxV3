@@ -111,14 +111,15 @@ function cityEntriesToSelectOptions(entries: unknown[]): SelectOption[] {
  * (legacy researches stored as boolean `true`).
  */
 const getOptionsForDemographic = (key: string, cfg: DemographicConfig): string[] => {
-    // validValues is the canonical list of ALL options (qualifying + disqualifying)
-    // that the participant should see. Prefer it over modal-specific fields.
-    // Preserve the order defined by the researcher.
+    // Show ALL options (qualifying + disqualifying) so the participant sees the
+    // full list. Backend checkDisqualifications() blocks disqualifying selections.
     if (key === 'age') {
-        return cfg.validValues ?? cfg.validAges ?? [];
+        if (cfg.validValues && cfg.validValues.length > 0) return cfg.validValues;
+        return [...(cfg.validAges ?? []), ...(cfg.disqualifyingAges ?? [])];
     }
     if (key === 'country') {
-        return cfg.validValues ?? cfg.validCountries ?? [];
+        if (cfg.validValues && cfg.validValues.length > 0) return cfg.validValues;
+        return [...(cfg.validCountries ?? []), ...(cfg.disqualifyingCountries ?? [])];
     }
     if (cfg.options && Array.isArray(cfg.options) && cfg.options.length > 0) {
         return cfg.options.map(o => optionToLabel(o as string | Record<string, unknown>));

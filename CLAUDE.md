@@ -188,7 +188,7 @@ cd participant-frontend && npm install && npm run dev # Vite -> localhost:5174
 - `participant-frontend/src/components/ErrorBoundary.tsx` — error boundary para produccion
 
 ## Deploy
-- **Referencia completa:** [Deploy Skill](skills/deploy.md) + [cPanel Runbook](docs/cpanel-runbook.md)
+- **Referencia completa:** [Deploy Skill](skills/deploy.md)
 - **NO usar:** aws-runbook.md, git-deploy.md, server-runbook.md — este proyecto se despliega en cPanel
 - **SSH:** `ssh cpanel-emotio` — credenciales en `.env.claude`
 

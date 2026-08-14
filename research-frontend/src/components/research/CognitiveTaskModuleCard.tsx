@@ -1,7 +1,5 @@
 import { useEffect, useRef, forwardRef, useImperativeHandle, useState, useMemo } from 'react';
 import { useModuleComponents } from '../../hooks/useModuleComponents';
-import { useScreenerSingleChoiceTrim } from '../../hooks/useScreenerSingleChoiceTrim';
-import { useScreenerMultipleChoiceGroupPad } from '../../hooks/useScreenerMultipleChoiceGroupPad';
 import { ModuleContentEditor } from './ModuleContentEditor';
 import type { Module } from '../../services/research.service';
 import type { ComponentConfig } from '../../types/moduleBuilder.types';
@@ -47,9 +45,6 @@ export const CognitiveTaskModuleCard = forwardRef<CognitiveTaskModuleCardRef, Co
     ({ module, researchId, onDelete, isActive = false, enabledDemographics = [], studyModules = [], linkableModules = [], globalOrderIndex, questionNumber }, ref) => {
     const conditionalityDisabled = !enabledDemographics.length && !studyModules.length && !linkableModules.length;
     const { components, setComponents, componentValues, setComponentValues } = useModuleComponents(module);
-
-    useScreenerSingleChoiceTrim(module.name, components, componentValues, setComponents, setComponentValues);
-    useScreenerMultipleChoiceGroupPad(module.name, components, componentValues, setComponents, setComponentValues);
 
     const cardRef = useRef<HTMLDivElement>(null);
 

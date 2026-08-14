@@ -6,8 +6,6 @@ import { researchService, type Research, type Stage, type Module } from '../../s
 import { useWelcomeScreenRedirect } from '../../hooks/useWelcomeScreenRedirect';
 import { useModuleComponents } from '../../hooks/useModuleComponents';
 import { useModuleDraftStore } from '../../stores/useModuleDraftStore';
-import { useScreenerSingleChoiceTrim } from '../../hooks/useScreenerSingleChoiceTrim';
-import { useScreenerMultipleChoiceGroupPad } from '../../hooks/useScreenerMultipleChoiceGroupPad';
 import { ResearchBuilderHeader } from '../../components/research/ResearchBuilderHeader';
 import { ResearchSettingsView } from '../../components/research/ResearchSettingsView';
 import { ModuleContentEditor } from '../../components/research/ModuleContentEditor';
@@ -111,10 +109,7 @@ export const ResearchBuilderPage = () => {
     const isEyeTrackingModule = activeModule?.name?.trim().toLowerCase() === 'eye tracking';
     const [isLiveTestOpen, setIsLiveTestOpen] = useState(false);
 
-    const { components, setComponents, componentValues, setComponentValues } = useModuleComponents(activeModule);
-
-    useScreenerSingleChoiceTrim(activeModule?.name, components, componentValues, setComponents, setComponentValues);
-    useScreenerMultipleChoiceGroupPad(activeModule?.name, components, componentValues, setComponents, setComponentValues);
+    const { components, componentValues, setComponentValues } = useModuleComponents(activeModule);
 
     // Initialize componentValues from config for Research Configuration module
     useEffect(() => {

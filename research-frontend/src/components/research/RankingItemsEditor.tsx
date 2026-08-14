@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
 import { Toggle } from '../ui/Toggle';
@@ -11,13 +11,15 @@ const QUALIFICATION_OPTIONS = [
     { value: 'disqualify', label: 'Disqualify' },
 ];
 
+const MIN_ITEMS = 2;
+
 export interface RankingItemsEditorProps {
     component: ComponentConfig;
     value: string;
     onChange: (value: string) => void;
-    /** Screener: Single Choice — one option row, no add/delete/randomize */
+    /** @deprecated No-op, kept for call-site compat. */
     singleChoiceLocked?: boolean;
-    /** Screener: Multiple Choice — default minimum option rows (e.g. 3) */
+    /** @deprecated No-op, kept for call-site compat. */
     screenerMultipleChoiceMinOptions?: number;
 }
 
@@ -27,25 +29,18 @@ type RankingItem = {
     qualification?: 'qualify' | 'disqualify';
 };
 
-/**
- * Editor for ranking items — lets the researcher add/edit/remove items to rank
- */
 export const RankingItemsEditor = ({
     component,
     value,
     onChange,
-    singleChoiceLocked = false,
-    screenerMultipleChoiceMinOptions,
 }: RankingItemsEditorProps) => {
     const buildInitialState = (): { items: RankingItem[]; randomize: boolean } => {
         if (value) {
             try {
                 const parsed = JSON.parse(value);
-                // New format: { items, randomize }
                 if (parsed && !Array.isArray(parsed) && parsed.items) {
                     return { items: parsed.items as RankingItem[], randomize: !!parsed.randomize };
                 }
-                // Legacy format: plain array
                 if (Array.isArray(parsed) && parsed.length > 0) {
                     return { items: parsed as RankingItem[], randomize: false };
                 }
@@ -53,87 +48,30 @@ export const RankingItemsEditor = ({
         }
         const items = component.rankingConfig?.items;
         if (items && items.length > 0) return { items, randomize: false };
-        if (singleChoiceLocked) {
-            return {
-                items: [{ id: `item-${crypto.randomUUID()}`, label: '', qualification: 'qualify' }],
-                randomize: false,
-            };
-        }
         const blankItems: RankingItem[] = [];
         for (let i = 0; i < 3; i++) {
             blankItems.push({ id: `item-${crypto.randomUUID()}`, label: '', qualification: 'qualify' });
         }
-        return {
-            items: blankItems,
-            randomize: false,
-        };
+        return { items: blankItems, randomize: false };
     };
 
     const [localItems, setLocalItems] = useState<RankingItem[]>(() => buildInitialState().items);
     const [randomize, setRandomize] = useState<boolean>(() => buildInitialState().randomize);
-    const prevMultipleModeRef = useRef<boolean>(false);
 
     useEffect(() => {
         if (value) {
             try {
                 const parsed = JSON.parse(value);
                 if (parsed && !Array.isArray(parsed) && parsed.items) {
-                    let items = parsed.items as RankingItem[];
-                    if (singleChoiceLocked && items.length > 1) {
-                        items = [items[0]];
-                        onChange(JSON.stringify({ items, randomize: false }));
-                    }
-                    setLocalItems(items);
-                    setRandomize(singleChoiceLocked ? false : !!parsed.randomize);
+                    setLocalItems(parsed.items as RankingItem[]);
+                    setRandomize(!!parsed.randomize);
                 } else if (Array.isArray(parsed)) {
-                    let items = parsed as RankingItem[];
-                    if (singleChoiceLocked && items.length > 1) {
-                        items = [items[0]];
-                        onChange(JSON.stringify({ items, randomize: false }));
-                    }
-                    setLocalItems(items);
+                    setLocalItems(parsed as RankingItem[]);
                     setRandomize(false);
                 }
             } catch { /* keep current */ }
         }
-    }, [value, singleChoiceLocked, onChange]);
-
-    useEffect(() => {
-        if (!singleChoiceLocked) {
-            return;
-        }
-        setRandomize(false);
-        setLocalItems((prev) => {
-            if (prev.length <= 1) {
-                return prev;
-            }
-            const trimmed = [prev[0]];
-            onChange(JSON.stringify({ items: trimmed, randomize: false }));
-            return trimmed;
-        });
-    }, [singleChoiceLocked, onChange]);
-
-    useEffect(() => {
-        const isMultiple = screenerMultipleChoiceMinOptions === 3;
-        const becameMultiple = isMultiple && !prevMultipleModeRef.current;
-        prevMultipleModeRef.current = isMultiple;
-        if (singleChoiceLocked || !isMultiple || !becameMultiple) {
-            return;
-        }
-        setLocalItems((prev) => {
-            if (prev.length >= 3) {
-                return prev;
-            }
-            const need = 3 - prev.length;
-            const next = [...prev];
-            for (let i = 0; i < need; i++) {
-                next.push({ id: `item-${crypto.randomUUID()}`, label: '', qualification: 'qualify' });
-            }
-            onChange(JSON.stringify({ items: next, randomize: false }));
-            setRandomize(false);
-            return next;
-        });
-    }, [singleChoiceLocked, screenerMultipleChoiceMinOptions, onChange]);
+    }, [value]);
 
     const persist = (items: RankingItem[], rand: boolean) => {
         onChange(JSON.stringify({ items, randomize: rand }));
@@ -152,9 +90,6 @@ export const RankingItemsEditor = ({
     };
 
     const handleAdd = () => {
-        if (singleChoiceLocked) {
-            return;
-        }
         const newItem: RankingItem = { id: `item-${crypto.randomUUID()}`, label: '', qualification: 'qualify' };
         const updated = [...localItems, newItem];
         setLocalItems(updated);
@@ -162,18 +97,12 @@ export const RankingItemsEditor = ({
     };
 
     const handleDelete = (itemId: string) => {
-        if (singleChoiceLocked) {
-            return;
-        }
         const updated = localItems.filter(item => item.id !== itemId);
         setLocalItems(updated);
         persist(updated, randomize);
     };
 
     const handleRandomizeChange = (checked: boolean) => {
-        if (singleChoiceLocked) {
-            return;
-        }
         setRandomize(checked);
         persist(localItems, checked);
     };
@@ -185,7 +114,7 @@ export const RankingItemsEditor = ({
             </label>
             <div className="space-y-3">
                 {localItems.map((item) => {
-                    const canDelete = localItems.length > 2 && !singleChoiceLocked;
+                    const canDelete = localItems.length > MIN_ITEMS;
                     return (
                         <div key={item.id} className="flex items-center gap-3">
                             <div className="flex-1">
@@ -215,7 +144,6 @@ export const RankingItemsEditor = ({
                         </div>
                     );
                 })}
-                {!singleChoiceLocked && (
                 <Button
                     onClick={handleAdd}
                     variant="outline"
@@ -224,8 +152,6 @@ export const RankingItemsEditor = ({
                     <Plus className="h-4 w-4 mr-2" />
                     Add another choice
                 </Button>
-                )}
-                {!singleChoiceLocked && (
                 <div className="mt-2 flex items-center">
                     <Toggle
                         id={`ranking-randomize-${component.id}`}
@@ -234,7 +160,6 @@ export const RankingItemsEditor = ({
                         onChange={(e) => handleRandomizeChange(e.target.checked)}
                     />
                 </div>
-                )}
             </div>
         </div>
     );

@@ -51,9 +51,8 @@ migration-backups/
 *.pem
 *.key
 
-# Credentials directory (all files are sensitive)
-docs/credentials/*
-!docs/credentials/README.md
+# Credentials directory
+docs/credentials/
 
 # Eye tracking assets (feature branch only)
 research-frontend/public/mediapipe/

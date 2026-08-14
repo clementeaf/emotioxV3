@@ -1,6 +1,7 @@
 import type { ModuleStructure, ModuleComponent } from '../types/module';
 import type { Module, ResearchData } from '../services/public.service';
 import { getComponentText } from './moduleComponent';
+import { resolveScreenerChoiceOptions, resolveScreenerTitleComponent } from './screenerParticipant';
 
 /**
  * Checks whether a value is a plain object record.
@@ -170,10 +171,14 @@ export const isModuleConfigured = (module: Module): boolean => {
     return true;
   }
 
-  // Screener: configured if it has at least one choice component
+  // Screener: configured if it has question text AND at least one choice with a label
   if (module.name === 'Screener') {
-    const hasChoices = components.some(c => c.settings?.isChoice || c.id.includes('choice-'));
-    return hasChoices;
+    const sorted = [...components].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    const titleComp = resolveScreenerTitleComponent(sorted);
+    const hasQuestion = Boolean(getComponentText(titleComp)?.trim());
+    const choices = resolveScreenerChoiceOptions(components);
+    const hasLabeledChoices = choices.some(c => c.label.trim().length > 0);
+    return hasQuestion && hasLabeledChoices;
   }
 
   // Implicit Association modules: configured if they have at least one target

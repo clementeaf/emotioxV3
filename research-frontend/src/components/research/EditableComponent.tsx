@@ -22,10 +22,6 @@ interface EditableComponentProps {
     researchId?: string; // For S3 upload in file-upload components
     /** Inline: label + control on one row (Screener header row). */
     fieldLayout?: 'default' | 'inline';
-    /** Screener: Choice Type = Single Choice — lock options UI (see RadioChoicesEditor). */
-    screenerSingleChoiceLocked?: boolean;
-    /** Screener: Multiple Choice — default minimum option rows (e.g. 3). */
-    screenerMultipleChoiceMinOptions?: number;
     /** IAT: available targets for criteria assignment */
     iatTargets?: IATTargetOption[];
     /** IAT Attribute Testing: hide target selector — criteria iterate all targets */
@@ -41,8 +37,6 @@ export const EditableComponent = ({
     onChange,
     researchId,
     fieldLayout = 'default',
-    screenerSingleChoiceLocked = false,
-    screenerMultipleChoiceMinOptions,
     iatTargets,
     iatHideTargetSelector,
 }: EditableComponentProps) => {
@@ -156,12 +150,6 @@ export const EditableComponent = ({
         }
 
         case 'checkbox': {
-            const isRandomizeField =
-                (component.label ?? '').toLowerCase().includes('randomize') ||
-                (component.id ?? '').toLowerCase().includes('randomize');
-            if (screenerSingleChoiceLocked && fieldLayout !== 'inline' && isRandomizeField) {
-                return null;
-            }
             return (
                 <div
                     className={
@@ -186,8 +174,7 @@ export const EditableComponent = ({
                     component={component}
                     value={value}
                     onChange={onChange}
-                    singleChoiceLocked={screenerSingleChoiceLocked}
-                    screenerMultipleChoiceMinOptions={screenerMultipleChoiceMinOptions}
+
                 />
             );
 
@@ -211,8 +198,7 @@ export const EditableComponent = ({
                     component={component}
                     value={value}
                     onChange={onChange}
-                    singleChoiceLocked={screenerSingleChoiceLocked}
-                    screenerMultipleChoiceMinOptions={screenerMultipleChoiceMinOptions}
+
                 />
             );
 
@@ -223,8 +209,7 @@ export const EditableComponent = ({
                     component={component}
                     value={value}
                     onChange={onChange}
-                    singleChoiceLocked={screenerSingleChoiceLocked}
-                    screenerMultipleChoiceMinOptions={screenerMultipleChoiceMinOptions}
+
                 />
             );
 

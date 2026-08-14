@@ -1,3 +1,28 @@
+## v0.94.1 — Screener builder fix + demographics disqualification visibility (2026-08-14)
+
+### fix: Screener builder — "can't add options"
+- **Root cause.** `singleChoiceLocked` confused "Single Choice" (participant picks one from many) with "one option row." When Choice Type was "single," the builder trimmed to 1 option, hid "Add another choice," and blocked delete. A screener with 1 option is useless.
+- **Fix.** Removed `singleChoiceLocked` entirely. Single/Multiple only affects participant UI (radio vs checkbox), not how many options the researcher can create. Minimum always 2.
+- **Deleted dead code.** `useScreenerSingleChoiceTrim`, `useScreenerMultipleChoiceGroupPad`, `screenerBuilder.ts` — all artifacts of the broken concept.
+
+### fix: Screener participant gate — skip unconfigured screener
+- **Root cause.** `isModuleConfigured` for Screener only checked if a component with `choice-` existed in its ID. The Choice Type selector (`screener-choice-type`) matched `choice-`, so any screener — even empty — was considered configured. Participants saw a blank dropdown with no question.
+- **Fix.** Now verifies question text AND at least one choice with a non-empty label. Without both, the screener step is skipped.
+
+### fix: Demographics — show all age/country ranges including disqualifying
+- **Problem.** When `validValues` was missing (legacy studies), `getOptionsForDemographic` fell back to `validAges` which only contained qualifying ranges. Disqualifying options (e.g. 55-64, 65+) were hidden from participants instead of shown and blocked server-side.
+- **Fix.** Fallback now concatenates `validAges + disqualifyingAges` (and `validCountries + disqualifyingCountries`). Backend `checkDisqualifications()` handles the blocking.
+
+### chore: docs/ cleanup (115MB → 14MB)
+- Removed `cooltool-frames/` (700 jpgs), `emotions-frames/` (82 jpgs), `app-cooltool.mp4` (63MB), legacy specs, Python scripts, credentials README.
+- Preserved `design-system/` (active spec) and eval harness files (`gaze-capture.webm`, `ground-truth.json`, `metadata.json`).
+- Simplified `.gitignore` credentials rule, removed dead `cpanel-runbook.md` reference from CLAUDE.md.
+
+### quality
+- **TypeScript strict** — 0 errors, 0 warnings in all 3 subprojects.
+
+---
+
 ## v0.94.0 — IAT paradigm corrections + Website Tracking mouse-attention heatmap (2026-08-12)
 
 ### fix: IAT Attribute Testing (Implicit Priming Test) — 3 critical corrections
