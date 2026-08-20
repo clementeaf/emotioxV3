@@ -85,6 +85,15 @@ backend/python-saliency/tests/__pycache__/
 
 # Large video files
 docs/video-ejemplo.mp4
+emotions.mp4
+
+# ONNX models and WASM binaries (participant-frontend)
+participant-frontend/public/models/*.onnx
+participant-frontend/public/*.wasm
+
+# Eval datasets (large video/binary fixtures)
+participant-frontend/eval/datasets/*/video.*
+participant-frontend/eval/results/
 
 # Serena MCP config
 .serena/
@@ -92,4 +101,12 @@ docs/video-ejemplo.mp4
 # Test coverage and mutation reports
 coverage/
 reports/mutation/
+*/reports/mutation/
 .stryker-tmp/
+
+# Playwright test results
+test-results/
+participant-frontend/test-results/
+
+# Claude resume prompts
+.claude/RESUME_PROMPT.md

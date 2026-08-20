@@ -1,0 +1,11 @@
+{
+  "name": "capture-2026-07-12T16:17:55",
+  "viewportWidth": 1470,
+  "viewportHeight": 706,
+  "videoWidth": 1280,
+  "videoHeight": 720,
+  "durationMs": 47356,
+  "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+  "timestamp": "2026-07-12T16:17:55.087Z",
+  "conversionNote": "Convert WebM to Y4M: ffmpeg -i gaze-capture.webm -pix_fmt yuv420p video.y4m"
+}

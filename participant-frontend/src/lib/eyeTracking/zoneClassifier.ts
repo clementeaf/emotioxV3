@@ -98,12 +98,16 @@ const overlapScore = (
 /**
  * Classify a gaze point into a probability distribution over zones.
  *
+ * When the gaze falls within the uncertainty radius of at least one zone,
+ * uses Gaussian overlap scoring. When outside all zones (common with webcam
+ * jitter), falls back to the nearest zone with distance-decayed confidence.
+ *
  * @param gazeX   - Viewport X coordinate of gaze
  * @param gazeY   - Viewport Y coordinate of gaze
  * @param radius  - Uncertainty radius in pixels
  * @param zones   - Available zones to classify against
  * @returns Array of ZoneProbability sorted by confidence descending.
- *          Empty array when no zones are within radius.
+ *          Always returns at least one zone when zones is non-empty (nearest fallback).
  */
 export function classifyGaze(
   gazeX: number,
@@ -111,6 +115,8 @@ export function classifyGaze(
   radius: number,
   zones: readonly Zone[],
 ): ZoneProbability[] {
+  if (zones.length === 0) return [];
+
   const scored = zones.map((z) => ({
     zoneId: z.id,
     raw: overlapScore(gazeX, gazeY, radius, z.rect),
@@ -119,17 +125,29 @@ export function classifyGaze(
 
   const totalRaw = scored.reduce((sum, s) => sum + s.raw, 0);
 
-  // No zones within radius
-  return totalRaw === 0
-    ? []
-    : scored
-        .map((s) => ({
-          zoneId: s.zoneId,
-          confidence: s.raw / totalRaw,
-          distance: s.distance,
-        }))
-        .filter((s) => s.confidence >= MIN_CONFIDENCE_THRESHOLD)
-        .sort((a, b) => b.confidence - a.confidence);
+  if (totalRaw > 0) {
+    // Normal path: gaze within radius of at least one zone
+    return scored
+      .map((s) => ({
+        zoneId: s.zoneId,
+        confidence: s.raw / totalRaw,
+        distance: s.distance,
+      }))
+      .filter((s) => s.confidence >= MIN_CONFIDENCE_THRESHOLD)
+      .sort((a, b) => b.confidence - a.confidence);
+  }
+
+  // Fallback: gaze outside all zones — assign nearest zone with decayed confidence.
+  // Without this, webcam jitter causes frequent "no zone" gaps that break fixation detection.
+  // ponytail: nearest-zone fallback, confidence decays with distance beyond radius.
+  const nearest = scored.reduce((best, s) => s.distance < best.distance ? s : best, scored[0]);
+  // Confidence decays from 0.4 at zone edge to 0.1 at 2× radius away
+  const fallbackConfidence = Math.max(0.1, 0.4 * Math.exp(-nearest.distance / radius));
+  return [{
+    zoneId: nearest.zoneId,
+    confidence: fallbackConfidence,
+    distance: nearest.distance,
+  }];
 }
 
 /**

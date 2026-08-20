@@ -33,15 +33,18 @@ const CLICK_TTL = 86400;
 /** Horizontal bias — IDW calibration field handles per-user correction. */
 const X_OFFSET = 0;
 
-/** Vertical scale — IDW calibration field handles per-user correction. */
+/** Vertical scale — 1.0 = no pre-scaling. Zone classification uses Voronoi on
+ *  raw gaze space (nearest calibration centroid), bypassing coordinate transforms. */
 const Y_NORM_SCALE = 1.0;
 
 // --- One-Euro Filter defaults (Casiez et al. 2012) tuned for webcam gaze ---
 // Kalman handles primary smoothing; One-Euro adds adaptive layer on top.
-/** Low minCutoff = smooth during fixation (Hz). */
-const DEFAULT_ONE_EURO_MIN_CUTOFF = 0.8;
-/** Beta controls lag reduction during saccades; higher = snappier transitions. */
-const DEFAULT_ONE_EURO_BETA = 0.005;
+/** Low minCutoff = smooth during fixation (Hz).
+ *  0.6 Hz balances jitter reduction with responsiveness — avoids directional lag. */
+const DEFAULT_ONE_EURO_MIN_CUTOFF = 0.6;
+/** Beta controls lag reduction during saccades; higher = snappier transitions.
+ *  0.007 tracks saccades without over-smoothing into directional bias. */
+const DEFAULT_ONE_EURO_BETA = 0.007;
 /** Derivative cutoff — smooths velocity estimate. */
 const DEFAULT_ONE_EURO_D_CUTOFF = 1.0;
 
@@ -85,6 +88,10 @@ export function useBlazeGaze(
     const gazePosRef = useRef<{ x: number; y: number } | null>(null);
     /** Same frame mapping as gazePos but without EMA — use for live AOI highlight. */
     const [rawGazePos, setRawGazePos] = useState<{ x: number; y: number } | null>(null);
+    /** Raw normPog from CNN — no mapping, no filter. For diagnostics only. */
+    const normPogRef = useRef<{ x: number; y: number } | null>(null);
+    /** Unfiltered screen coords (before One-Euro). For diagnostics. */
+    const rawScreenRef = useRef<{ x: number; y: number } | null>(null);
     const [gazeState, setGazeState] = useState<'open' | 'closed'>('closed');
     const [calibrationCount, setCalibrationCount] = useState(0);
     /** Throttle setState calls to max ~4fps to avoid re-render storm during calibration. */
@@ -219,6 +226,10 @@ export function useBlazeGaze(
                 const sx = Math.max(0, Math.min(vw, screenX));
                 const sy = Math.max(0, Math.min(vh, screenY));
 
+                // Diagnostic refs — raw values before any filtering
+                normPogRef.current = { x: nx, y: result.normPog[1] };
+                rawScreenRef.current = { x: sx, y: sy };
+
                 // Reset One-Euro filter on blink-to-open transition
                 // so first post-blink frame isn't pulled toward the drifted pre-blink position
                 const wasBlinking = lastEmittedGazeStateRef.current !== 'open';
@@ -274,6 +285,10 @@ export function useBlazeGaze(
         gazePos,
         /** Ref updated every frame without re-render. Use for real-time gaze reads. */
         gazePosRef,
+        /** Raw normPog from CNN (no mapping, no filter). Diagnostic only. */
+        normPogRef,
+        /** Screen coords before One-Euro filter. Diagnostic only. */
+        rawScreenRef,
         rawGazePos,
         gazeState,
         calibrationCount,

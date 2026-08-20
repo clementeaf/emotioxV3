@@ -7,6 +7,8 @@ const HomePage = lazy(() => import('./pages/HomePage').then(m => ({ default: m.H
 const ResearchPage = lazy(() => import('./pages/ResearchPage').then(m => ({ default: m.ResearchPage })));
 const EyeTrackingHybridPage = lazy(() => import('./pages/EyeTrackingHybridPage').then(m => ({ default: m.EyeTrackingHybridPage })));
 const EyeTrackingV2TestPage = lazy(() => import('./pages/EyeTrackingV2TestPage').then(m => ({ default: m.EyeTrackingV2TestPage })));
+const GazeComparePage = lazy(() => import('./pages/GazeComparePage').then(m => ({ default: m.GazeComparePage })));
+const GazeCapturePage = lazy(() => import('./pages/GazeCapturePage').then(m => ({ default: m.GazeCapturePage })));
 
 const PageLoader = () => (
   <div className="flex items-center justify-center min-h-screen bg-gray-50">
@@ -50,6 +52,22 @@ const router = createBrowserRouter([
     element: (
       <Suspense fallback={<PageLoader />}>
         <EyeTrackingV2TestPage />
+      </Suspense>
+    ),
+  },
+  {
+    path: '/test/gaze-compare',
+    element: (
+      <Suspense fallback={<PageLoader />}>
+        <GazeComparePage />
+      </Suspense>
+    ),
+  },
+  {
+    path: '/test/gaze-capture',
+    element: (
+      <Suspense fallback={<PageLoader />}>
+        <GazeCapturePage />
       </Suspense>
     ),
   },

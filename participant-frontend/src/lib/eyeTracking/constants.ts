@@ -82,13 +82,16 @@ export const MIN_IRIS_CENTER_VISIBILITY = 0.08;
 
 /**
  * Length of the numeric vector returned by `extractGazeFeatures` (before ridge bias term).
+ * 20 = 8 iris/vergence (IPD-normalized) + 9 rotation + 3 translation.
  */
-export const GAZE_FEATURE_DIMENSION = 27;
+export const GAZE_FEATURE_DIMENSION = 20;
 
 /**
- * Ridge regularization strength when fitting gaze mapping (more features need stronger λ than legacy 14-dim vectors).
+ * Ridge regularization strength. With z-score normalized features (unit variance),
+ * higher λ = smoother weights = less jitter, at cost of slightly higher bias.
+ * λ=10 balances RMSE vs jitter for 27-dim normalized feature space.
  */
-export const DEFAULT_RIDGE_LAMBDA = 2.5;
+export const DEFAULT_RIDGE_LAMBDA = 10;
 
 /** MediaPipe Face Landmarker landmark indices used for gaze features */
 export const LANDMARK_INDICES = {

@@ -39,6 +39,21 @@ export type ETPhase = 'intro' | 'setup' | 'quality-gate' | 'preparing' | 'calibr
 
 export const TOTAL_STEPS = 4;
 
+/**
+ * Gaze engine selection.
+ * 'mediapipe' — MediaPipe FaceLandmarker + Ridge Regression (30fps, lower RMSE).
+ * 'blazegaze' — WebEyeTrack CNN (legacy fallback).
+ *
+ * Benchmark results (isolated, fake camera, same GT):
+ *   MediaPipe: 30.9fps, RMSE 367px, jitter 14.5px
+ *   BlazeGaze: 1.7fps,  RMSE 498px, jitter 148px
+ */
+export type GazeEngine = 'mediapipe' | 'blazegaze';
+export const GAZE_ENGINE: GazeEngine = 'mediapipe';
+
+/** V3 probabilistic heatmap alongside V2 zone events. */
+export const V3_HEATMAP_ENABLED = true;
+
 /** One-Euro params — adaptive layer on top of Kalman. Smooth at rest, responsive on saccade. */
 export const EYE_TRACKING_ONE_EURO_MIN_CUTOFF = 0.8;
 export const EYE_TRACKING_ONE_EURO_BETA = 0.005;

@@ -110,23 +110,25 @@ describe('ZoneEventEmitter — zone enter/leave', () => {
     expect(leaves.map((e) => e.zoneId)).toEqual(['left', 'right']);
   });
 
-  it('does not emit zone_leave for null → zone transition', () => {
-    const leaves = collectEvents(emitter, 'zone_leave');
-    // First feed at a position outside all zones (very far)
+  it('far-outside gaze assigns nearest zone via fallback', () => {
+    const enters = collectEvents(emitter, 'zone_enter');
+    // Far outside — classifier falls back to nearest zone instead of null
     emitter.feed(9999, 9999, 0, zones);
-    // Then move into a zone
-    emitter.feed(100, 200, 100, zones);
-    // No leave for "null" zone
-    expect(leaves).toHaveLength(0);
+    expect(enters).toHaveLength(1);
+    expect(enters[0].zoneId).not.toBeNull();
   });
 
-  it('emits zone_leave when transitioning to null (outside all zones)', () => {
+  it('transition from fallback zone to real zone emits leave + enter', () => {
+    const enters = collectEvents(emitter, 'zone_enter');
     const leaves = collectEvents(emitter, 'zone_leave');
-    emitter.feed(100, 200, 0, zones);      // enter left
-    emitter.feed(9999, 9999, 100, zones);  // leave to null
-
+    // Far outside — falls back to nearest zone
+    emitter.feed(9999, 9999, 0, zones);
+    const fallbackZone = enters[0].zoneId;
+    // Move into opposite zone
+    const targetX = fallbackZone === 'left' ? 300 : 100;
+    emitter.feed(targetX, 200, 100, zones);
     expect(leaves).toHaveLength(1);
-    expect(leaves[0].zoneId).toBe('left');
+    expect(leaves[0].zoneId).toBe(fallbackZone);
   });
 });
 
