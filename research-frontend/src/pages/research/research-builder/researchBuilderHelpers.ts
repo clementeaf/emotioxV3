@@ -56,9 +56,7 @@ export const syncRankingConfig = <T extends { type: string; value?: string; rank
     return comp;
 };
 
-// Helper function to transform componentValues into structured config for Research Configuration
 export const transformResearchConfigComponentValues = (values: Record<string, string>): Record<string, unknown> => {
-    // Initialize structured config
     const config: Record<string, unknown> = {
         demographics: {},
         linkConfig: {},
@@ -67,38 +65,29 @@ export const transformResearchConfigComponentValues = (values: Record<string, st
         researchUrl: '',
     };
 
-    // Helper to try parsing JSON or return original
-    const tryParse = (val: string) => {
+    const tryParse = (val: string): unknown => {
         if (val === 'true') return true;
         if (val === 'false') return false;
         try {
             const parsed = JSON.parse(val);
             if (typeof parsed === 'object' && parsed !== null) return parsed;
-        } catch {
-            // ignore
-        }
+        } catch (_) { void _; }
         return val;
     };
 
-    // Process each component value
     Object.entries(values).forEach(([key, value]) => {
-        // Handle demographics (predefined + customQuestion_*)
         if (['age', 'country', 'gender', 'educationLevel', 'annualIncome', 'employmentStatus', 'dailyHoursOnline', 'technicalProficiency'].includes(key) || key.startsWith('customQuestion_')) {
             (config.demographics as Record<string, unknown>)[key] = tryParse(value);
         }
-        // Handle link configuration
         else if (['allowMobile', 'trackLocation', 'allowMultiple'].includes(key)) {
             (config.linkConfig as Record<string, boolean>)[key] = value === 'true';
         }
-        // Handle backlinks
         else if (['complete', 'disqualified', 'overquota'].includes(key)) {
             (config.backlinks as Record<string, string>)[key] = value;
         }
-        // Handle research URL
         else if (key === 'researchUrl') {
             config.researchUrl = value;
         }
-        // Handle participant limit
         else if (key === 'participantLimit') {
             const parsed = tryParse(value);
             if (typeof parsed === 'object' && parsed !== null && 'enabled' in parsed) {
@@ -107,11 +96,9 @@ export const transformResearchConfigComponentValues = (values: Record<string, st
                 config.participantLimit = parseInt(value) || 50;
             }
         }
-        // Handle participation mode
         else if (key === 'participationMode') {
             config.participationMode = value || 'panel';
         }
-        // Handle study logo
         else if (key === 'studyLogo') {
             config.studyLogo = tryParse(value);
         }
@@ -120,7 +107,6 @@ export const transformResearchConfigComponentValues = (values: Record<string, st
     return config;
 };
 
-// Helper function to flatten nested config into componentValues
 export const flattenResearchConfig = (config: Record<string, unknown>): Record<string, string> => {
     const values: Record<string, string> = {};
 

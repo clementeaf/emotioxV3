@@ -23,10 +23,6 @@ interface ExecutiveSummary {
     };
 }
 
-/**
- * Opens a print-optimized HTML report in a new window.
- * Uses window.print() for PDF export — no extra dependencies.
- */
 function openPrintableReport(research: { name: string; status: string }, summary: ExecutiveSummary) {
     const sentTotal = (summary.sentiment?.positive || 0) + (summary.sentiment?.negative || 0) + (summary.sentiment?.neutral || 0);
     const pctPos = sentTotal > 0 ? Math.round(((summary.sentiment?.positive || 0) / sentTotal) * 100) : 0;
