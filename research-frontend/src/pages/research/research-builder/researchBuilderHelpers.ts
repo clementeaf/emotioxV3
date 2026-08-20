@@ -112,6 +112,10 @@ export const transformResearchConfigComponentValues = (values: Record<string, st
         else if (key === 'participationMode') {
             config.participationMode = value || 'panel';
         }
+        // Handle study logo
+        else if (key === 'studyLogo') {
+            config.studyLogo = tryParse(value);
+        }
     });
 
     return config;
@@ -155,6 +159,12 @@ export const flattenResearchConfig = (config: Record<string, unknown>): Record<s
 
     if (config.participationMode) {
         values.participationMode = String(config.participationMode);
+    }
+
+    if (config.studyLogo) {
+        values.studyLogo = typeof config.studyLogo === 'object'
+            ? JSON.stringify(config.studyLogo)
+            : String(config.studyLogo);
     }
 
     return values;

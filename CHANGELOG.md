@@ -1,3 +1,18 @@
+## v0.94.3 — Kiosk mode persistence + study logo save (2026-08-20)
+
+### fix: Kiosk mode reverts to "Panel" on reload
+- **Root cause.** `ResearchConfigurationModule` used `useState` initializer to read `config.participationMode`, but on first render the config wasn't yet populated by `flattenResearchConfig` (async useEffect). The state initialized to `'panel'` and never synced.
+- **Fix.** Added `useEffect` to sync `participationMode` state when `config.participationMode` changes.
+
+### fix: Study logo upload doesn't persist
+- **Root cause.** `transformResearchConfigComponentValues` had no handler for `studyLogo` key. The value was stored in `componentValues` but dropped when reconstructing the structured config for save. Similarly, `flattenResearchConfig` didn't extract `studyLogo` when loading.
+- **Fix.** Added `studyLogo` handler to both `transformResearchConfigComponentValues` and `flattenResearchConfig` in `researchBuilderHelpers.ts`.
+
+### quality
+- **TypeScript strict** — 0 errors, 0 warnings in all 3 subprojects.
+
+---
+
 ## v0.94.2 — Thank You kiosk fix, PDF blank pages, results share button (2026-08-20)
 
 ### fix: Thank You screen invisible in kiosk mode

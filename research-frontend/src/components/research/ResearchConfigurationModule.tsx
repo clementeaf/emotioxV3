@@ -32,6 +32,10 @@ export const ResearchConfigurationModule = ({ config, researchStatus, researchNa
     const [participationMode, setParticipationMode] = useState<ParticipationMode>(
         () => (config.participationMode as ParticipationMode) || 'panel'
     );
+    useEffect(() => {
+        const mode = (config.participationMode as ParticipationMode) || 'panel';
+        setParticipationMode(mode);
+    }, [config.participationMode]);
     const isResearchActive = researchStatus === 'active';
     const isKiosk = participationMode === 'kiosk';
     const [demographicEnabled, setDemographicEnabled] = useState(true);
