@@ -608,7 +608,11 @@ export const ResearchBuilderPage = () => {
                     <div>
                         <div>
                             <ResearchConfigurationModule
-                                config={transformResearchConfigComponentValues(componentValues)}
+                                config={{
+                                    ...transformResearchConfigComponentValues(componentValues),
+                                    participationMode: componentValues.participationMode || (activeModule.config?.participationMode as string) || 'panel',
+                                    ...(!componentValues.studyLogo && activeModule.config?.studyLogo ? { studyLogo: activeModule.config.studyLogo } : {}),
+                                }}
                                 researchStatus={research?.status}
                                 researchName={research?.name}
                                 onChange={(newConfig) => {

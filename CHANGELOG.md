@@ -1,12 +1,13 @@
 ## v0.94.3 — Kiosk mode persistence + study logo save (2026-08-20)
 
-### fix: Kiosk mode reverts to "Panel" on reload
-- **Root cause.** `ResearchConfigurationModule` used `useState` initializer to read `config.participationMode`, but on first render the config wasn't yet populated by `flattenResearchConfig` (async useEffect). The state initialized to `'panel'` and never synced.
-- **Fix.** Added `useEffect` to sync `participationMode` state when `config.participationMode` changes.
+### fix: Kiosk mode reverts to "Panel" on reload (and corrupts on save)
+- **Root cause 1 (display).** `ResearchConfigurationModule` used `useState` initializer to read `config.participationMode`, but on first render the config wasn't yet populated by `flattenResearchConfig` (async useEffect). The state initialized to `'panel'` and never synced. Fixed with `useEffect` sync.
+- **Root cause 2 (data corruption).** `transformResearchConfigComponentValues` defaulted `participationMode: 'panel'` in its initial config object (line 68). When the user saved ANY config change (e.g., a backlink), the transform always emitted `participationMode: 'panel'`, overwriting the server's `'kiosk'` via `{ ...activeModule.config, ...structuredConfig }`. This silently corrupted the value — the Thank You screen then stopped appearing because the auto-redirect logic (line 173) only skips for `participationMode === 'kiosk'`.
+- **Fix.** Removed `participationMode` default from transform initial config. Added server value fallback in the config prop: `componentValues.participationMode || activeModule.config.participationMode || 'panel'`. Now: first render shows server value, save only writes participationMode when the user explicitly changed it.
 
 ### fix: Study logo upload doesn't persist
 - **Root cause.** `transformResearchConfigComponentValues` had no handler for `studyLogo` key. The value was stored in `componentValues` but dropped when reconstructing the structured config for save. Similarly, `flattenResearchConfig` didn't extract `studyLogo` when loading.
-- **Fix.** Added `studyLogo` handler to both `transformResearchConfigComponentValues` and `flattenResearchConfig` in `researchBuilderHelpers.ts`.
+- **Fix.** Added `studyLogo` handler to both `transformResearchConfigComponentValues` and `flattenResearchConfig` in `researchBuilderHelpers.ts`. Added server fallback for studyLogo in config prop (same pattern as participationMode).
 
 ### quality
 - **TypeScript strict** — 0 errors, 0 warnings in all 3 subprojects.

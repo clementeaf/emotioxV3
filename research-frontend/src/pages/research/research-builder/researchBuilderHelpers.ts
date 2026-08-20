@@ -65,7 +65,6 @@ export const transformResearchConfigComponentValues = (values: Record<string, st
         backlinks: {},
         participantLimit: 50,
         researchUrl: '',
-        participationMode: 'panel'
     };
 
     // Helper to try parsing JSON or return original
