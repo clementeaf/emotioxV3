@@ -6,7 +6,7 @@ import { mediaService } from '../services/media.service';
 import { queryClient } from '../providers/queryClient';
 
 /** Delay in ms before kiosk auto-resets to welcome for next participant */
-const KIOSK_TRANSITION_DELAY = 4000;
+const KIOSK_TRANSITION_DELAY = 15000;
 
 // Turnstile temporarily disabled - will be re-enabled when TURNSTILE_SECRET_KEY is configured
 const TURNSTILE_ENABLED = false;
@@ -40,8 +40,8 @@ export const useKioskMode = (
     if (kioskResetScheduledRef.current) return;
 
     kioskResetScheduledRef.current = true;
-    setKioskTransition(true);
     kioskTimerRef.current = setTimeout(async () => {
+      setKioskTransition(true);
       try {
         const newId = await publicService.requestKioskSession(researchId);
         clearAllResponses();

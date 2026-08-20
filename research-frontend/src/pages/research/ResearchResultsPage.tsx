@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import { BarChart3, Brain, Eye, Filter, Zap, Download, SmilePlus, Activity, Heart, Presentation, Sparkles } from 'lucide-react';
+import { BarChart3, Brain, Eye, Filter, Zap, Download, SmilePlus, Activity, Heart, Presentation, Sparkles, Share2, Check } from 'lucide-react';
 import { SmartVOCResults } from '../../components/results/smart-voc/SmartVOCResults';
 import { CognitiveTaskResults } from '../../components/results/cognitive-task/CognitiveTaskResults';
 import { ScreenerResults } from '../../components/results/screener/ScreenerResults';
@@ -101,6 +101,7 @@ export const ResearchResultsPage = () => {
     const [exporting, setExporting] = useState(false);
     const [exportingPptx, setExportingPptx] = useState(false);
     const [summaryOpen, setSummaryOpen] = useState(false);
+    const [copied, setCopied] = useState(false);
 
     // Read completionMin + filtered participant IDs from shared filter hook
     const { filteredParticipantIds } = useResultsFilter(id || '');
@@ -240,6 +241,18 @@ export const ResearchResultsPage = () => {
                     >
                         <Sparkles className="h-3.5 w-3.5" />
                         Summary
+                    </button>
+                    <button
+                        onClick={() => {
+                            navigator.clipboard.writeText(window.location.href).then(() => {
+                                setCopied(true);
+                                setTimeout(() => setCopied(false), 2000);
+                            });
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors"
+                    >
+                        {copied ? <Check className="h-3.5 w-3.5 text-green-600" /> : <Share2 className="h-3.5 w-3.5" />}
+                        {copied ? 'Copied!' : 'Share'}
                     </button>
                     <AlertsBar researchId={id} />
                     <BlockchainCertification researchId={id} />

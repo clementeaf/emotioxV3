@@ -1,3 +1,24 @@
+## v0.94.2 — Thank You kiosk fix, PDF blank pages, results share button (2026-08-20)
+
+### fix: Thank You screen invisible in kiosk mode
+- **Root cause.** `useKioskMode` set `kioskTransition = true` immediately when `currentStep` became `'thank-you'`. Since `KioskTransitionScreen` is an early-return in `ResearchPage.tsx` (line 506), it replaced the render before the Thank You content ever appeared. Participants saw a spinner ("Preparing next session...") instead of the Thank You message.
+- **Fix.** Moved `setKioskTransition(true)` from before `setTimeout` to inside it (`useKioskMode.ts:43`). Thank You now renders for 15s (was 4s), then transition screen shows during async reset.
+- **Impact.** CX TADI participants can now read and copy the discount code (`ENCUESTA20`) before kiosk resets.
+
+### fix: PDF report blank pages
+- **Root cause.** `html2pdf.js` configured with `pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }`. `avoid-all` treats every element as indivisible — when elements don't fit remaining page space, they cascade to next page leaving blank pages behind.
+- **Fix.** Removed `'avoid-all'` from pagebreak mode in `ReportGenerator.tsx` and `WebTrackingReportButton.tsx`. Now uses `['css', 'legacy']` which only breaks on explicit CSS page-break rules.
+
+### feat: Share button in research results
+- **Problem.** Share/copy-link buttons existed in View Progress (`ResearchInProgressContent.tsx`) but were never implemented in the Results page.
+- **Fix.** Added "Share" button to `ResearchResultsPage.tsx` toolbar (next to Summary). Copies current URL to clipboard with visual feedback (check icon + "Copied!" for 2s).
+
+### quality
+- **TypeScript strict** — 0 errors, 0 warnings in all 3 subprojects.
+- **1120 tests, 0 failures** in participant-frontend.
+
+---
+
 ## v0.94.1 — Screener builder fix + demographics disqualification visibility (2026-08-14)
 
 ### fix: Screener builder — "can't add options"
