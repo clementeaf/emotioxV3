@@ -122,7 +122,7 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
     const deviceType = useMemo(() => getDeviceType(), []);
     const isDesktop = deviceType === 'desktop';
 
-    const { stimulusUrl, stimulusUrls, taskDescription, viewingDuration, displayMode, shelfCount, shelfItems, randomizeStimuli, hasEmotionRecognition, isVideo } = useMemo(() => extractConfig(module), [module]);
+    const { stimulusUrl, stimulusUrls, taskDescription, viewingDuration, displayMode, shelfCount, shelfItems, randomizeStimuli, shelfRotationInterval, hasEmotionRecognition, isVideo } = useMemo(() => extractConfig(module), [module]);
     const isShelf = displayMode === 'shelf';
 
     // Skip intro/setup/calibration if a recent ET calibration exists (consecutive ET modules)
@@ -1300,7 +1300,7 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
     // -----------------------------------------------------------------------
 
     const shelfConfig = isShelf && resolvedShelfUrls.length > 0
-        ? { shelfCount, shelfItems, urls: resolvedShelfUrls, containerRef: shelfContainerRef, onAllLoaded: handleShelfAllLoaded }
+        ? { shelfCount, shelfItems, urls: resolvedShelfUrls, containerRef: shelfContainerRef, onAllLoaded: handleShelfAllLoaded, rotationInterval: randomizeStimuli ? shelfRotationInterval : 0 }
         : null;
 
     let phaseContent: React.ReactNode = null;

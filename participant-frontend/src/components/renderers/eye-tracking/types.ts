@@ -27,6 +27,7 @@ export interface ShelfConfig {
     urls: string[];
     containerRef: React.RefObject<HTMLDivElement | null>;
     onAllLoaded: () => void;
+    rotationInterval?: number;
 }
 
 /**
@@ -152,6 +153,9 @@ export const extractConfig = (module: ModuleConfig) => {
     const randomizeComp = components.find(c => c.id === 'randomize-stimuli');
     const randomizeStimuli = randomizeComp ? getComponentText(randomizeComp) === 'true' : false;
 
+    const rotationComp = components.find(c => c.id === 'shelf-rotation-interval');
+    const shelfRotationInterval = rotationComp ? Math.max(5, parseInt(getComponentText(rotationComp), 10) || 8) : 8;
+
     // Feature toggles
     const emotionRecognition = components.find(c => c.id === 'emotion-recognition');
     const hasEmotionRecognition = emotionRecognition ? getComponentText(emotionRecognition) === 'true' : true;
@@ -162,5 +166,5 @@ export const extractConfig = (module: ModuleConfig) => {
     // Detect video stimulus (shelf mode is always images)
     const isVideo = displayMode !== 'shelf' && (/\.(mp4|webm|ogg)$/i.test(stimulusUrl) || stimulusUrl.includes('video/'));
 
-    return { stimulusUrl, stimulusUrls, taskDescription, viewingDuration, displayMode, shelfCount, shelfItems, randomizeStimuli, hasEmotionRecognition, hasAttentionMeasurement, isVideo };
+    return { stimulusUrl, stimulusUrls, taskDescription, viewingDuration, displayMode, shelfCount, shelfItems, randomizeStimuli, shelfRotationInterval, hasEmotionRecognition, hasAttentionMeasurement, isVideo };
 };

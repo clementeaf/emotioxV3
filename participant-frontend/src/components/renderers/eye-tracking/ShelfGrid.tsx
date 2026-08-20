@@ -1,4 +1,13 @@
-import React, { useRef, useCallback } from 'react';
+import React, { useRef, useCallback, useState, useEffect } from 'react';
+
+function fisherYatesShuffle<T>(arr: T[]): T[] {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+}
 
 export interface ShelfGridProps {
     urls: string[];
@@ -10,6 +19,7 @@ export interface ShelfGridProps {
     style?: React.CSSProperties;
     onAllLoaded?: () => void;
     containerRef?: React.RefObject<HTMLDivElement | null>;
+    rotationInterval?: number;
 }
 
 export const ShelfGrid: React.FC<ShelfGridProps> = ({
@@ -22,12 +32,24 @@ export const ShelfGrid: React.FC<ShelfGridProps> = ({
     style,
     onAllLoaded,
     containerRef,
+    rotationInterval = 0,
 }) => {
-    // Use researcher-configured shelfItems as column count.
-    // Images cycle via urls[i % urls.length] if fewer images than cells.
+    const [displayUrls, setDisplayUrls] = useState(urls);
+
+    useEffect(() => {
+        setDisplayUrls(urls);
+    }, [urls]);
+
+    useEffect(() => {
+        if (rotationInterval < 5 || displayUrls.length < 2) return;
+        const timer = setInterval(() => {
+            setDisplayUrls(prev => fisherYatesShuffle(prev));
+        }, rotationInterval * 1000);
+        return () => clearInterval(timer);
+    }, [rotationInterval, displayUrls.length]);
+
     const effectiveCols = shelfItems;
 
-    // On small screens, cap columns to prevent unreadable images (min ~80px per cell)
     const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
     const maxCols = isMobile ? Math.min(effectiveCols, 4) : effectiveCols;
     const effectiveRows = isMobile && effectiveCols > maxCols
@@ -44,7 +66,7 @@ export const ShelfGrid: React.FC<ShelfGridProps> = ({
         }
     }, [totalCells, onAllLoaded]);
 
-    if (urls.length === 0) return null;
+    if (displayUrls.length === 0) return null;
 
     return (
         <div
@@ -61,11 +83,10 @@ export const ShelfGrid: React.FC<ShelfGridProps> = ({
             }}
         >
             {Array.from({ length: totalCells }, (_, i) => {
-                // Map cell index back to image: row-first then column cycling
-                const url = urls[i % urls.length];
+                const url = displayUrls[i % displayUrls.length];
                 return (
                     <img
-                        key={i}
+                        key={`${i}-${url}`}
                         src={url}
                         alt={`Shelf item ${i + 1}`}
                         className="w-full h-full object-contain"

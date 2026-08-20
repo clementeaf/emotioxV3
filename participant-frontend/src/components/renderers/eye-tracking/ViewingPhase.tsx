@@ -80,6 +80,7 @@ export const ViewingPhase: React.FC<ViewingPhaseProps> = ({
                         shelfItems={shelfConfig.shelfItems}
                         containerRef={shelfConfig.containerRef}
                         onAllLoaded={shelfConfig.onAllLoaded}
+                        rotationInterval={shelfConfig.rotationInterval}
                     />
                 ) : isVideo ? (
                     <video

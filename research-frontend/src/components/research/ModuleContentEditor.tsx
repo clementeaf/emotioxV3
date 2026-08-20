@@ -535,7 +535,7 @@ export const ModuleContentEditor = ({
                         )}
                         {/* For Shelf only: Randomize */}
                         {isShelfMode && (
-                        <div className="pt-2 border-t border-gray-100">
+                        <div className="pt-2 border-t border-gray-100 space-y-3">
                             <label className="flex items-center gap-2 text-sm text-gray-700">
                                 <input
                                     type="checkbox"
@@ -545,6 +545,20 @@ export const ModuleContentEditor = ({
                                 />
                                 <span className="font-medium">Randomize options (images)</span>
                             </label>
+                            {componentValues['randomize-stimuli'] === 'true' && (
+                                <CustomSelect
+                                    label="Rotation interval"
+                                    value={componentValues['shelf-rotation-interval'] || '8'}
+                                    onChange={(val) => onValueChange('shelf-rotation-interval', val)}
+                                    options={[
+                                        { value: '5', label: '5 seconds' },
+                                        { value: '8', label: '8 seconds (default)' },
+                                        { value: '10', label: '10 seconds' },
+                                        { value: '15', label: '15 seconds' },
+                                        { value: '20', label: '20 seconds' },
+                                    ]}
+                                />
+                            )}
                         </div>
                         )}
                     </div>

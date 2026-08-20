@@ -1,3 +1,16 @@
+## v0.94.4 — Shelf rotation interval (2026-08-20)
+
+### feat: periodic shelf image rotation during eye tracking
+- **Builder.** New "Rotation interval" selector in Eye Tracking shelf config (visible when Randomize is enabled). Options: 5s, 8s (default), 10s, 15s, 20s. Minimum 5s enforced (below that, fixation detection can't collect meaningful data — I-DT needs ~120ms per fixation, 5s guarantees 3-5 fixations per arrangement).
+- **Participant.** `ShelfGrid` re-shuffles image positions via `fisherYatesShuffle` every N seconds during the viewing phase. Previously shuffle was one-shot at mount. Rotation only active when `randomize-stimuli` is enabled; otherwise grid stays static.
+- **Config key.** `shelf-rotation-interval` (seconds, integer). Backward compatible — missing value defaults to 8s.
+
+### quality
+- **TypeScript strict** — 0 errors, 0 warnings in all 3 subprojects.
+- **ShelfGrid tests** — 11 pass, 0 failures.
+
+---
+
 ## v0.94.3 — Kiosk mode persistence + study logo save (2026-08-20)
 
 ### fix: Kiosk mode reverts to "Panel" on reload (and corrupts on save)
