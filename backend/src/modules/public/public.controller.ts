@@ -135,6 +135,30 @@ export const handlePublicRoutes = async (event: APIGatewayProxyEvent): Promise<A
             }
         }
 
+        const resultsMetaMatch = path.match(/^\/public\/research\/([^\/]+)\/results-meta$/);
+        if (resultsMetaMatch && httpMethod === 'GET') {
+            const researchId = resultsMetaMatch[1];
+            try {
+                const pool = (await import('../../config/database')).default;
+                const result = await pool.query(
+                    'SELECT id, name, status, research_type_name, created_at FROM researches WHERE id = ?',
+                    [researchId]
+                );
+                const research = result.rows[0];
+                if (!research) return error('Research not found', 404, undefined, origin);
+
+                const stageResult = await pool.query(
+                    'SELECT id, name, stage_type, position FROM stages WHERE research_id = ? ORDER BY position',
+                    [researchId]
+                );
+
+                return success({ research: { ...research, stages: stageResult.rows } }, 200, undefined, origin);
+            } catch (err: unknown) {
+                const msg = err instanceof Error ? err.message : 'Failed to load research metadata';
+                return error(msg, 500, undefined, origin);
+            }
+        }
+
         // GET /public/research/:id/quota-availability
         const quotaAvailMatch = path.match(/^\/public\/research\/([^\/]+)\/quota-availability$/);
         if (quotaAvailMatch && httpMethod === 'GET') {

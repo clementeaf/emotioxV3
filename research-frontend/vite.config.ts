@@ -87,7 +87,8 @@ export default defineConfig(({ mode }) => ({
   },
   esbuild: {
     sourcemap: false,
-    drop: ['console', 'debugger'],
+    drop: ['debugger'],
+    pure: ['console.log', 'console.debug', 'console.info', 'console.trace'],
   },
   resolve: {
     dedupe: ['react', 'react-dom'],

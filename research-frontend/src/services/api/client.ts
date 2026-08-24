@@ -13,7 +13,8 @@ import { configService } from './config.service';
 class ApiClient {
     private client: AxiosInstance;
     private refreshPromise: Promise<string> | null = null;
-    private isRefreshingFlag = false; // Immediate synchronous lock
+    private isRefreshingFlag = false;
+    private _publicPrefix = '';
 
     constructor(baseURL: string) {
         this.client = axios.create({
@@ -36,6 +37,10 @@ class ApiClient {
         this.client.defaults.baseURL = baseURL;
     }
 
+    setPublicPrefix(prefix: string): void {
+        this._publicPrefix = prefix;
+    }
+
     /**
      * Configura interceptores para requests y responses
      */
@@ -43,6 +48,10 @@ class ApiClient {
         // Request interceptor: attach token as Authorization header
         this.client.interceptors.request.use(
             async (config: InternalAxiosRequestConfig) => {
+                if (this._publicPrefix && config.url && !config.url.startsWith('/public')) {
+                    config.url = this._publicPrefix + config.url;
+                    return config;
+                }
                 const state = useAuthStore.getState();
                 if (state.token && config.headers) {
                     config.headers.Authorization = `Bearer ${state.token}`;
@@ -58,10 +67,12 @@ class ApiClient {
             async (error: ApiErrorResponse) => {
                 const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 
+                const isPublicRoute = originalRequest.url?.startsWith('/public');
                 const isRefreshEndpoint = originalRequest.url?.includes('/auth/refresh');
                 const isTokenExpired = error.response?.status === 401 &&
                     !originalRequest._retry &&
                     !isRefreshEndpoint &&
+                    !isPublicRoute &&
                     originalRequest.url !== configService.getEndpoint('auth', 'me');
 
                 if (isTokenExpired) {

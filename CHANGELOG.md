@@ -1,3 +1,23 @@
+## v0.94.5 — Public results page + export fixes (2026-08-24)
+
+### fix: blank PDF/PPTX exports
+- PDF: offscreen container (`position:fixed; left:-9999px`) was cloned by html2pdf with its styles intact, causing html2canvas to render a blank area. Removed offscreen positioning in `ReportGenerator` and `WebTrackingReportButton`.
+- PPTX: added empty-data guard — shows toast "No hay datos de resultados para exportar" instead of generating a 2-slide file with only title + thank-you.
+- `vite.config.ts`: preserved `console.error`/`console.warn` in production builds (previously all console methods were dropped).
+
+### feat: public results page
+- New route `/results/:id` — public read-only view of research results, no login required.
+- Same result components (SmartVOC, Cognitive Tasks, IAT, Eye Tracking, Emotion Analysis) with demographic filters.
+- No export buttons, no study configuration, no editing capabilities.
+- Backend: public passthroughs for `/public/analytics/*`, `/public/responses/*`, `/public/participants/*`, `/public/modules/*` + new `GET /public/research/:id/results-meta` endpoint.
+- `apiClient` supports `setPublicPrefix()` — prepends `/public` to all requests, skips auth headers and token refresh.
+- Share button in results page now copies the public URL instead of the authenticated dashboard URL.
+
+### fix: SmartVOC themes count and verbatims
+- Theme count and percentage now computed via client-side word matching against actual comments (was using LLM-estimated `theme.count` which could exceed 100%).
+- Theme drawer shows all real matching verbatims with sentiment badges (was showing LLM `supportingQuotes`).
+- Theme cards always clickable (was gated on `supportingQuotes` existence).
+
 ## v0.94.4 — Shelf rotation interval (2026-08-20)
 
 ### feat: periodic shelf image rotation during eye tracking

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { User, ClipboardList, Hash, Sparkles, Loader2, RefreshCw, X, Quote } from 'lucide-react';
 import { Card } from '../../../ui/Card';
 import { Badge } from '../../../ui/Badge';
@@ -62,6 +62,24 @@ export const VOCComments = ({
     if (idx !== -1 && urlParts[idx + 1]) return urlParts[idx + 1];
     return urlParts.includes('results') ? urlParts[urlParts.indexOf('results') + 1] ?? '' : '';
   })();
+
+  const themeMatches = useMemo(() => {
+    if (!analysis?.themes.length || !comments.length) return new Map<number, Comment[]>();
+    const map = new Map<number, Comment[]>();
+    analysis.themes.forEach((theme, idx) => {
+      const words = theme.name
+        .toLowerCase()
+        .split(/[\s,/&+\-–—]+/)
+        .filter(w => w.length > 2);
+      if (words.length === 0) { map.set(idx, []); return; }
+      const matched = comments.filter(c => {
+        const lower = c.text.toLowerCase();
+        return words.some(w => lower.includes(w));
+      });
+      map.set(idx, matched);
+    });
+    return map;
+  }, [analysis?.themes, comments]);
 
   // Load cached analysis on mount
   useEffect(() => {
@@ -489,50 +507,47 @@ export const VOCComments = ({
 
                 {analysis && analysis.themes.length > 0 ? (
                   <div className="space-y-3">
-                    {analysis.themes.map((theme, i) => (
-                      <div
-                        key={i}
-                        onClick={() => theme.supportingQuotes && theme.supportingQuotes.length > 0 && setSelectedThemeIdx(i)}
-                        className={cn(
-                          'bg-gray-50 rounded-lg p-4 space-y-2 transition-colors',
-                          theme.supportingQuotes && theme.supportingQuotes.length > 0
-                            ? 'cursor-pointer hover:bg-blue-50 hover:border-blue-200 border border-transparent'
-                            : ''
-                        )}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-semibold text-gray-900">{theme.name}</span>
-                            {theme.supportingQuotes && theme.supportingQuotes.length > 0 && (
-                              <Quote className="h-3.5 w-3.5 text-blue-400" />
-                            )}
+                    {analysis.themes.map((theme, i) => {
+                      const matched = themeMatches.get(i) ?? [];
+                      const realCount = matched.length;
+                      const pct = comments.length > 0 ? Math.round((realCount / comments.length) * 100) : 0;
+                      return (
+                        <div
+                          key={i}
+                          onClick={() => setSelectedThemeIdx(i)}
+                          className="bg-gray-50 rounded-lg p-4 space-y-2 transition-colors cursor-pointer hover:bg-blue-50 hover:border-blue-200 border border-transparent"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-semibold text-gray-900">{theme.name}</span>
+                              {realCount > 0 && <Quote className="h-3.5 w-3.5 text-blue-400" />}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-gray-500">{realCount} mentions ({pct}%)</span>
+                              <span className={cn(
+                                'text-xs font-medium px-2 py-0.5 rounded-full',
+                                theme.sentimentScore > 0.2 ? 'bg-green-100 text-green-700' :
+                                theme.sentimentScore < -0.2 ? 'bg-red-100 text-red-700' :
+                                'bg-gray-100 text-gray-600'
+                              )}>
+                                {theme.sentimentScore > 0.2 ? 'positive' : theme.sentimentScore < -0.2 ? 'negative' : 'neutral'}
+                              </span>
+                            </div>
                           </div>
+                          <p className="text-xs text-gray-600 leading-relaxed">{theme.description}</p>
                           <div className="flex items-center gap-2">
-                            <span className="text-xs text-gray-500">{theme.count} mentions ({comments.length > 0 ? Math.round((theme.count / comments.length) * 100) : 0}%)</span>
-                            <span className={cn(
-                              'text-xs font-medium px-2 py-0.5 rounded-full',
-                              theme.sentimentScore > 0.2 ? 'bg-green-100 text-green-700' :
-                              theme.sentimentScore < -0.2 ? 'bg-red-100 text-red-700' :
-                              'bg-gray-100 text-gray-600'
-                            )}>
-                              {theme.sentimentScore > 0.2 ? 'positive' : theme.sentimentScore < -0.2 ? 'negative' : 'neutral'}
-                            </span>
+                            <span className="text-[10px] text-gray-400 w-16">Relevance</span>
+                            <div className="flex-1 bg-gray-200 rounded-full h-1.5">
+                              <div
+                                className="h-1.5 rounded-full bg-blue-500 transition-all"
+                                style={{ width: `${Math.round(theme.magnitude * 100)}%` }}
+                              />
+                            </div>
+                            <span className="text-[10px] text-gray-400 w-8 text-right">{Math.round(theme.magnitude * 100)}%</span>
                           </div>
                         </div>
-                        <p className="text-xs text-gray-600 leading-relaxed">{theme.description}</p>
-                        {/* Magnitude bar */}
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] text-gray-400 w-16">Relevance</span>
-                          <div className="flex-1 bg-gray-200 rounded-full h-1.5">
-                            <div
-                              className="h-1.5 rounded-full bg-blue-500 transition-all"
-                              style={{ width: `${Math.round(theme.magnitude * 100)}%` }}
-                            />
-                          </div>
-                          <span className="text-[10px] text-gray-400 w-8 text-right">{Math.round(theme.magnitude * 100)}%</span>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : (
                   <div className="flex items-center justify-center h-48">
@@ -672,6 +687,8 @@ export const VOCComments = ({
       {selectedThemeIdx !== null && analysis?.themes[selectedThemeIdx] && (
         <ThemeVerbatimDrawer
           theme={analysis.themes[selectedThemeIdx]}
+          matchedComments={themeMatches.get(selectedThemeIdx) ?? []}
+          totalComments={comments.length}
           onClose={() => setSelectedThemeIdx(null)}
         />
       )}
@@ -682,28 +699,27 @@ export const VOCComments = ({
 // ─── Theme Verbatim Drawer ──────────────────────────────────────────
 
 interface ThemeVerbatimDrawerProps {
-  theme: { name: string; count: number; description: string; sentimentScore: number; supportingQuotes?: string[] };
+  theme: { name: string; description: string; sentimentScore: number };
+  matchedComments: Comment[];
+  totalComments: number;
   onClose: () => void;
 }
 
-const ThemeVerbatimDrawer = ({ theme, onClose }: ThemeVerbatimDrawerProps) => {
-  const quotes = theme.supportingQuotes || [];
+const ThemeVerbatimDrawer = ({ theme, matchedComments, totalComments, onClose }: ThemeVerbatimDrawerProps) => {
+  const pct = totalComments > 0 ? Math.round((matchedComments.length / totalComments) * 100) : 0;
 
   return (
     <>
-      {/* Backdrop */}
       <div
         className="fixed inset-0 bg-black/30 z-40 transition-opacity"
         onClick={onClose}
       />
-      {/* Drawer */}
       <div className="fixed inset-y-0 right-0 w-[420px] max-w-[90vw] bg-white shadow-2xl z-50 flex flex-col animate-slide-in-right">
-        {/* Header */}
         <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
           <div className="flex-1 min-w-0">
             <h3 className="text-sm font-semibold text-slate-800 truncate">{theme.name}</h3>
             <p className="text-xs text-gray-500 mt-0.5">
-              {theme.count} mentions · {quotes.length} verbatim{quotes.length !== 1 ? 's' : ''}
+              {matchedComments.length} mentions ({pct}%)
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
@@ -721,24 +737,34 @@ const ThemeVerbatimDrawer = ({ theme, onClose }: ThemeVerbatimDrawerProps) => {
           </div>
         </div>
 
-        {/* Description */}
         <div className="px-5 py-3 border-b border-gray-50 shrink-0">
           <p className="text-xs text-gray-600 leading-relaxed">{theme.description}</p>
         </div>
 
-        {/* Quotes list */}
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
-          <h4 className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Supporting verbatims</h4>
-          {quotes.length > 0 ? (
-            quotes.map((quote, i) => (
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3" style={{ maxHeight: '60vh' }}>
+          <h4 className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Matching verbatims</h4>
+          {matchedComments.length > 0 ? (
+            matchedComments.map((comment, i) => (
               <div key={i} className="flex gap-3 items-start">
                 <Quote className="h-4 w-4 text-blue-300 shrink-0 mt-0.5" />
-                <p className="text-sm text-gray-700 leading-relaxed italic">"{quote}"</p>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-gray-700 leading-relaxed italic">"{comment.text}"</p>
+                  {comment.mood && (
+                    <span className={cn(
+                      'text-[10px] font-medium px-1.5 py-0.5 rounded mt-1 inline-block',
+                      comment.mood === 'positive' ? 'bg-green-50 text-green-600' :
+                      comment.mood === 'negative' ? 'bg-red-50 text-red-600' :
+                      'bg-gray-50 text-gray-500'
+                    )}>
+                      {comment.mood}
+                    </span>
+                  )}
+                </div>
               </div>
             ))
           ) : (
             <p className="text-sm text-gray-400 text-center py-8">
-              No verbatims available. Regenerate the analysis to include supporting quotes.
+              No matching comments found for this theme.
             </p>
           )}
         </div>

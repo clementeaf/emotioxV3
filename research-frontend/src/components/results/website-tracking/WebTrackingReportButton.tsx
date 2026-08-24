@@ -643,13 +643,8 @@ ${body}
 </div>
 </body></html>`;
 
-    // Render HTML in a hidden container, convert to PDF, download
     const container = document.createElement('div');
     container.innerHTML = html;
-    container.style.position = 'fixed';
-    container.style.left = '-9999px';
-    container.style.top = '0';
-    container.style.width = '800px';
     document.body.appendChild(container);
 
     import('html2pdf.js').then((mod) => {

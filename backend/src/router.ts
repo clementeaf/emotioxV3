@@ -189,6 +189,30 @@ export const route = async (event: APIGatewayProxyEvent): Promise<APIGatewayProx
             return await handlePublicTrackingRoutes(normalizedEvent);
         }
 
+        if (path.startsWith('/public/analytics')) {
+            const rewritten = { ...normalizedEvent, path: path.replace('/public/analytics', '/analytics') };
+            const { handleAnalyticsRoutes } = await import('./modules/analytics/analytics.controller');
+            return await handleAnalyticsRoutes(rewritten);
+        }
+
+        if (path.startsWith('/public/responses')) {
+            const rewritten = { ...normalizedEvent, path: path.replace('/public/responses', '/responses') };
+            const { handleResponsesRoutes } = await import('./modules/responses/responses.controller');
+            return await handleResponsesRoutes(rewritten);
+        }
+
+        if (path.startsWith('/public/participants')) {
+            const rewritten = { ...normalizedEvent, path: path.replace('/public/participants', '/participants') };
+            const { handleParticipantsRoutes } = await import('./modules/participants/participants.controller');
+            return await handleParticipantsRoutes(rewritten);
+        }
+
+        if (path.startsWith('/public/modules')) {
+            const rewritten = { ...normalizedEvent, path: path.replace('/public/modules', '/modules') };
+            const { handleModulesRoutes } = await import('./modules/modules/modules.controller');
+            return await handleModulesRoutes(rewritten);
+        }
+
         if (path.startsWith('/public')) {
             const { handlePublicRoutes } = await import('./modules/public/public.controller');
             return await handlePublicRoutes(normalizedEvent);

@@ -21,6 +21,7 @@ import { AlertsBar } from '../../components/results/shared/AlertsBar';
 import { ReportGeneratorButton } from '../../components/results/shared/ReportGenerator';
 import { BlockchainCertification } from '../../components/results/shared/BlockchainCertification';
 import { useResultsFilter } from '../../hooks/useResultsFilter';
+import { useToast } from '../../hooks/useToast';
 import apiClient from '../../services/api/client';
 
 type TabId = 'screener' | 'smart-voc' | 'cognitive-task' | 'implicit-association' | 'eye-tracking' | 'emotion-analysis' | 'eeg' | 'wearable';
@@ -102,6 +103,7 @@ export const ResearchResultsPage = () => {
     const [exportingPptx, setExportingPptx] = useState(false);
     const [summaryOpen, setSummaryOpen] = useState(false);
     const [copied, setCopied] = useState(false);
+    const toast = useToast();
 
     // Read completionMin + filtered participant IDs from shared filter hook
     const { filteredParticipantIds } = useResultsFilter(id || '');
@@ -135,20 +137,28 @@ export const ResearchResultsPage = () => {
                 getImplicitAssociationResults(id).catch(() => null),
             ]);
 
+            const hasSmartVOC = !!smartvoc;
+            const hasCognitive = cognitive && cognitive.modules.length > 0;
+            const hasIAT = iat && iat.modules.length > 0;
+            if (!hasSmartVOC && !hasCognitive && !hasIAT) {
+                toast.warning('No hay datos de resultados para exportar');
+                return;
+            }
+
             await generateResultsPptx({
                 researchName: research?.name || 'Research',
                 researchId: id,
                 smartvoc,
                 cognitive,
                 executiveSummary: summaryRes?.summary ?? null,
-                iat: iat && iat.modules.length > 0 ? iat : null,
+                iat: hasIAT ? iat : null,
             });
-        } catch (error) {
-            console.error('PPTX export failed:', error);
+        } catch {
+            toast.error('Error al exportar presentación');
         } finally {
             setExportingPptx(false);
         }
-    }, [id, exportingPptx, research?.name]);
+    }, [id, exportingPptx, research?.name, toast]);
 
     useEffect(() => {
         if (!research || tabInitialized) return;
@@ -244,7 +254,8 @@ export const ResearchResultsPage = () => {
                     </button>
                     <button
                         onClick={() => {
-                            navigator.clipboard.writeText(window.location.href).then(() => {
+                            const publicUrl = `${window.location.origin}/research/results/${id}`;
+                            navigator.clipboard.writeText(publicUrl).then(() => {
                                 setCopied(true);
                                 setTimeout(() => setCopied(false), 2000);
                             });

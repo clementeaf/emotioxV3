@@ -20,6 +20,7 @@ import { ResearchTechniquesPage } from '../pages/research-techniques/ResearchTec
 import { ResearchTechniqueBuilderPage } from '../pages/research-techniques/ResearchTechniqueBuilderPage';
 import { UserManagementPage } from '../pages/admin/UserManagementPage';
 import { PublicProgressPage } from '../pages/public/PublicProgressPage';
+import { PublicResultsPage } from '../pages/public/PublicResultsPage';
 
 const withPageSuspense = (element: ReactNode): ReactNode => (
     <Suspense
@@ -271,12 +272,18 @@ export const routesConfig: RouteConfig[] = [
         errorBoundary: { context: 'dashboard', pageName: 'Edit Research Technique' },
     },
 
-    // Public progress page (no auth)
+    // Public pages (no auth)
     {
         path: '/progress/:id',
         element: <PublicProgressPage />,
         layout: 'none',
         errorBoundary: { context: 'general', pageName: 'Public Progress' },
+    },
+    {
+        path: '/results/:id',
+        element: <PublicResultsPage />,
+        layout: 'none',
+        errorBoundary: { context: 'general', pageName: 'Public Results' },
     },
 
     // Default redirect (must be before catch-all)
