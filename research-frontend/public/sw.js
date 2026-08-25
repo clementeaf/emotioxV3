@@ -85,8 +85,10 @@ self.addEventListener('fetch', (e) => {
 });
 
 function handleRequest(e, url) {
-    // HTML → network first + fallback a index.html
-    if (url.pathname === '/' || url.pathname.endsWith('.html')) {
+    const isNavigationRequest = e.request.mode === 'navigate';
+    const hasFileExtension = url.pathname.includes('.') && !url.pathname.endsWith('.html');
+
+    if (isNavigationRequest || (!hasFileExtension && !url.pathname.startsWith('/api/'))) {
         return fetch(e.request)
             .then((res) => {
                 // Cachear HTML exitoso para offline

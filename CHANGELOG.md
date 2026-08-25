@@ -1,3 +1,17 @@
+## v0.94.6 — Website Tracking heatmap fixes (2026-08-25)
+
+### fix: snapshot CSS inlining for heatmap backdrop
+- Tracking snippet v3.4: fetches all `<link rel="stylesheet">` CSS content and embeds it as inline `<style>` blocks in the DOM snapshot. Snapshots are now self-contained — no dependency on the tracked site keeping old assets after redeploy.
+- Snapshot-html endpoint strips `<script>` tags before serving (prevents CORS errors from external JS).
+- Proxy-asset endpoint exposed publicly (`/public/tracking/:id/proxy-asset`) so snapshot CSS/fonts load without auth token.
+- Snapshot size limit raised from 2MB to 4MB to accommodate inlined CSS.
+
+### feat: gaze zone grid overlay in heatmaps
+- "Gaze Focus" layer in Heatmaps tab now renders a 3×3 zone grid with percentage labels (same data as Attention tab's Gaze Zone Distribution) instead of diffuse simpleheat points.
+
+### fix: service worker SPA routing
+- Fixed SW `handleRequest` to treat navigation requests and extensionless paths as SPA routes (network-first + index.html fallback) instead of cacheable assets.
+
 ## v0.94.5 — Public results page + export fixes (2026-08-24)
 
 ### fix: blank PDF/PPTX exports

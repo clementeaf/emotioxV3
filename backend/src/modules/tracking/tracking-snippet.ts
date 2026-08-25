@@ -224,15 +224,45 @@ function createSession(){
         startRrwebRecording();
         if(rrwebBuf.length>0)flushRrweb();
         startEmotionCapture();
-        // Capture DOM snapshot after JS has rendered (for heatmap backdrop)
+        // Capture DOM snapshot with inlined CSS (self-contained backdrop)
         setTimeout(function(){
             try{
-                var html=document.documentElement.outerHTML;
-                if(html.length>2000000)return; // skip if >2MB
-                var sx=new XMLHttpRequest();
-                sx.open("POST",C.api+"/public/tracking/"+C.rid+"/snapshot",true);
-                sx.setRequestHeader("Content-Type","application/json");
-                sx.send(JSON.stringify({pageUrl:location.href,html:html}));
+                var sheets=document.querySelectorAll('link[rel="stylesheet"],link[type="text/css"]');
+                var pending=sheets.length;
+                var cssTexts=[];
+                if(pending===0){sendSnapshot("");return}
+                var done=0;
+                sheets.forEach(function(link,i){
+                    var href=link.getAttribute("href");
+                    if(!href){done++;if(done===pending)finish();return}
+                    var x=new XMLHttpRequest();
+                    x.open("GET",href,true);
+                    x.onload=function(){cssTexts[i]=x.status===200?x.responseText:"";done++;if(done===pending)finish()};
+                    x.onerror=function(){cssTexts[i]="";done++;if(done===pending)finish()};
+                    x.send();
+                });
+                function finish(){
+                    var inlined="";
+                    for(var j=0;j<cssTexts.length;j++){if(cssTexts[j])inlined+="<style>"+cssTexts[j]+"</style>\n"}
+                    sendSnapshot(inlined);
+                }
+                function sendSnapshot(inlinedCSS){
+                    try{
+                        var html=document.documentElement.outerHTML;
+                        html=html.replace(/<link[^>]*rel\s*=\s*["']stylesheet["'][^>]*>/gi,"");
+                        html=html.replace(/<link[^>]*type\s*=\s*["']text\/css["'][^>]*>/gi,"");
+                        if(html.indexOf("</head>")!==-1){
+                            html=html.replace("</head>",inlinedCSS+"</head>");
+                        }else{
+                            html=inlinedCSS+html;
+                        }
+                        if(html.length>4000000)return;
+                        var sx=new XMLHttpRequest();
+                        sx.open("POST",C.api+"/public/tracking/"+C.rid+"/snapshot",true);
+                        sx.setRequestHeader("Content-Type","application/json");
+                        sx.send(JSON.stringify({pageUrl:location.href,html:html}));
+                    }catch(e){}
+                }
             }catch(e){}
         },3000);
     }

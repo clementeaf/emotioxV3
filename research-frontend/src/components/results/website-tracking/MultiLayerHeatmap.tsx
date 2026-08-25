@@ -109,9 +109,9 @@ export const MultiLayerHeatmap = ({
         staleTime: 10_000,
     });
 
-    const { data: mouseAttentionData } = useQuery({
-        queryKey: ['tracking', researchId, 'mouse-attention', pageUrl, device || 'all'],
-        queryFn: () => trackingService.getMouseAttentionHeatmap(researchId, pageUrl, device),
+    const { data: gazeZoneData } = useQuery({
+        queryKey: ['tracking', researchId, 'gaze', pageUrl],
+        queryFn: () => trackingService.getTrackingGaze(researchId, pageUrl),
         enabled: layers.mouseAttention && hasBackdrop,
         staleTime: 10_000,
     });
@@ -401,7 +401,7 @@ export const MultiLayerHeatmap = ({
         }
     }, [ready, dimensions, layers.density, clickData]);
 
-    // ─── Render mouse-attention layer (cursor weighted by gaze) ───────
+    // ─── Render gaze zone grid overlay (3×3 quadrant distribution) ────
     useEffect(() => {
         const canvas = mouseAttentionCanvasRef.current;
         if (!ready || !canvas || dimensions.width === 0 || !layers.mouseAttention) return;
@@ -414,34 +414,54 @@ export const MultiLayerHeatmap = ({
         canvas.height = h;
         ctx.clearRect(0, 0, w, h);
 
-        ctx.fillStyle = `rgba(0, 0, 0, ${(opacity / 100) * 0.7})`;
-        ctx.fillRect(0, 0, w, h);
+        if (!gazeZoneData?.quadrantDistribution) return;
 
-        if (mouseAttentionData?.points && mouseAttentionData.points.length > 0) {
-            const heatCanvas = document.createElement('canvas');
-            heatCanvas.width = w;
-            heatCanvas.height = h;
-            const heat = simpleheat(heatCanvas);
-            const baseR = Math.max(25, Math.round(Math.min(w, h) * 0.05));
-            const r = Math.round(baseR * (intensity / 50));
-            heat.radius(r, Math.round(r * 0.9));
-            heat.gradient({
-                0.15: '#0f0', 0.35: '#8f0', 0.5: '#ff0',
-                0.7: '#f80', 0.85: '#f00', 1.0: '#f00',
+        const dist = gazeZoneData.quadrantDistribution;
+        const grid: Array<Array<{ key: string; pct: number }>> = [
+            [{ key: 'top-left', pct: dist['top-left'] || 0 }, { key: 'top-center', pct: dist['top-center'] || 0 }, { key: 'top-right', pct: dist['top-right'] || 0 }],
+            [{ key: 'center-left', pct: dist['center-left'] || 0 }, { key: 'center', pct: dist['center'] || 0 }, { key: 'center-right', pct: dist['center-right'] || 0 }],
+            [{ key: 'bottom-left', pct: dist['bottom-left'] || 0 }, { key: 'bottom-center', pct: dist['bottom-center'] || 0 }, { key: 'bottom-right', pct: dist['bottom-right'] || 0 }],
+        ];
+        const maxPct = Math.max(...grid.flat().map(c => c.pct), 1);
+        const cellW = w / 3;
+        const cellH = h / 3;
+        const gap = 2;
+
+        grid.forEach((row, ri) => {
+            row.forEach((cell, ci) => {
+                const x = ci * cellW + gap;
+                const y = ri * cellH + gap;
+                const cw = cellW - gap * 2;
+                const ch = cellH - gap * 2;
+                const intensity = cell.pct / maxPct;
+                const alpha = 0.08 + intensity * 0.45;
+
+                ctx.fillStyle = `rgba(37, 99, 235, ${alpha})`;
+                ctx.beginPath();
+                const r = 6;
+                ctx.moveTo(x + r, y);
+                ctx.lineTo(x + cw - r, y);
+                ctx.quadraticCurveTo(x + cw, y, x + cw, y + r);
+                ctx.lineTo(x + cw, y + ch - r);
+                ctx.quadraticCurveTo(x + cw, y + ch, x + cw - r, y + ch);
+                ctx.lineTo(x + r, y + ch);
+                ctx.quadraticCurveTo(x, y + ch, x, y + ch - r);
+                ctx.lineTo(x, y + r);
+                ctx.quadraticCurveTo(x, y, x + r, y);
+                ctx.closePath();
+                ctx.fill();
+
+                if (cell.pct > 0) {
+                    const fontSize = Math.max(12, Math.round(Math.min(cw, ch) * 0.12));
+                    ctx.font = `bold ${fontSize}px system-ui, sans-serif`;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillStyle = intensity > 0.5 ? 'rgba(255,255,255,0.95)' : 'rgba(55,65,81,0.9)';
+                    ctx.fillText(`${cell.pct}%`, x + cw / 2, y + ch / 2);
+                }
             });
-
-            const points: Array<[number, number, number]> = mouseAttentionData.points.map(p => [
-                (p.x / 100) * w, (p.y / 100) * w, p.weight,
-            ]);
-            heat.data(points);
-            const maxW = Math.max(...mouseAttentionData.points.map(p => p.weight));
-            heat.max(Math.max(1, maxW * 0.6));
-            heat.draw(0.05);
-            ctx.globalAlpha = 0.75;
-            ctx.drawImage(heatCanvas, 0, 0);
-            ctx.globalAlpha = 1;
-        }
-    }, [ready, dimensions, layers.mouseAttention, mouseAttentionData, intensity, opacity]);
+        });
+    }, [ready, dimensions, layers.mouseAttention, gazeZoneData]);
 
     // Clear canvas when layer toggled off
     useEffect(() => {

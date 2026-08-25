@@ -228,8 +228,7 @@ export const handlePublicTrackingRoutes = async (
             const pageUrl = body.pageUrl as string;
             const html = body.html as string;
             if (!pageUrl || !html) return trackingError('Missing pageUrl or html');
-            // Cap at 2MB
-            if (html.length > 2097152) return trackingError('Snapshot too large', 413);
+            if (html.length > 4194304) return trackingError('Snapshot too large', 413);
             await savePageSnapshot(researchId, pageUrl, html);
             return trackingSuccess({ saved: true }, 201);
         }
@@ -296,6 +295,84 @@ export const handlePublicTrackingRoutes = async (
             const videoBuffer = Buffer.from(videoBase64, 'base64');
             const result = await saveEmotionVideo(researchId, sessionId, videoBuffer);
             return trackingSuccess(result, 201);
+        }
+
+        const publicProxyAssetMatch = path.match(/^\/public\/tracking\/([^/]+)\/proxy-asset$/);
+        if (publicProxyAssetMatch && httpMethod === 'GET') {
+            const assetUrl = event.queryStringParameters?.url
+                ? decodeURIComponent(event.queryStringParameters.url)
+                : null;
+            if (!assetUrl) return trackingError('Missing url parameter');
+
+            try {
+                const response = await fetch(assetUrl, {
+                    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; EmotioCX/1.0)' },
+                    redirect: 'follow',
+                });
+                const contentType = response.headers.get('content-type') || 'application/octet-stream';
+                const isText = contentType.includes('text/') || contentType.includes('css') || contentType.includes('javascript') || contentType.includes('json');
+
+                if (isText) {
+                    let text = await response.text();
+
+                    if (contentType.includes('css')) {
+                        const proxyBase = `/api/public/tracking/${publicProxyAssetMatch[1]}/proxy-asset?url=`;
+                        const cssUrlObj = new URL(assetUrl);
+                        const cssOrigin = cssUrlObj.origin;
+                        const cssDir = assetUrl.substring(0, assetUrl.lastIndexOf('/') + 1);
+
+                        const resolveRef = (ref: string): string => {
+                            if (ref.startsWith('data:') || ref.startsWith('#')) return ref;
+                            if (ref.startsWith('http')) return ref;
+                            if (ref.startsWith('//')) return 'https:' + ref;
+                            if (ref.startsWith('/')) return cssOrigin + ref;
+                            return cssDir + ref;
+                        };
+
+                        text = text.replace(
+                            /url\(\s*['"]?(?!['"]?data:)([^'")]+)\s*['"]?\)/gi,
+                            (_m: string, ref: string) => {
+                                const resolved = resolveRef(ref.trim());
+                                if (resolved === ref.trim()) return _m;
+                                return `url('${proxyBase}${encodeURIComponent(resolved)}')`;
+                            }
+                        );
+
+                        text = text.replace(
+                            /@import\s+['"](?!data:)([^'"]+)['"]/gi,
+                            (_m: string, ref: string) => {
+                                const resolved = resolveRef(ref.trim());
+                                return `@import url('${proxyBase}${encodeURIComponent(resolved)}')`;
+                            }
+                        );
+                    }
+
+                    return {
+                        statusCode: 200,
+                        headers: {
+                            'Content-Type': contentType,
+                            'Access-Control-Allow-Origin': '*',
+                            'Cache-Control': 'public, max-age=86400',
+                        },
+                        body: text,
+                    };
+                }
+
+                const arrayBuf = await response.arrayBuffer();
+                return {
+                    statusCode: 200,
+                    headers: {
+                        'Content-Type': contentType,
+                        'Access-Control-Allow-Origin': '*',
+                        'Cache-Control': 'public, max-age=86400',
+                        'X-Binary': '1',
+                    },
+                    body: Buffer.from(arrayBuf).toString('base64'),
+                    isBase64Encoded: true,
+                };
+            } catch {
+                return trackingError('Failed to fetch asset');
+            }
         }
 
         return trackingError('Route not found', 404);
@@ -666,7 +743,7 @@ export const handleTrackingRoutes = async (
             const baseHref = urlObj.origin + '/';
             // MUST be absolute — <base> tag points to the tracked site's origin
             const apiBase = process.env.API_BASE_URL || 'https://emotio.cx/api';
-            const assetProxyBase = `${apiBase}/tracking/${snapshotHtmlMatch[1]}/proxy-asset?url=`;
+            const assetProxyBase = `${apiBase}/public/tracking/${snapshotHtmlMatch[1]}/proxy-asset?url=`;
             let result = html;
 
             // Proxy CSS stylesheets to avoid CORS/Referer blocks
@@ -695,6 +772,9 @@ export const handleTrackingRoutes = async (
 
             // Fix media="none" links whose onload was stripped (e.g. Google Fonts lazy-load pattern)
             result = result.replace(/media\s*=\s*["']none["']/gi, 'media="all"');
+
+            result = result.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '');
+            result = result.replace(/<script\b[^>]*\/>/gi, '');
 
             const disableStyle = `<style>* { pointer-events: none !important; user-select: none !important; } body { overflow: visible !important; }</style>`;
             if (result.includes('<head>')) {
