@@ -66,12 +66,28 @@ export interface TrackingGazeData {
         calibratedGaze: number;
         qualityBreakdown: { good: number; fair: number; low: number };
     };
+    fixations: Array<{ x: number; y: number; duration: number; timestamp: number }>;
+}
+
+interface GazeFixation {
+    type: 'fixation';
+    x: number;
+    y: number;
+    duration: number;
+    timestamp: number;
+}
+
+function isFixationEvent(raw: unknown): raw is GazeFixation {
+    if (!raw || typeof raw !== 'object') return false;
+    const s = raw as Record<string, unknown>;
+    return s.type === 'fixation' && Number.isFinite(s.x) && Number.isFinite(s.y) && Number.isFinite(s.duration);
 }
 
 function isValidGazeSample(raw: unknown): raw is GazeSample {
     if (!raw || typeof raw !== 'object') return false;
     const s = raw as Record<string, unknown>;
     return (
+        s.type !== 'fixation' &&
         Number.isFinite(s.timestamp) &&
         typeof s.quadrant === 'string' &&
         (ALL_ATTENTION as string[]).includes(s.attention as string) &&
@@ -114,6 +130,7 @@ export async function getTrackingGazeData(
     let gazeSamples = 0;
     const qualityCounts = { good: 0, fair: 0, low: 0 };
     const allSamples: GazeSample[] = [];
+    const allFixations: GazeFixation[] = [];
     const perSession: TrackingGazeData['perSession'] = [];
 
     for (const session of sessions) {
@@ -122,7 +139,11 @@ export async function getTrackingGazeData(
             const raw = typeof session.gaze_samples === 'string'
                 ? JSON.parse(session.gaze_samples)
                 : session.gaze_samples;
-            samples = Array.isArray(raw) ? raw.filter(isValidGazeSample) : [];
+            if (Array.isArray(raw)) {
+                samples = raw.filter(isValidGazeSample);
+                const sessionFix = raw.filter(isFixationEvent);
+                allFixations.push(...sessionFix);
+            }
         } catch { samples = []; }
 
         if (samples.length === 0) continue;
@@ -209,6 +230,7 @@ export async function getTrackingGazeData(
         timeline,
         perSession,
         dataSource: { cursor: cursorSamples, calibratedGaze: gazeSamples, qualityBreakdown: qualityCounts },
+        fixations: allFixations.map(f => ({ x: f.x, y: f.y, duration: f.duration, timestamp: f.timestamp })),
     };
 }
 

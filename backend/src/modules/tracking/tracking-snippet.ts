@@ -649,6 +649,27 @@ function applyOneEuro(x,y){
     return[Math.round(fx.v),Math.round(fy.v)];
 }
 
+// I-DT fixation detection (simplified dispersion-threshold)
+var fixState={cx:0,cy:0,startT:0,sumX:0,sumY:0,count:0,active:false};
+var FIX_RADIUS_PX=100,FIX_MIN_MS=200;
+var fixBuf=[];
+function feedFixation(x,y,ts){
+    if(!fixState.active){
+        fixState={cx:x,cy:y,startT:ts,sumX:x,sumY:y,count:1,active:true};
+        return;
+    }
+    var dx=x-fixState.cx,dy=y-fixState.cy;
+    if(Math.sqrt(dx*dx+dy*dy)<=FIX_RADIUS_PX){
+        fixState.sumX+=x;fixState.sumY+=y;fixState.count++;
+        return;
+    }
+    var dur=ts-fixState.startT;
+    if(dur>=FIX_MIN_MS){
+        fixBuf.push({type:"fixation",x:Math.round(fixState.sumX/fixState.count),y:Math.round(fixState.sumY/fixState.count),duration:Math.round(dur),timestamp:fixState.startT});
+    }
+    fixState={cx:x,cy:y,startT:ts,sumX:x,sumY:y,count:1,active:true};
+}
+
 function calPoints(n){
     if(n===5)return[[50,15],[10,85],[90,85],[10,15],[90,15]];
     return[[10,10],[50,10],[90,10],[10,50],[50,50],[90,50],[10,90],[50,90],[90,90]];
@@ -960,7 +981,7 @@ function sampleFrame(){
                 pageX:gpx,
                 pageY:gpy
             };
-            if(isMobile&&gazeWeights){sample.gazeQuality=gazeQuality;sample.gazeRmse=Math.round(gazeRmsePx);}
+            if(isMobile&&gazeWeights){sample.gazeQuality=gazeQuality;sample.gazeRmse=Math.round(gazeRmsePx);feedFixation(gpx,gpy,ts);}
             gazeBuf.push(sample);
         }
     }catch(e){}
@@ -998,8 +1019,9 @@ function flushEmotions(sync){
 }
 
 function flushGaze(sync){
-    if(!gazeBuf.length||!sid)return;
+    if(!gazeBuf.length&&!fixBuf.length||!sid)return;
     var batch=gazeBuf.splice(0,gazeBuf.length);
+    if(fixBuf.length){batch=batch.concat(fixBuf.splice(0,fixBuf.length));}
     var body=JSON.stringify({sessionId:sid,samples:batch});
     var url=C.api+"/public/tracking/"+C.rid+"/gaze";
     try{

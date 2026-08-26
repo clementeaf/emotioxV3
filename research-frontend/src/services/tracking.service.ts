@@ -472,6 +472,7 @@ export interface TrackingGazeData {
         calibratedGaze: number;
         qualityBreakdown: { good: number; fair: number; low: number };
     };
+    fixations: Array<{ x: number; y: number; duration: number; timestamp: number }>;
 }
 
 export const getTrackingGaze = async (
