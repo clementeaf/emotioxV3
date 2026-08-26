@@ -54,9 +54,8 @@ export const ExecutiveSummaryPanel = ({ researchId, filteredParticipantIds }: { 
         },
     });
 
-    const handleDownloadPdf = useCallback(async () => {
+    const handleDownloadPdf = useCallback(() => {
         if (!summary) return;
-        const html2pdf = (await import('html2pdf.js')).default;
 
         const sentimentTotal = (summary.sentiment?.positive ?? 0) + (summary.sentiment?.negative ?? 0) + (summary.sentiment?.neutral ?? 0);
         const sentimentHtml = sentimentTotal > 0 ? `
@@ -117,28 +116,12 @@ export const ExecutiveSummaryPanel = ({ researchId, filteredParticipantIds }: { 
                 </div>
             </div>`;
 
-        const wrappedHtml = `<!DOCTYPE html><html><head><style>*{margin:0;padding:0;box-sizing:border-box}</style></head><body>${html}</body></html>`;
-        const iframe = document.createElement('iframe');
-        iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:800px;height:1000px;border:none;';
-        document.body.appendChild(iframe);
-        const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
-        if (!iframeDoc) { document.body.removeChild(iframe); return; }
-        iframeDoc.open();
-        iframeDoc.write(wrappedHtml);
-        iframeDoc.close();
-
-        await new Promise(r => setTimeout(r, 300));
-        try {
-            await html2pdf().set({
-                margin: [10, 10, 10, 10],
-                filename: `executive-summary-${researchId.slice(0, 8)}.pdf`,
-                image: { type: 'jpeg', quality: 0.98 },
-                html2canvas: { scale: 2, useCORS: true },
-                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-            }).from(iframeDoc.body).save();
-        } finally {
-            document.body.removeChild(iframe);
-        }
+        const fullHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Executive Summary</title><style>*{margin:0;padding:0;box-sizing:border-box}@media print{@page{margin:1.5cm}body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body>${html}</body></html>`;
+        const win = window.open('', '_blank');
+        if (!win) return;
+        win.document.write(fullHtml);
+        win.document.close();
+        setTimeout(() => { win.print(); }, 500);
     }, [summary, researchId]);
 
     if (isLoading) {

@@ -643,35 +643,11 @@ ${body}
 </div>
 </body></html>`;
 
-    const iframe = document.createElement('iframe');
-    iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:800px;height:1000px;border:none;';
-    document.body.appendChild(iframe);
-
-    const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
-    if (!iframeDoc) { document.body.removeChild(iframe); return; }
-    iframeDoc.open();
-    iframeDoc.write(html);
-    iframeDoc.close();
-
-    setTimeout(() => {
-        import('html2pdf.js').then((mod) => {
-            const html2pdf = mod.default;
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (html2pdf() as any)
-                .set({
-                    margin: [10, 10, 10, 10],
-                    filename: `${researchName.replace(/[^a-zA-Z0-9]/g, '_')}_report.pdf`,
-                    image: { type: 'jpeg', quality: 0.95 },
-                    html2canvas: { scale: 2, useCORS: true, logging: false },
-                    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-                    pagebreak: { mode: ['css', 'legacy'] },
-                })
-                .from(iframeDoc.body)
-                .save()
-                .then(() => { document.body.removeChild(iframe); })
-                .catch(() => { document.body.removeChild(iframe); });
-        }).catch(() => { document.body.removeChild(iframe); });
-    }, 300);
+    const win = window.open('', '_blank');
+    if (!win) return;
+    win.document.write(html);
+    win.document.close();
+    setTimeout(() => { win.print(); }, 500);
 }
 
 function formatDur(seconds: number): string {
