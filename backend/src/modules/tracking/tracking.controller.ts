@@ -106,6 +106,8 @@ export const handlePublicTrackingRoutes = async (
                     captureEmotions: config.captureEmotions,
                     emotionVideoEnabled: config.emotionVideoEnabled,
                     emotionModelBaseUrl: apiBaseUrl + '/media/face-api-models',
+                    captureGaze: config.captureGaze,
+                    gazeCalibrationPoints: config.gazeCalibrationPoints,
                 });
 
                 return {

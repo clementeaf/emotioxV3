@@ -44,6 +44,8 @@ export const WebsiteTrackingConfig = ({ research }: WebsiteTrackingConfigProps) 
         dataRetentionDays: existingConfig.dataRetentionDays || 90,
         captureEmotions: existingConfig.captureEmotions === true,
         emotionVideoEnabled: existingConfig.emotionVideoEnabled === true,
+        captureGaze: existingConfig.captureGaze === true,
+        gazeCalibrationPoints: existingConfig.gazeCalibrationPoints === 5 ? 5 : 9,
     });
     const [domainInput, setDomainInput] = useState('');
 
@@ -244,6 +246,24 @@ export const WebsiteTrackingConfig = ({ research }: WebsiteTrackingConfigProps) 
                             <>
                                 <p className="text-[10px] text-gray-400 ml-9">Webcam-based facial expression estimation. Requires camera permission from visitors. Best for aggregate trends across sessions.</p>
                                 <CompactToggle label="Record Video" enabled={config.emotionVideoEnabled} onToggle={() => handleToggle('emotionVideoEnabled')} />
+                            </>
+                        )}
+                        <CompactToggle label="Gaze Tracking" enabled={config.captureGaze} onToggle={() => handleToggle('captureGaze')} />
+                        {config.captureGaze && (
+                            <>
+                                <p className="text-[10px] text-gray-400 ml-9">Mobile-only eye gaze calibration via front camera. Visitors complete a brief calibration before browsing. Generates gaze heatmaps without cursor data.</p>
+                                <div className="flex items-center gap-2 ml-9">
+                                    <span className="text-[10px] text-gray-500">Calibration points:</span>
+                                    {([5, 9] as const).map(n => (
+                                        <button
+                                            key={n}
+                                            onClick={() => setConfig(prev => ({ ...prev, gazeCalibrationPoints: n }))}
+                                            className={`px-2 py-0.5 text-[10px] rounded ${config.gazeCalibrationPoints === n ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600'}`}
+                                        >
+                                            {n}
+                                        </button>
+                                    ))}
+                                </div>
                             </>
                         )}
                     </div>

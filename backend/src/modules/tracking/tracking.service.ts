@@ -72,6 +72,8 @@ interface TrackingConfig {
     funnels?: FunnelDefinition[];
     captureEmotions: boolean;
     emotionVideoEnabled: boolean;
+    captureGaze: boolean;
+    gazeCalibrationPoints: 5 | 9;
 }
 
 // ─── Session Management ──────────────────────────────────────────────
@@ -284,6 +286,8 @@ export const getTrackingConfig = async (researchId: string): Promise<TrackingCon
         funnels: (trackingConfig.funnels as FunnelDefinition[]) || [],
         captureEmotions: trackingConfig.captureEmotions === true,
         emotionVideoEnabled: trackingConfig.emotionVideoEnabled === true,
+        captureGaze: trackingConfig.captureGaze === true,
+        gazeCalibrationPoints: trackingConfig.gazeCalibrationPoints === 5 ? 5 : 9,
     };
 };
 

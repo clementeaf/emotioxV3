@@ -39,6 +39,8 @@ const defaultConfig = {
     captureEmotions: true,
     emotionVideoEnabled: false,
     emotionModelBaseUrl: 'https://cdn.example.com/models',
+    captureGaze: false,
+    gazeCalibrationPoints: 9 as const,
 };
 
 // ---------------------------------------------------------------------------

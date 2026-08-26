@@ -39,6 +39,8 @@ export interface TrackingConfig {
     verified?: boolean;
     captureEmotions: boolean;
     emotionVideoEnabled: boolean;
+    captureGaze: boolean;
+    gazeCalibrationPoints: 5 | 9;
 }
 
 export interface FunnelDropoffResult {

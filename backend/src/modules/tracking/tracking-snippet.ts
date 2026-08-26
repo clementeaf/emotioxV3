@@ -32,6 +32,8 @@ interface SnippetConfig {
     captureEmotions: boolean;
     emotionVideoEnabled: boolean;
     emotionModelBaseUrl: string;
+    captureGaze: boolean;
+    gazeCalibrationPoints: 5 | 9;
 }
 
 export const generateTrackingSnippet = (config: SnippetConfig): string => {
@@ -57,6 +59,8 @@ var C=${JSON.stringify({
         emotions: config.captureEmotions,
         emoVideo: config.emotionVideoEnabled,
         emoModelUrl: config.emotionModelBaseUrl,
+        gaze: config.captureGaze,
+        gazeCal: config.gazeCalibrationPoints,
     })};
 
 // ─── State ───────────────────────────────────────────────────────────
@@ -224,6 +228,7 @@ function createSession(){
         startRrwebRecording();
         if(rrwebBuf.length>0)flushRrweb();
         startEmotionCapture();
+        startGazeCapture();
         // Capture DOM snapshot with inlined CSS (self-contained backdrop)
         setTimeout(function(){
             try{
@@ -243,14 +248,14 @@ function createSession(){
                 });
                 function finish(){
                     var inlined="";
-                    for(var j=0;j<cssTexts.length;j++){if(cssTexts[j])inlined+="<style>"+cssTexts[j]+"</style>\n"}
+                    for(var j=0;j<cssTexts.length;j++){if(cssTexts[j])inlined+="<style>"+cssTexts[j]+"<\/style>\\n"}
                     sendSnapshot(inlined);
                 }
                 function sendSnapshot(inlinedCSS){
                     try{
                         var html=document.documentElement.outerHTML;
-                        html=html.replace(/<link[^>]*rel\s*=\s*["']stylesheet["'][^>]*>/gi,"");
-                        html=html.replace(/<link[^>]*type\s*=\s*["']text\/css["'][^>]*>/gi,"");
+                        html=html.replace(/<link[^>]*rel\\s*=\\s*["']stylesheet["'][^>]*>/gi,"");
+                        html=html.replace(/<link[^>]*type\\s*=\\s*["']text\\/css["'][^>]*>/gi,"");
                         if(html.indexOf("</head>")!==-1){
                             html=html.replace("</head>",inlinedCSS+"</head>");
                         }else{
@@ -442,7 +447,7 @@ function startCapture(){
                 paused=false;
                 activeStart=Date.now();
                 startRrwebRecording();
-                if(C.emotions&&emoStream&&!emoRunning){emoRunning=true;emoStartTime=Date.now();emoInterval=setInterval(sampleEmotion,500);}
+                if((C.emotions||C.gaze&&isMobile&&gazeWeights)&&emoStream&&!emoRunning){emoRunning=true;emoStartTime=Date.now();emoInterval=setInterval(sampleFrame,500);}
             }
         }
     });
@@ -558,6 +563,159 @@ function cursorMatch(g,cx,cy,vw,vh){
 }
 function attnScore(st,match){return st==="away"?0:st==="distracted"?0.3:match?1:0.7;}
 
+// ─── Mobile Gaze Calibration (Ridge Regression + One-Euro Filter) ───
+var gazeWeights=null,gazeFeatDim=9,gazeQuality="unknown",gazeRmsePx=0;
+var GAZE_FEAT_DIM=9;
+
+function extractGazeFeat(lm,fmList){
+    var li=lm[468],ri=lm[473];
+    var ld=irisDisp(li.x,li.y,lm[33].x,lm[33].y,lm[133].x,lm[133].y,lm[159].y,lm[145].y);
+    var rd=irisDisp(ri.x,ri.y,lm[263].x,lm[263].y,lm[362].x,lm[362].y,lm[386].y,lm[374].y);
+    var ax=(ld.rx+rd.rx)/2,ay=(ld.ry+rd.ry)/2;
+    var yaw=0,pitch=0;
+    if(fmList&&fmList.length){var m=fmList[0];yaw=Math.asin(Math.max(-1,Math.min(1,m[2]||0)))*180/Math.PI;pitch=Math.atan2(-(m[6]||0),m[10]||1)*180/Math.PI;}
+    return[ax,ay,ld.rx,ld.ry,rd.rx,rd.ry,yaw/90,pitch/90,1];
+}
+
+function solveRidge(X,Y,d,n,lambda){
+    var i,j,k;
+    var XtX=new Array(d*d);for(i=0;i<d*d;i++)XtX[i]=0;
+    for(i=0;i<d;i++)for(j=0;j<d;j++){var s=0;for(k=0;k<n;k++)s+=X[k*d+i]*X[k*d+j];XtX[i*d+j]=s;}
+    for(i=0;i<d;i++)XtX[i*d+i]+=lambda;
+    var XtY=new Array(d*2);for(i=0;i<d*2;i++)XtY[i]=0;
+    for(i=0;i<d;i++)for(k=0;k<n;k++){XtY[i*2]+=X[k*d+i]*Y[k*2];XtY[i*2+1]+=X[k*d+i]*Y[k*2+1];}
+    var aug=new Array(d*(d+2));
+    for(i=0;i<d;i++){for(j=0;j<d;j++)aug[i*(d+2)+j]=XtX[i*d+j];aug[i*(d+2)+d]=XtY[i*2];aug[i*(d+2)+d+1]=XtY[i*2+1];}
+    for(i=0;i<d;i++){
+        var mx=Math.abs(aug[i*(d+2)+i]),mi=i;
+        for(j=i+1;j<d;j++){var v=Math.abs(aug[j*(d+2)+i]);if(v>mx){mx=v;mi=j;}}
+        if(mi!==i){for(j=0;j<d+2;j++){var tmp=aug[i*(d+2)+j];aug[i*(d+2)+j]=aug[mi*(d+2)+j];aug[mi*(d+2)+j]=tmp;}}
+        var piv=aug[i*(d+2)+i];if(Math.abs(piv)<1e-12)return null;
+        for(j=0;j<d+2;j++)aug[i*(d+2)+j]/=piv;
+        for(k=0;k<d;k++){if(k===i)continue;var f=aug[k*(d+2)+i];for(j=0;j<d+2;j++)aug[k*(d+2)+j]-=f*aug[i*(d+2)+j];}
+    }
+    var W=new Array(d*2);
+    for(i=0;i<d;i++){W[i*2]=aug[i*(d+2)+d];W[i*2+1]=aug[i*(d+2)+d+1];}
+    return W;
+}
+
+function predictXY(feat,W,d){
+    var x=0,y=0;
+    for(var i=0;i<d;i++){x+=feat[i]*W[i*2];y+=feat[i]*W[i*2+1];}
+    return[x,y];
+}
+
+// One-Euro adaptive filter (Casiez et al. 2012)
+var oeState={x:null,dx:null,y:null,dy:null,lastT:0};
+var OE_MIN_CUTOFF=0.6,OE_BETA=0.007,OE_D_CUTOFF=1.0;
+function oeAlpha(cutoff,dt){var tau=1/(2*Math.PI*cutoff);return 1/(1+tau/dt);}
+function oeFilter(val,prev,prevD,dt,isX){
+    if(prev===null)return{v:val,d:0};
+    var ad=oeAlpha(OE_D_CUTOFF,dt);
+    var dv=(val-prev)/dt;
+    var ed=ad*dv+(1-ad)*prevD;
+    var cutoff=OE_MIN_CUTOFF+OE_BETA*Math.abs(ed);
+    var a=oeAlpha(cutoff,dt);
+    return{v:a*val+(1-a)*prev,d:ed};
+}
+function applyOneEuro(x,y){
+    var now=performance.now()/1000;
+    var dt=oeState.lastT>0?now-oeState.lastT:1/30;
+    if(dt<=0)dt=1/30;
+    var fx=oeFilter(x,oeState.x,oeState.dx,dt);
+    var fy=oeFilter(y,oeState.y,oeState.dy,dt);
+    oeState.x=fx.v;oeState.dx=fx.d;oeState.y=fy.v;oeState.dy=fy.d;oeState.lastT=now;
+    return[Math.round(fx.v),Math.round(fy.v)];
+}
+
+function calPoints(n){
+    if(n===5)return[[50,15],[10,85],[90,85],[10,15],[90,15]];
+    return[[10,10],[50,10],[90,10],[10,50],[50,50],[90,50],[10,90],[50,90],[90,90]];
+}
+
+function runCalibration(nPts,cb,retryCount){
+    if(!retryCount)retryCount=0;
+    var pts=calPoints(nPts);
+    var d=GAZE_FEAT_DIM;
+    var Xbuf=[],Ybuf=[];
+    var overlay=document.createElement("div");
+    overlay.style.cssText="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.92);z-index:2147483647;display:flex;align-items:center;justify-content:center;flex-direction:column;";
+    var dot=document.createElement("div");
+    dot.style.cssText="width:20px;height:20px;border-radius:50%;background:#ef4444;position:absolute;transition:all 0.3s ease;box-shadow:0 0 16px rgba(239,68,68,0.5);";
+    var ring=document.createElement("div");
+    ring.style.cssText="width:36px;height:36px;border-radius:50%;border:2px solid rgba(239,68,68,0.3);position:absolute;transition:all 0.3s ease;pointer-events:none;";
+    var label=document.createElement("div");
+    label.style.cssText="color:#fff;font-family:-apple-system,sans-serif;font-size:15px;position:absolute;bottom:50px;text-align:center;width:100%;opacity:0.9;";
+    label.textContent="Look at the red dot";
+    var progress=document.createElement("div");
+    progress.style.cssText="position:absolute;bottom:20px;left:10%;width:80%;height:3px;background:rgba(255,255,255,0.15);border-radius:2px;";
+    var progressBar=document.createElement("div");
+    progressBar.style.cssText="height:100%;background:#ef4444;border-radius:2px;transition:width 0.3s ease;width:0%;";
+    progress.appendChild(progressBar);
+    overlay.appendChild(dot);overlay.appendChild(ring);overlay.appendChild(label);overlay.appendChild(progress);
+    document.body.appendChild(overlay);
+
+    var pIdx=0;
+    function showPoint(){
+        if(pIdx>=pts.length){
+            var nSamples=Xbuf.length/d;
+            if(nSamples<3){overlay.remove();cb(null,d,999);return;}
+            var holdIdx=nSamples-1;
+            var trainX=[],trainY=[];
+            for(var ti=0;ti<nSamples;ti++){
+                if(ti===holdIdx)continue;
+                for(var fi=0;fi<d;fi++)trainX.push(Xbuf[ti*d+fi]);
+                trainY.push(Ybuf[ti*2],Ybuf[ti*2+1]);
+            }
+            var W=solveRidge(trainX,trainY,d,nSamples-1,10.0);
+            if(!W){overlay.remove();cb(null,d,999);return;}
+            var holdFeat=[];for(var hi=0;hi<d;hi++)holdFeat.push(Xbuf[holdIdx*d+hi]);
+            var pred=predictXY(holdFeat,W,d);
+            var dx=pred[0]-Ybuf[holdIdx*2],dy=pred[1]-Ybuf[holdIdx*2+1];
+            var rmse=Math.sqrt(dx*dx+dy*dy);
+            if(rmse>150&&retryCount<2){
+                overlay.remove();
+                runCalibration(nPts,cb,retryCount+1);
+                return;
+            }
+            var Wfull=solveRidge(Xbuf,Ybuf,d,nSamples,10.0);
+            overlay.remove();
+            cb(Wfull,d,rmse);
+            return;
+        }
+        var px=pts[pIdx][0],py=pts[pIdx][1];
+        var screenX=window.innerWidth*px/100,screenY=window.innerHeight*py/100;
+        dot.style.left="calc("+px+"% - 10px)";dot.style.top="calc("+py+"% - 10px)";
+        ring.style.left="calc("+px+"% - 18px)";ring.style.top="calc("+py+"% - 18px)";
+        progressBar.style.width=Math.round(pIdx/pts.length*100)+"%";
+        label.textContent="Look at the dot ("+(pIdx+1)+"/"+pts.length+")";
+        var frames=[],fCount=0;
+        var capTimer=setInterval(function(){
+            if(!mpLandmarker||!emoVideo||emoVideo.readyState<2){return;}
+            try{
+                var res=mpLandmarker.detectForVideo(emoVideo,performance.now());
+                if(res.faceLandmarks&&res.faceLandmarks.length&&res.faceLandmarks[0].length>473){
+                    var feat=extractGazeFeat(res.faceLandmarks[0],res.facialTransformationMatrixes);
+                    frames.push(feat);
+                }
+            }catch(e){}
+            fCount++;
+            if(fCount>=15){
+                clearInterval(capTimer);
+                if(frames.length>=5){
+                    var avg=new Array(d);for(var i=0;i<d;i++){var s=0;for(var j=0;j<frames.length;j++)s+=frames[j][i];avg[i]=s/frames.length;}
+                    avg[d-1]=1;
+                    for(var i=0;i<d;i++)Xbuf.push(avg[i]);
+                    Ybuf.push(screenX,screenY);
+                }
+                pIdx++;
+                setTimeout(showPoint,400);
+            }
+        },40);
+    }
+    setTimeout(showPoint,800);
+}
+
 // FACS AU extraction from MediaPipe 478 landmarks
 var FACS_IDX={liB:107,riB:336,lmB:105,rmB:334,leI:133,leO:33,leT:159,leB:145,reI:362,reO:263,reT:386,reB:374,mL:61,mR:291,mUT:0,mLB:17,chin:152,nB:2};
 function extractAUs(lm){
@@ -587,7 +745,9 @@ function classifyEmo(a){
 
 // Last known cursor position
 var lastCursorX=0,lastCursorY=0;
+var isMobile="ontouchstart"in window||navigator.maxTouchPoints>0;
 document.addEventListener("mousemove",function(e){lastCursorX=e.clientX;lastCursorY=e.clientY;},true);
+document.addEventListener("touchmove",function(e){var t=e.touches[0];if(t){lastCursorX=t.clientX;lastCursorY=t.clientY;}},true);
 
 function startEmotionCapture(){
     if(!C.emotions||emoRunning)return;
@@ -607,9 +767,53 @@ function startEmotionCapture(){
             if(C.emoVideo)startEmoRecording(stream);
         });
     })
-    .catch(function(e){
-        // Camera denied — continue without emotions
-    });
+    .catch(function(e){});
+}
+
+function onCalDone(W,d,rmse){
+    gazeWeights=W;gazeFeatDim=d;gazeRmsePx=rmse||999;
+    gazeQuality=rmse<=80?"good":rmse<=150?"fair":"low";
+    oeState={x:null,dx:null,y:null,dy:null,lastT:0};
+    if(W)store("_ecx_gaze_cal_"+C.rid,JSON.stringify({w:W,d:d,r:rmse,t:Date.now()}));
+    startGazeSampling();
+}
+
+function startGazeCapture(){
+    if(!C.gaze||!isMobile)return;
+    var cached=load("_ecx_gaze_cal_"+C.rid);
+    if(cached){
+        try{var c=JSON.parse(cached);if(Date.now()-c.t<600000){gazeWeights=c.w;gazeFeatDim=c.d;gazeRmsePx=c.r||999;gazeQuality=c.r<=80?"good":c.r<=150?"fair":"low";startGazeSampling();return;}}catch(e){}
+    }
+    if(emoVideo&&mpLandmarker){
+        runCalibration(C.gazeCal,onCalDone);
+        return;
+    }
+    var camOpts={video:{width:{ideal:1280},height:{ideal:720},facingMode:"user"},audio:false};
+    navigator.mediaDevices.getUserMedia(camOpts)
+    .then(function(stream){
+        if(!emoStream){emoStream=stream;}
+        if(!emoVideo){
+            var v=document.createElement("video");
+            v.setAttribute("autoplay","");v.setAttribute("muted","");v.setAttribute("playsinline","");
+            v.style.cssText="position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none;";
+            v.srcObject=stream;
+            document.body.appendChild(v);
+            emoVideo=v;
+        }
+        loadMediaPipe(function(){
+            runCalibration(C.gazeCal,onCalDone);
+        });
+    })
+    .catch(function(e){});
+}
+
+function startGazeSampling(){
+    if(!gazeWeights)return;
+    if(!emoRunning){
+        emoRunning=true;
+        emoStartTime=Date.now();
+        emoInterval=setInterval(sampleFrame,500);
+    }
 }
 
 function loadMediaPipe(cb){
@@ -704,10 +908,23 @@ function sampleFrame(){
 
             var st=attnState(irisVis,yaw,pitch);
             var vw=window.innerWidth,vh=window.innerHeight;
-            var cm=cursorMatch(gd,lastCursorX,lastCursorY,vw,vh);
-            var score=attnScore(st,cm);
+            var gpx,gpy,cm,score;
+            if(isMobile&&gazeWeights){
+                var feat=extractGazeFeat(lm,res.facialTransformationMatrixes);
+                var rawPred=predictXY(feat,gazeWeights,gazeFeatDim);
+                var filtered=applyOneEuro(Math.max(0,Math.min(rawPred[0],vw)),Math.max(0,Math.min(rawPred[1],vh)));
+                gpx=filtered[0]+Math.round(window.scrollX);
+                gpy=filtered[1]+Math.round(window.scrollY);
+                cm=true;
+                score=attnScore(st,true);
+            }else{
+                cm=cursorMatch(gd,lastCursorX,lastCursorY,vw,vh);
+                score=attnScore(st,cm);
+                gpx=Math.round(lastCursorX+window.scrollX);
+                gpy=Math.round(lastCursorY+window.scrollY);
+            }
 
-            gazeBuf.push({
+            var sample={
                 timestamp:ts,
                 quadrant:gazeQuad(gd),
                 quadrantProbs:quadProbs(ld,rd),
@@ -715,9 +932,11 @@ function sampleFrame(){
                 score:Math.round(score*100)/100,
                 cursorX:Math.round(lastCursorX),
                 cursorY:Math.round(lastCursorY),
-                pageX:Math.round(lastCursorX+window.scrollX),
-                pageY:Math.round(lastCursorY+window.scrollY)
-            });
+                pageX:gpx,
+                pageY:gpy
+            };
+            if(isMobile&&gazeWeights){sample.gazeQuality=gazeQuality;sample.gazeRmse=Math.round(gazeRmsePx);}
+            gazeBuf.push(sample);
         }
     }catch(e){}
 }

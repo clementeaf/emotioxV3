@@ -117,19 +117,28 @@ export const ExecutiveSummaryPanel = ({ researchId, filteredParticipantIds }: { 
                 </div>
             </div>`;
 
-        const container = document.createElement('div');
-        container.innerHTML = html;
-        document.body.appendChild(container);
+        const wrappedHtml = `<!DOCTYPE html><html><head><style>*{margin:0;padding:0;box-sizing:border-box}</style></head><body>${html}</body></html>`;
+        const iframe = document.createElement('iframe');
+        iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:800px;height:1000px;border:none;';
+        document.body.appendChild(iframe);
+        const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+        if (!iframeDoc) { document.body.removeChild(iframe); return; }
+        iframeDoc.open();
+        iframeDoc.write(wrappedHtml);
+        iframeDoc.close();
 
-        await html2pdf().set({
-            margin: [10, 10, 10, 10],
-            filename: `executive-summary-${researchId.slice(0, 8)}.pdf`,
-            image: { type: 'jpeg', quality: 0.98 },
-            html2canvas: { scale: 2, useCORS: true },
-            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-        }).from(container).save();
-
-        document.body.removeChild(container);
+        await new Promise(r => setTimeout(r, 300));
+        try {
+            await html2pdf().set({
+                margin: [10, 10, 10, 10],
+                filename: `executive-summary-${researchId.slice(0, 8)}.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2, useCORS: true },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+            }).from(iframeDoc.body).save();
+        } finally {
+            document.body.removeChild(iframe);
+        }
     }, [summary, researchId]);
 
     if (isLoading) {

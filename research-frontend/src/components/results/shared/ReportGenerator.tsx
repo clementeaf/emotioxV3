@@ -99,28 +99,35 @@ ${sentTotal > 0 ? `
 </div>
 </body></html>`;
 
-    const container = document.createElement('div');
-    container.innerHTML = html;
-    document.body.appendChild(container);
+    const iframe = document.createElement('iframe');
+    iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:800px;height:1000px;border:none;';
+    document.body.appendChild(iframe);
 
-    import('html2pdf.js').then((mod) => {
-        const html2pdf = mod.default;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (html2pdf() as any)
-            .set({
-                margin: [10, 10, 10, 10],
-                filename: `${research.name.replace(/[^a-zA-Z0-9]/g, '_')}_report.pdf`,
-                image: { type: 'jpeg', quality: 0.95 },
-                html2canvas: { scale: 2, useCORS: true, logging: false },
-                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-                pagebreak: { mode: ['css', 'legacy'] },
-            })
-            .from(container)
-            .save()
-            .then(() => {
-                document.body.removeChild(container);
-            });
-    });
+    const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+    if (!iframeDoc) { document.body.removeChild(iframe); return; }
+    iframeDoc.open();
+    iframeDoc.write(html);
+    iframeDoc.close();
+
+    setTimeout(() => {
+        import('html2pdf.js').then((mod) => {
+            const html2pdf = mod.default;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (html2pdf() as any)
+                .set({
+                    margin: [10, 10, 10, 10],
+                    filename: `${research.name.replace(/[^a-zA-Z0-9]/g, '_')}_report.pdf`,
+                    image: { type: 'jpeg', quality: 0.95 },
+                    html2canvas: { scale: 2, useCORS: true, logging: false },
+                    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+                    pagebreak: { mode: ['css', 'legacy'] },
+                })
+                .from(iframeDoc.body)
+                .save()
+                .then(() => { document.body.removeChild(iframe); })
+                .catch(() => { document.body.removeChild(iframe); });
+        }).catch(() => { document.body.removeChild(iframe); });
+    }, 300);
 }
 
 export const ReportGeneratorButton = ({ researchId, filteredParticipantIds }: { researchId: string; filteredParticipantIds?: string[] }) => {

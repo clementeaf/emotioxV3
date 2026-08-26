@@ -1,3 +1,32 @@
+## v0.95.0 — Mobile gaze tracking for Website Tracking + PDF export fix (2026-08-26)
+
+### feat: mobile gaze calibration in Website Tracking snippet
+- **Calibrated eye tracking on mobile.** Website Tracking snippet now supports camera-based gaze tracking for mobile visitors (no cursor data on touchscreens). Researcher enables "Gaze Tracking" toggle in config; visitors complete a brief calibration (5 or 9 points) before browsing.
+- **Ridge regression calibration.** 9-feature vector (per-eye iris displacement, average iris, head yaw/pitch, bias) trained via ridge regression with Gauss-Jordan solver. RMSE validation on held-out calibration point; auto-retry up to 2x if error > 150px.
+- **One-Euro adaptive filter.** Temporal smoothing on predicted gaze coordinates (Casiez et al. 2012, minCutoff=0.6Hz, beta=0.007). Smooth during fixation, responsive during saccades.
+- **Quality classification.** Each gaze sample includes `gazeQuality` (good/fair/low) and `gazeRmse` based on calibration RMSE. Good ≤80px, fair ≤150px, low >150px.
+- **720p camera for gaze.** Mobile gaze uses 1280×720 (vs 320×240 for emotions-only) for better iris landmark precision.
+- **Calibration persistence.** Weights cached in localStorage (10min TTL). Returning visitors skip calibration within window.
+- **Touch fallback.** `touchmove` listener updates cursor position as fallback for non-gaze mobile heatmaps.
+- **Visibility resume.** Tab switch handler resumes gaze sampling when gaze is active (also fixed preexisting bug: `sampleEmotion` → `sampleFrame`).
+- **Zero backend changes.** Calibrated gaze coords flow through existing `pageX/pageY` → `getMouseAttentionHeatmapData` pipeline.
+- **Config.** `captureGaze` toggle + `gazeCalibrationPoints: 5 | 9` (default 9) in tracking config. Builder shows toggle + point selector.
+
+### fix: blank PDF exports
+- **Root cause.** `ReportGenerator`, `WebTrackingReportButton`, and `ExecutiveSummaryPanel` injected a full HTML document via `container.innerHTML` into a `<div>`. Browser stripped `<html>/<body>` tags, CSS selectors (`body`, `h1`) leaked into the host page, and `html2canvas` captured the container at its host-page offset (e.g., 600px right for side panels) with contaminated styles — producing blank or mispositioned PDFs.
+- **Fix.** All three PDF generators now render into an isolated `<iframe>` with `iframeDoc.write(html)`. The iframe has its own document context — styles don't leak, `html2canvas` captures at (0,0), and `.catch()` handlers ensure cleanup on failure.
+
+### fix: tracking snippet JS syntax errors (preexisting)
+- `</style>\n` in snapshot CSS inlining produced invalid JS inside the template literal. Fixed: `<\/style>\\n`.
+- `\s*` in regex literals rendered as `s*` (TypeScript consumed the backslash). Fixed: `\\s*`.
+- 24 snippet integration tests now pass (was 22 pass / 2 fail).
+
+### quality
+- **TypeScript strict** — 0 errors, 0 warnings in all 3 subprojects.
+- **24 snippet tests, 0 failures.**
+
+---
+
 ## v0.94.6 — Website Tracking heatmap fixes (2026-08-25)
 
 ### fix: snapshot CSS inlining for heatmap backdrop
