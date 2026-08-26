@@ -12,6 +12,16 @@
 - **Zero backend changes.** Calibrated gaze coords flow through existing `pageX/pageY` → `getMouseAttentionHeatmapData` pipeline.
 - **Config.** `captureGaze` toggle + `gazeCalibrationPoints: 5 | 9` (default 9) in tracking config. Builder shows toggle + point selector.
 
+### feat: passive gaze recalibration
+- **Tap-as-ground-truth.** Each mobile tap implicitly adds a calibration sample (users look where they tap). After 5 taps, ridge regression retrains with all samples (original calibration + taps, capped at 30). No visible overlay or interruption.
+- **Camera fallback.** 720p → 640×480 if the device rejects 1280×720 front camera constraints.
+
+### feat: gaze data source indicator
+- **Heatmap badge.** When the "Gaze Focus" layer is active, a badge in the heatmap corner shows "X cursor / Y gaze" with quality color (green=good, amber=fair, red=low). Backend `getTrackingGazeData` returns `dataSource` breakdown.
+
+### feat: I-DT fixation detection in tracking snippet
+- **Dispersion-threshold fixation detector.** If calibrated gaze stays within 100px for >200ms, emits a fixation event with centroid coordinates, duration, and timestamp. Fixations flushed alongside gaze samples and returned in gaze analytics response.
+
 ### fix: blank PDF exports
 - **Root cause.** `ReportGenerator`, `WebTrackingReportButton`, and `ExecutiveSummaryPanel` injected a full HTML document via `container.innerHTML` into a `<div>`. Browser stripped `<html>/<body>` tags, CSS selectors (`body`, `h1`) leaked into the host page, and `html2canvas` captured the container at its host-page offset (e.g., 600px right for side panels) with contaminated styles — producing blank or mispositioned PDFs.
 - **Fix.** All three PDF generators now use `window.open()` + `window.print()` (same pattern as Insights Finding). The new tab has its own document — styles don't leak, content renders at (0,0), and the browser's native "Save as PDF" produces correct output. Removed `html2pdf.js` dependency from these components.
