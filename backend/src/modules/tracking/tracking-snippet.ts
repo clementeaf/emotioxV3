@@ -811,9 +811,7 @@ function startGazeCapture(){
         runCalibration(C.gazeCal,onCalDone);
         return;
     }
-    var camOpts={video:{width:{ideal:1280},height:{ideal:720},facingMode:"user"},audio:false};
-    navigator.mediaDevices.getUserMedia(camOpts)
-    .then(function(stream){
+    function initGazeStream(stream){
         if(!emoStream){emoStream=stream;}
         if(!emoVideo){
             var v=document.createElement("video");
@@ -823,11 +821,15 @@ function startGazeCapture(){
             document.body.appendChild(v);
             emoVideo=v;
         }
-        loadMediaPipe(function(){
-            runCalibration(C.gazeCal,onCalDone);
-        });
-    })
-    .catch(function(e){});
+        loadMediaPipe(function(){runCalibration(C.gazeCal,onCalDone);});
+    }
+    navigator.mediaDevices.getUserMedia({video:{width:{ideal:1280},height:{ideal:720},facingMode:"user"},audio:false})
+    .then(initGazeStream)
+    .catch(function(){
+        navigator.mediaDevices.getUserMedia({video:{width:{ideal:640},height:{ideal:480},facingMode:"user"},audio:false})
+        .then(initGazeStream)
+        .catch(function(){});
+    });
 }
 
 function startGazeSampling(){
