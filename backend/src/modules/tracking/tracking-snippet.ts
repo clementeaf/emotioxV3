@@ -341,6 +341,26 @@ function startCapture(){
             var now=Date.now();
             var px=e.pageX;
             var py=e.pageY;
+
+            if(isMobile&&gazeWeights&&mpLandmarker&&emoVideo&&emoVideo.readyState>=2){
+                try{
+                    var tapRes=mpLandmarker.detectForVideo(emoVideo,performance.now());
+                    if(tapRes.faceLandmarks&&tapRes.faceLandmarks.length&&tapRes.faceLandmarks[0].length>473){
+                        var tapFeat=extractGazeFeat(tapRes.faceLandmarks[0],tapRes.facialTransformationMatrixes);
+                        var nCur=calXbuf.length/gazeFeatDim;
+                        if(nCur>=CAL_MAX_SAMPLES){calXbuf.splice(0,gazeFeatDim);calYbuf.splice(0,2);}
+                        for(var fi=0;fi<gazeFeatDim;fi++)calXbuf.push(tapFeat[fi]);
+                        calYbuf.push(e.clientX,e.clientY);
+                        tapsSinceRetrain++;
+                        if(tapsSinceRetrain>=TAPS_PER_RETRAIN){
+                            var nAll=calXbuf.length/gazeFeatDim;
+                            var newW=solveRidge(calXbuf,calYbuf,gazeFeatDim,nAll,10.0);
+                            if(newW){gazeWeights=newW;oeState={x:null,dx:null,y:null,dy:null,lastT:0};store("_ecx_gaze_cal_"+C.rid,JSON.stringify({w:newW,d:gazeFeatDim,r:gazeRmsePx,t:Date.now()}));}
+                            tapsSinceRetrain=0;
+                        }
+                    }
+                }catch(te){}
+            }
             var meta={};
 
             clickLog.push({x:px,y:py,t:now});
@@ -566,6 +586,7 @@ function attnScore(st,match){return st==="away"?0:st==="distracted"?0.3:match?1:
 // ─── Mobile Gaze Calibration (Ridge Regression + One-Euro Filter) ───
 var gazeWeights=null,gazeFeatDim=9,gazeQuality="unknown",gazeRmsePx=0;
 var GAZE_FEAT_DIM=9;
+var calXbuf=[],calYbuf=[],tapsSinceRetrain=0,CAL_MAX_SAMPLES=30,TAPS_PER_RETRAIN=5;
 
 function extractGazeFeat(lm,fmList){
     var li=lm[468],ri=lm[473];
@@ -680,7 +701,7 @@ function runCalibration(nPts,cb,retryCount){
             }
             var Wfull=solveRidge(Xbuf,Ybuf,d,nSamples,10.0);
             overlay.remove();
-            cb(Wfull,d,rmse);
+            cb(Wfull,d,rmse,Xbuf.slice(),Ybuf.slice());
             return;
         }
         var px=pts[pIdx][0],py=pts[pIdx][1];
@@ -770,10 +791,12 @@ function startEmotionCapture(){
     .catch(function(e){});
 }
 
-function onCalDone(W,d,rmse){
+function onCalDone(W,d,rmse,xBuf,yBuf){
     gazeWeights=W;gazeFeatDim=d;gazeRmsePx=rmse||999;
     gazeQuality=rmse<=80?"good":rmse<=150?"fair":"low";
     oeState={x:null,dx:null,y:null,dy:null,lastT:0};
+    if(xBuf&&yBuf){calXbuf=xBuf;calYbuf=yBuf;}
+    tapsSinceRetrain=0;
     if(W)store("_ecx_gaze_cal_"+C.rid,JSON.stringify({w:W,d:d,r:rmse,t:Date.now()}));
     startGazeSampling();
 }
