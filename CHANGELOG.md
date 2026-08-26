@@ -14,7 +14,7 @@
 
 ### fix: blank PDF exports
 - **Root cause.** `ReportGenerator`, `WebTrackingReportButton`, and `ExecutiveSummaryPanel` injected a full HTML document via `container.innerHTML` into a `<div>`. Browser stripped `<html>/<body>` tags, CSS selectors (`body`, `h1`) leaked into the host page, and `html2canvas` captured the container at its host-page offset (e.g., 600px right for side panels) with contaminated styles — producing blank or mispositioned PDFs.
-- **Fix.** All three PDF generators now render into an isolated `<iframe>` with `iframeDoc.write(html)`. The iframe has its own document context — styles don't leak, `html2canvas` captures at (0,0), and `.catch()` handlers ensure cleanup on failure.
+- **Fix.** All three PDF generators now use `window.open()` + `window.print()` (same pattern as Insights Finding). The new tab has its own document — styles don't leak, content renders at (0,0), and the browser's native "Save as PDF" produces correct output. Removed `html2pdf.js` dependency from these components.
 
 ### fix: tracking snippet JS syntax errors (preexisting)
 - `</style>\n` in snapshot CSS inlining produced invalid JS inside the template literal. Fixed: `<\/style>\\n`.
