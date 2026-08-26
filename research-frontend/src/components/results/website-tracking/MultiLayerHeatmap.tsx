@@ -570,6 +570,23 @@ export const MultiLayerHeatmap = ({
                         <p className="text-sm text-gray-500">No page data available.</p>
                     </div>
                 )}
+
+                {layers.mouseAttention && gazeZoneData?.dataSource && (gazeZoneData.dataSource.cursor > 0 || gazeZoneData.dataSource.calibratedGaze > 0) && (
+                    <div className="absolute top-2 right-2 bg-white/90 border border-gray-200 rounded-lg px-3 py-1.5 text-[10px] text-gray-600 flex items-center gap-3 z-10">
+                        {gazeZoneData.dataSource.cursor > 0 && (
+                            <span className="flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-gray-400" />
+                                {gazeZoneData.dataSource.cursor} cursor
+                            </span>
+                        )}
+                        {gazeZoneData.dataSource.calibratedGaze > 0 && (
+                            <span className="flex items-center gap-1">
+                                <span className={`w-1.5 h-1.5 rounded-full ${gazeZoneData.dataSource.qualityBreakdown.good > gazeZoneData.dataSource.qualityBreakdown.fair ? 'bg-green-500' : gazeZoneData.dataSource.qualityBreakdown.fair > gazeZoneData.dataSource.qualityBreakdown.low ? 'bg-amber-500' : 'bg-red-500'}`} />
+                                {gazeZoneData.dataSource.calibratedGaze} gaze
+                            </span>
+                        )}
+                    </div>
+                )}
             </div>
         </div>
     );

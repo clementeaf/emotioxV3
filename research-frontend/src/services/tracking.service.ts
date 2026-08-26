@@ -467,6 +467,11 @@ export interface TrackingGazeData {
         sessionId: string; visitorId: string; pageUrl: string;
         dominantQuadrant: GazeQuadrant; avgScore: number; sampleCount: number;
     }>;
+    dataSource: {
+        cursor: number;
+        calibratedGaze: number;
+        qualityBreakdown: { good: number; fair: number; low: number };
+    };
 }
 
 export const getTrackingGaze = async (

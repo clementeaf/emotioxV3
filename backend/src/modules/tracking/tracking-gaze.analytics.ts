@@ -28,6 +28,10 @@ interface GazeSample {
     score: number;
     cursorX: number;
     cursorY: number;
+    pageX?: number;
+    pageY?: number;
+    gazeQuality?: 'good' | 'fair' | 'low';
+    gazeRmse?: number;
 }
 
 export interface TrackingGazeData {
@@ -57,6 +61,11 @@ export interface TrackingGazeData {
         avgScore: number;
         sampleCount: number;
     }>;
+    dataSource: {
+        cursor: number;
+        calibratedGaze: number;
+        qualityBreakdown: { good: number; fair: number; low: number };
+    };
 }
 
 function isValidGazeSample(raw: unknown): raw is GazeSample {
@@ -101,6 +110,9 @@ export async function getTrackingGazeData(
 
     let totalSamples = 0;
     let totalScore = 0;
+    let cursorSamples = 0;
+    let gazeSamples = 0;
+    const qualityCounts = { good: 0, fair: 0, low: 0 };
     const allSamples: GazeSample[] = [];
     const perSession: TrackingGazeData['perSession'] = [];
 
@@ -131,6 +143,12 @@ export async function getTrackingGazeData(
             attentionCounts[s.attention]++;
             totalScore += s.score;
             sessionScore += s.score;
+            if (s.gazeQuality && s.gazeQuality in qualityCounts) {
+                gazeSamples++;
+                qualityCounts[s.gazeQuality as keyof typeof qualityCounts]++;
+            } else {
+                cursorSamples++;
+            }
         }
         totalSamples += samples.length;
         allSamples.push(...samples);
@@ -190,6 +208,7 @@ export async function getTrackingGazeData(
         avgAttentionScore: totalSamples > 0 ? Math.round(totalScore / totalSamples * 100) / 100 : 0,
         timeline,
         perSession,
+        dataSource: { cursor: cursorSamples, calibratedGaze: gazeSamples, qualityBreakdown: qualityCounts },
     };
 }
 
