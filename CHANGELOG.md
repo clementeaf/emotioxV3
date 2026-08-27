@@ -26,6 +26,9 @@
 - **Root cause.** `ReportGenerator`, `WebTrackingReportButton`, and `ExecutiveSummaryPanel` injected a full HTML document via `container.innerHTML` into a `<div>`. Browser stripped `<html>/<body>` tags, CSS selectors (`body`, `h1`) leaked into the host page, and `html2canvas` captured the container at its host-page offset (e.g., 600px right for side panels) with contaminated styles — producing blank or mispositioned PDFs.
 - **Fix.** All three PDF generators now use `window.open()` + `window.print()` (same pattern as Insights Finding). The new tab has its own document — styles don't leak, content renders at (0,0), and the browser's native "Save as PDF" produces correct output. Removed `html2pdf.js` dependency from these components.
 
+### fix: public results page (`/results/:id`)
+- **`results-meta` endpoint 500.** Query referenced `research_type_name` (column doesn't exist — needs JOIN to `research_types`) and `stages.position` (column is `display_order`). Fixed with proper JOIN and correct column name. Public results page now loads correctly without authentication.
+
 ### fix: tracking snippet JS syntax errors (preexisting)
 - `</style>\n` in snapshot CSS inlining produced invalid JS inside the template literal. Fixed: `<\/style>\\n`.
 - `\s*` in regex literals rendered as `s*` (TypeScript consumed the backslash). Fixed: `\\s*`.
@@ -34,6 +37,7 @@
 ### quality
 - **TypeScript strict** — 0 errors, 0 warnings in all 3 subprojects.
 - **24 snippet tests, 0 failures.**
+- **Production verified:** public results page, PDF export (Report + Executive Summary), Share button — all tested on emotio.cx.
 
 ---
 
