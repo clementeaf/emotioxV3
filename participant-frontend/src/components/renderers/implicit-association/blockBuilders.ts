@@ -74,11 +74,12 @@ export function buildBlocksAttributeTesting(
 
     const testTrials: IATTrial[] = [];
     for (const crit of criteria) {
-        for (let rep = 0; rep < 4; rep++) {
+        for (const t of targets) {
             testTrials.push({
-                stimulusId: crit.id,
+                stimulusId: `${crit.id}__${t.id}`,
+                primingLabel: t.name,
+                primingImage: t.imageUrl,
                 stimulusLabel: crit.label,
-                stimulusImage: crit.imageUrl,
                 correctSide: 'left',
                 phase: 'test',
             });
