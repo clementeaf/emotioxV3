@@ -96,7 +96,7 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
 
     // Start priming → trial (or direct to trial for Yes/No)
     const startTrial = useCallback(() => {
-        if (skipFeedback || !currentTrial?.primingLabel) {
+        if (isYesNo || !currentTrial?.primingLabel) {
             setPhase('trial');
             trialStartRef.current = performance.now();
         } else {
@@ -107,7 +107,7 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
             }, primingTime);
             timersRef.current.push(id);
         }
-    }, [primingTime, skipFeedback, currentTrial]);
+    }, [primingTime, isYesNo, currentTrial]);
 
     // Handle category selection
     const handleSelect = useCallback((side: 'left' | 'right') => {
