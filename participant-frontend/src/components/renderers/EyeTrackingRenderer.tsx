@@ -122,7 +122,7 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
     const deviceType = useMemo(() => getDeviceType(), []);
     const isDesktop = deviceType === 'desktop';
 
-    const { stimulusUrl, stimulusUrls, taskDescription, viewingDuration, displayMode, shelfCount, shelfItems, randomizeStimuli, shelfRotationInterval, hasEmotionRecognition, isVideo } = useMemo(() => extractConfig(module), [module]);
+    const { stimulusUrl, stimulusUrls, taskDescription, viewingDuration, displayMode, shelfCount, shelfItems, randomizeStimuli, shelfRotationInterval, hasEmotionRecognition, isVideo, hasUploadError } = useMemo(() => extractConfig(module), [module]);
     const isShelf = displayMode === 'shelf';
 
     // Skip intro/setup/calibration if a recent ET calibration exists (consecutive ET modules)
@@ -1288,9 +1288,22 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
     if (!stimulusUrl && resolvedShelfUrls.length === 0) {
         return (
             <div className="flex flex-col items-center justify-center min-h-[400px] px-4">
-                <p className="text-gray-400 text-center">
-                    {t('eyeTracking.notConfigured', 'This eye tracking test has not been configured yet.')}
-                </p>
+                {hasUploadError ? (
+                    <div className="flex flex-col items-center gap-3">
+                        <div className="w-16 h-16 rounded-full bg-amber-50 flex items-center justify-center">
+                            <svg className="w-8 h-8 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                            </svg>
+                        </div>
+                        <p className="text-gray-500 text-center text-sm">
+                            {t('eyeTracking.uploadError', 'The stimulus image could not be loaded. Please contact the researcher.')}
+                        </p>
+                    </div>
+                ) : (
+                    <p className="text-gray-400 text-center">
+                        {t('eyeTracking.notConfigured', 'This eye tracking test has not been configured yet.')}
+                    </p>
+                )}
             </div>
         );
     }

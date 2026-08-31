@@ -166,5 +166,18 @@ export const extractConfig = (module: ModuleConfig) => {
     // Detect video stimulus (shelf mode is always images)
     const isVideo = displayMode !== 'shelf' && (/\.(mp4|webm|ogg)$/i.test(stimulusUrl) || stimulusUrl.includes('video/'));
 
-    return { stimulusUrl, stimulusUrls, taskDescription, viewingDuration, displayMode, shelfCount, shelfItems, randomizeStimuli, shelfRotationInterval, hasEmotionRecognition, hasAttentionMeasurement, isVideo };
+    let hasUploadError = false;
+    if (!stimulusUrl && fileUploadComp) {
+        const raw = getComponentText(fileUploadComp);
+        if (raw) {
+            try {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed) && parsed.some((f: { status?: string }) => f.status === 'error')) {
+                    hasUploadError = true;
+                }
+            } catch { /* ignore */ }
+        }
+    }
+
+    return { stimulusUrl, stimulusUrls, taskDescription, viewingDuration, displayMode, shelfCount, shelfItems, randomizeStimuli, shelfRotationInterval, hasEmotionRecognition, hasAttentionMeasurement, isVideo, hasUploadError };
 };
