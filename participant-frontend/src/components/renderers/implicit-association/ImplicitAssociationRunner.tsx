@@ -211,11 +211,12 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
         return () => clearTimeout(timeoutId);
     }, [isAttributeTesting, phase, currentTrial, currentBlock, blockIndex, blocks.length]);
 
-    // Space / Enter to advance from take-note
+    // Space / Enter / arrows / A / L to advance from take-note
     useEffect(() => {
         if (phase !== 'take-note') return;
         const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === ' ' || e.key === 'Enter') {
+            const key = e.key.toLowerCase();
+            if (e.key === ' ' || e.key === 'Enter' || key === 'a' || key === 'l' || key === 'arrowleft' || key === 'arrowright') {
                 e.preventDefault();
                 startTrial();
             }
