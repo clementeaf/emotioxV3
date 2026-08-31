@@ -55,7 +55,7 @@ export interface IATTrialResult {
     phase: string;
 }
 
-export type IATPhase = 'intro' | 'keep-in-mind' | 'take-note' | 'priming' | 'trial' | 'feedback' | 'complete';
+export type IATPhase = 'intro' | 'take-note' | 'priming' | 'trial' | 'complete';
 
 export interface IATExtractedConfig {
     testType: 'attribute_testing' | 'comparing_attribute' | 'objects_comparing';

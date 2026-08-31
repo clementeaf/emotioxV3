@@ -22,9 +22,7 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
     const leftKey = responseKeys === 'arrows' ? '←' : 'A';
     const rightKey = responseKeys === 'arrows' ? '→' : 'L';
 
-    const isYesNo = config.testType === 'comparing_attribute';
-    const isAttributeTesting = config.testType === 'attribute_testing';
-    const skipFeedback = isYesNo || isAttributeTesting;
+
 
     // Resolve S3 images
     const [resolvedImages, setResolvedImages] = useState<Record<string, string>>({});
@@ -69,7 +67,6 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
     const [phase, setPhase] = useState<IATPhase>('intro');
     const [trialIndex, setTrialIndex] = useState(0);
     const [results, setResults] = useState<IATTrialResult[]>([]);
-    const [lastCorrect, setLastCorrect] = useState<boolean | null>(null);
     const trialStartRef = useRef<number>(0);
     const savedRef = useRef(false);
     const trialIndexRef = useRef(0);
@@ -94,9 +91,8 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
         }
     }, [phase, results, module.id, saveResponse]);
 
-    // Start priming → trial (or direct to trial for Yes/No)
     const startTrial = useCallback(() => {
-        if (isYesNo || !currentTrial?.primingLabel) {
+        if (!currentTrial?.primingLabel) {
             setPhase('trial');
             trialStartRef.current = performance.now();
         } else {
@@ -107,64 +103,40 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
             }, primingTime);
             timersRef.current.push(id);
         }
-    }, [primingTime, isYesNo, currentTrial]);
+    }, [primingTime, currentTrial]);
 
     // Handle category selection
     const handleSelect = useCallback((side: 'left' | 'right') => {
         if (phase !== 'trial' || !currentTrial || !currentBlock) return;
 
         const rt = Math.round(performance.now() - trialStartRef.current);
-        const correct = skipFeedback ? true : side === currentTrial.correctSide;
         const criterionId = side === 'left' ? currentBlock.leftId : currentBlock.rightId;
 
         const result: IATTrialResult = {
             targetId: currentTrial.stimulusId,
             criterionId,
             rt,
-            correct,
+            correct: true,
             phase: `block-${currentBlock.step}`,
         };
 
         setResults(prev => [...prev, result]);
-        setLastCorrect(correct);
 
-        if (skipFeedback) {
-            const nextIdx = trialIndexRef.current + 1;
-            if (nextIdx >= currentBlock.trials.length) {
-                const nextBlock = blockIndex + 1;
-                if (nextBlock >= blocks.length) {
-                    setPhase('complete');
-                } else {
-                    setBlockIndex(nextBlock);
-                    setTrialIndex(0);
-                    setPhase('take-note');
-                }
+        const nextIdx = trialIndexRef.current + 1;
+        if (nextIdx >= currentBlock.trials.length) {
+            const nextBlock = blockIndex + 1;
+            if (nextBlock >= blocks.length) {
+                setPhase('complete');
             } else {
-                setTrialIndex(nextIdx);
-                setPhase('trial');
-                trialStartRef.current = performance.now();
+                setBlockIndex(nextBlock);
+                setTrialIndex(0);
+                setPhase('take-note');
             }
         } else {
-            setPhase('feedback');
-            const feedbackId = setTimeout(() => {
-                const nextIdx = trialIndexRef.current + 1;
-                if (nextIdx >= currentBlock.trials.length) {
-                    const nextBlock = blockIndex + 1;
-                    if (nextBlock >= blocks.length) {
-                        setPhase('complete');
-                    } else {
-                        setBlockIndex(nextBlock);
-                        setTrialIndex(0);
-                        setPhase('take-note');
-                    }
-                } else {
-                    setTrialIndex(nextIdx);
-                    startTrial();
-                }
-            }, 500);
-            timersRef.current.push(feedbackId);
+            setTrialIndex(nextIdx);
+            startTrial();
         }
-    }, [phase, currentTrial, currentBlock, blockIndex, blocks.length, skipFeedback, startTrial]);
+    }, [phase, currentTrial, currentBlock, blockIndex, blocks.length, startTrial]);
 
     // Keyboard: A (left) / L (right)
     useEffect(() => {
@@ -229,10 +201,7 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
     // -----------------------------------------------------------------------
 
     if (phase === 'intro') {
-        // Yes/No skips keep-in-mind, goes to take-note (or directly to trial)
-        const nextPhase: IATPhase = exerciseInstructions
-            ? 'take-note'
-            : isYesNo ? 'take-note' : 'keep-in-mind';
+        const nextPhase: IATPhase = 'take-note';
         return (
             <div className="flex flex-col items-center justify-center min-h-[400px] px-4 py-8">
                 <div className="w-full max-w-lg space-y-6">
@@ -244,9 +213,7 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
                     ) : (
                         <>
                             <p className="text-gray-600">
-                                {isYesNo
-                                    ? t('iat.introDescriptionYesNo', 'You will be presented with objects and characteristics. Respond as quickly as possible using the buttons below.')
-                                    : responseKeys === 'arrows'
+                                {responseKeys === 'arrows'
                                     ? t('iat.introDescriptionArrows', 'You will be presented with words or images to classify into categories using the ← or → arrow keys.')
                                     : t('iat.introDescription', 'You will be presented with words or images to classify into categories using either the \'A\' or \'L\' key.')}
                             </p>
@@ -260,37 +227,6 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
                         className="px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
                     >
                         {exerciseInstructions ? t('iat.start', 'Start') : t('iat.next', 'Next')}
-                    </button>
-                </div>
-            </div>
-        );
-    }
-
-    // -----------------------------------------------------------------------
-    // Keep in mind screen (only for IAT/Priming, NOT Yes/No)
-    // -----------------------------------------------------------------------
-
-    if (phase === 'keep-in-mind') {
-        return (
-            <div className="flex flex-col items-center justify-center min-h-[400px] px-4 py-8">
-                <StepProgressPill step={1} total={totalBlocks} percent={0} />
-                <div className="w-full max-w-lg space-y-6 mt-8">
-                    <h2 className="text-xl font-bold text-gray-900">
-                        {t('iat.keepInMindTitle', 'Keep in mind')}
-                    </h2>
-                    <ol className="space-y-3 text-gray-600">
-                        <li><span className="font-semibold">1)</span> {t('iat.rule1', 'Labels at the top of the screen indicate which category goes with which key.')}</li>
-                        <li><span className="font-semibold">2)</span> {t('iat.rule2', 'Each word or image has a correct category classification.')}</li>
-                        <li><span className="font-semibold">3)</span> {responseKeys === 'arrows'
-                            ? t('iat.rule3Arrows', 'Keep your fingers on the ← and → arrow keys to enable a rapid response.')
-                            : t('iat.rule3', 'Keep your index fingers on the A and L keys to enable a rapid response.')}</li>
-                        <li><span className="font-semibold">4)</span> {t('iat.rule4', 'The test gives no results if you go slow, please try to go as fast as possible.')}</li>
-                    </ol>
-                    <button
-                        onClick={() => setPhase('take-note')}
-                        className="px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
-                    >
-                        {t('iat.start', 'Start')}
                     </button>
                 </div>
             </div>
@@ -336,13 +272,13 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
                             onClick={startTrial}
                             className="flex-1 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors"
                         >
-                            {isYesNo ? currentBlock.leftLabel : `${leftKey} = ${currentBlock.leftLabel}`}
+                            {`${leftKey} = ${currentBlock.leftLabel}`}
                         </button>
                         <button
                             onClick={startTrial}
                             className="flex-1 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors"
                         >
-                            {isYesNo ? currentBlock.rightLabel : `${rightKey} = ${currentBlock.rightLabel}`}
+                            {`${rightKey} = ${currentBlock.rightLabel}`}
                         </button>
                     </div>
                 </div>
@@ -426,13 +362,13 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
                         onClick={() => handleSelect('left')}
                         className="flex-1 py-4 bg-blue-600 text-white rounded-lg font-semibold text-lg hover:bg-blue-700 active:bg-blue-800 transition-colors"
                     >
-                        {isYesNo ? currentBlock.leftLabel : `${leftKey} = ${currentBlock.leftLabel}`}
+                        {`${leftKey} = ${currentBlock.leftLabel}`}
                     </button>
                     <button
                         onClick={() => handleSelect('right')}
                         className="flex-1 py-4 bg-blue-600 text-white rounded-lg font-semibold text-lg hover:bg-blue-700 active:bg-blue-800 transition-colors"
                     >
-                        {isYesNo ? currentBlock.rightLabel : `${rightKey} = ${currentBlock.rightLabel}`}
+                        {`${rightKey} = ${currentBlock.rightLabel}`}
                     </button>
                 </div>
             </div>
@@ -442,29 +378,6 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
     // -----------------------------------------------------------------------
     // Feedback screen (IAT/Priming only, not Yes/No)
     // -----------------------------------------------------------------------
-
-    if (phase === 'feedback') {
-        return (
-            <div className="flex flex-col items-center justify-center min-h-[400px]">
-                {currentBlock && (
-                    <StepProgressPill step={currentBlock.step} total={totalBlocks} percent={blockProgress} />
-                )}
-                <div className="flex-1 flex items-center justify-center mt-8">
-                    {lastCorrect ? (
-                        <div className="w-16 h-16 rounded-full bg-green-500 flex items-center justify-center">
-                            <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                            </svg>
-                        </div>
-                    ) : (
-                        <span className="text-3xl font-bold text-red-500">
-                            {t('iat.oops', 'oops!')}
-                        </span>
-                    )}
-                </div>
-            </div>
-        );
-    }
 
     // -----------------------------------------------------------------------
     // Complete screen
