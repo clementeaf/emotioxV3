@@ -178,39 +178,6 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [phase, handleSelect]);
 
-    // Attribute Testing: 2000ms timeout — auto-advance with no response
-    useEffect(() => {
-        if (!isAttributeTesting || phase !== 'trial' || !currentTrial || !currentBlock) return;
-        const timeoutId = setTimeout(() => {
-            const rt = 2000;
-            const result: IATTrialResult = {
-                targetId: currentTrial.stimulusId,
-                criterionId: 'timeout',
-                rt,
-                correct: false,
-                phase: `block-${currentBlock.step}`,
-            };
-            setResults(prev => [...prev, result]);
-            const nextIdx = trialIndexRef.current + 1;
-            if (nextIdx >= currentBlock.trials.length) {
-                const nextBlock = blockIndex + 1;
-                if (nextBlock >= blocks.length) {
-                    setPhase('complete');
-                } else {
-                    setBlockIndex(nextBlock);
-                    setTrialIndex(0);
-                    setPhase('take-note');
-                }
-            } else {
-                setTrialIndex(nextIdx);
-                setPhase('trial');
-                trialStartRef.current = performance.now();
-            }
-        }, 2000);
-        timersRef.current.push(timeoutId);
-        return () => clearTimeout(timeoutId);
-    }, [isAttributeTesting, phase, currentTrial, currentBlock, blockIndex, blocks.length]);
-
     // Space / Enter / arrows / A / L to advance from take-note
     useEffect(() => {
         if (phase !== 'take-note') return;
