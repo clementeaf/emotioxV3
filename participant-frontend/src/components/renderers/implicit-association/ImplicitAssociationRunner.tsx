@@ -22,8 +22,9 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
     const leftKey = responseKeys === 'arrows' ? '←' : 'A';
     const rightKey = responseKeys === 'arrows' ? '→' : 'L';
 
-    // Is this the Yes/No paradigm (Comparing Attribute)?
     const isYesNo = config.testType === 'comparing_attribute';
+    const isAttributeTesting = config.testType === 'attribute_testing';
+    const skipFeedback = isYesNo || isAttributeTesting;
 
     // Resolve S3 images
     const [resolvedImages, setResolvedImages] = useState<Record<string, string>>({});
@@ -95,8 +96,7 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
 
     // Start priming → trial (or direct to trial for Yes/No)
     const startTrial = useCallback(() => {
-        if (isYesNo || !currentTrial?.primingLabel) {
-            // No priming for Yes/No or when no priming content — go straight to trial
+        if (skipFeedback || !currentTrial?.primingLabel) {
             setPhase('trial');
             trialStartRef.current = performance.now();
         } else {
@@ -107,15 +107,14 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
             }, primingTime);
             timersRef.current.push(id);
         }
-    }, [primingTime, isYesNo, currentTrial]);
+    }, [primingTime, skipFeedback, currentTrial]);
 
     // Handle category selection
     const handleSelect = useCallback((side: 'left' | 'right') => {
         if (phase !== 'trial' || !currentTrial || !currentBlock) return;
 
         const rt = Math.round(performance.now() - trialStartRef.current);
-        // For Yes/No (Comparing Attribute), both sides are valid — always "correct"
-        const correct = isYesNo ? true : side === currentTrial.correctSide;
+        const correct = skipFeedback ? true : side === currentTrial.correctSide;
         const criterionId = side === 'left' ? currentBlock.leftId : currentBlock.rightId;
 
         const result: IATTrialResult = {
@@ -129,18 +128,23 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
         setResults(prev => [...prev, result]);
         setLastCorrect(correct);
 
-        if (isYesNo) {
-            // Yes/No: no feedback screen, advance immediately
+        if (skipFeedback) {
             const nextIdx = trialIndexRef.current + 1;
             if (nextIdx >= currentBlock.trials.length) {
-                setPhase('complete');
+                const nextBlock = blockIndex + 1;
+                if (nextBlock >= blocks.length) {
+                    setPhase('complete');
+                } else {
+                    setBlockIndex(nextBlock);
+                    setTrialIndex(0);
+                    setPhase('take-note');
+                }
             } else {
                 setTrialIndex(nextIdx);
                 setPhase('trial');
                 trialStartRef.current = performance.now();
             }
         } else {
-            // IAT/Priming: show feedback then advance
             setPhase('feedback');
             const feedbackId = setTimeout(() => {
                 const nextIdx = trialIndexRef.current + 1;
@@ -160,7 +164,7 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
             }, 500);
             timersRef.current.push(feedbackId);
         }
-    }, [phase, currentTrial, currentBlock, blockIndex, blocks.length, isYesNo, startTrial]);
+    }, [phase, currentTrial, currentBlock, blockIndex, blocks.length, skipFeedback, startTrial]);
 
     // Keyboard: A (left) / L (right)
     useEffect(() => {
@@ -173,6 +177,39 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [phase, handleSelect]);
+
+    // Attribute Testing: 2000ms timeout — auto-advance with no response
+    useEffect(() => {
+        if (!isAttributeTesting || phase !== 'trial' || !currentTrial || !currentBlock) return;
+        const timeoutId = setTimeout(() => {
+            const rt = 2000;
+            const result: IATTrialResult = {
+                targetId: currentTrial.stimulusId,
+                criterionId: 'timeout',
+                rt,
+                correct: false,
+                phase: `block-${currentBlock.step}`,
+            };
+            setResults(prev => [...prev, result]);
+            const nextIdx = trialIndexRef.current + 1;
+            if (nextIdx >= currentBlock.trials.length) {
+                const nextBlock = blockIndex + 1;
+                if (nextBlock >= blocks.length) {
+                    setPhase('complete');
+                } else {
+                    setBlockIndex(nextBlock);
+                    setTrialIndex(0);
+                    setPhase('take-note');
+                }
+            } else {
+                setTrialIndex(nextIdx);
+                setPhase('trial');
+                trialStartRef.current = performance.now();
+            }
+        }, 2000);
+        timersRef.current.push(timeoutId);
+        return () => clearTimeout(timeoutId);
+    }, [isAttributeTesting, phase, currentTrial, currentBlock, blockIndex, blocks.length]);
 
     // Space / Enter to advance from take-note
     useEffect(() => {

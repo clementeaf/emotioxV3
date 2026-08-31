@@ -27,16 +27,28 @@ export const padAndShuffle = (trials: IATTrial[], min: number): IATTrial[] => {
 // ---------------------------------------------------------------------------
 
 /**
- * Attribute Testing — Implicit Priming Test (2 steps)
+ * Shuffles an array ensuring no two consecutive items share the same stimulusId.
+ * Falls back to plain shuffle after 50 attempts.
+ */
+export const shuffleNoConsecutive = (trials: IATTrial[]): IATTrial[] => {
+    for (let attempt = 0; attempt < 50; attempt++) {
+        const shuffled = shuffle(trials);
+        const hasConsecutive = shuffled.some((t, i) => i > 0 && t.stimulusId === shuffled[i - 1].stimulusId);
+        if (!hasConsecutive) return shuffled;
+    }
+    return shuffle(trials);
+};
+
+/**
+ * Attribute Testing — Implicit Association via free classification
  *
- * Step 1 (Practice): Classify targets alone — learn which button = which target.
- *   Stimulus = target image/name. Buttons = target names.
+ * Step 1 (Practice): 8 trials — classify targets to learn key mapping. Not scored.
  *
- * Step 2 (Test): Criterion flashes briefly as prime → target appears → classify target.
- *   Prime = criterion word (200-400ms). Stimulus = target.
- *   Congruent prime (criterion assigned to this target) → fast RT.
- *   Incongruent prime → slow RT. The RT difference reveals implicit association.
- *   All criterion × target combinations are tested.
+ * Step 2 (Test): Each criterion appears 4 times in random order (no consecutive
+ *   repeats). Stimulus = criterion word. Buttons = target names.
+ *   Both sides are valid — there is no "correct" answer.
+ *   The implicit association is revealed by choice distribution and RT.
+ *   Stimulus stays until keypress or 2000ms timeout.
  */
 export function buildBlocksAttributeTesting(
     targets: IATTarget[],
@@ -47,11 +59,10 @@ export function buildBlocksAttributeTesting(
     const tLeft = targets[0];
     const tRight = targets[targets.length - 1];
 
-    // Step 1: Practice — classify targets alone
-    const step1Trials: IATTrial[] = [];
+    const practiceTrials: IATTrial[] = [];
     for (let idx = 0; idx < targets.length; idx++) {
         const t = targets[idx];
-        step1Trials.push({
+        practiceTrials.push({
             stimulusId: t.id,
             stimulusLabel: t.name,
             stimulusImage: t.imageUrl,
@@ -61,19 +72,14 @@ export function buildBlocksAttributeTesting(
         });
     }
 
-    // Step 2: Test — criterion × target combinations with priming
-    // Prime = criterion (brief flash), Stimulus = target (classify it)
-    const step2Trials: IATTrial[] = [];
+    const testTrials: IATTrial[] = [];
     for (const crit of criteria) {
-        for (let idx = 0; idx < targets.length; idx++) {
-            const t = targets[idx];
-            step2Trials.push({
-                stimulusId: `${crit.id}__${t.id}`,
-                primingLabel: crit.label,
-                stimulusLabel: t.name,
-                stimulusImage: t.imageUrl,
-                stimulusImageError: t.imageError,
-                correctSide: idx === 0 ? 'left' : 'right',
+        for (let rep = 0; rep < 4; rep++) {
+            testTrials.push({
+                stimulusId: crit.id,
+                stimulusLabel: crit.label,
+                stimulusImage: crit.imageUrl,
+                correctSide: 'left',
                 phase: 'test',
             });
         }
@@ -86,7 +92,7 @@ export function buildBlocksAttributeTesting(
             rightLabel: tRight.name,
             leftId: tLeft.id,
             rightId: tRight.id,
-            trials: padAndShuffle(step1Trials, Math.max(6, targets.length * 2)),
+            trials: padAndShuffle(practiceTrials, 8),
         },
         {
             step: 2,
@@ -94,7 +100,7 @@ export function buildBlocksAttributeTesting(
             rightLabel: tRight.name,
             leftId: tLeft.id,
             rightId: tRight.id,
-            trials: padAndShuffle(step2Trials, Math.max(20, criteria.length * targets.length * 2)),
+            trials: shuffleNoConsecutive(testTrials),
         },
     ];
 }
