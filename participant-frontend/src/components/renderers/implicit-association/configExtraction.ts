@@ -10,12 +10,29 @@ import type { IATTarget, IATCriteriaItem, IATExtractedConfig } from './types';
 // Media resolution helper
 // ---------------------------------------------------------------------------
 
+function hasUploadError(component: ModuleComponent | undefined): boolean {
+    if (!component || component.type !== 'file-upload') return false;
+    const v = component.value;
+    let items: unknown[] | null = null;
+    if (Array.isArray(v)) items = v;
+    else if (typeof v === 'string' && v.trim().startsWith('[')) {
+        try { items = JSON.parse(v); } catch { return false; }
+    }
+    if (!Array.isArray(items) || items.length === 0) return false;
+    const first = items[0] as Record<string, unknown>;
+    return first?.status === 'error';
+}
+
 export function resolveTargetImageFromUpload(component: ModuleComponent | undefined): {
     imageUrl?: string;
     imageStorageKey?: string;
+    imageError?: boolean;
 } {
     const ref = getFileUploadMediaRef(component);
-    if (!ref) return {};
+    if (!ref) {
+        if (hasUploadError(component)) return { imageError: true };
+        return {};
+    }
     if (ref.url) {
         const u = ref.url.trim();
         if (u.startsWith('http://') || u.startsWith('https://') || u.startsWith('blob:')) {

@@ -55,6 +55,7 @@ export function buildBlocksAttributeTesting(
             stimulusId: t.id,
             stimulusLabel: t.name,
             stimulusImage: t.imageUrl,
+            stimulusImageError: t.imageError,
             correctSide: idx === 0 ? 'left' : 'right',
             phase: 'practice',
         });
@@ -71,6 +72,7 @@ export function buildBlocksAttributeTesting(
                 primingLabel: crit.label,
                 stimulusLabel: t.name,
                 stimulusImage: t.imageUrl,
+                stimulusImageError: t.imageError,
                 correctSide: idx === 0 ? 'left' : 'right',
                 phase: 'test',
             });
@@ -121,8 +123,9 @@ export function buildBlocksComparingAttribute(
                 stimulusId: `${obj.id}__${crit.id}`,
                 stimulusLabel: obj.name,
                 stimulusImage: obj.imageUrl,
+                stimulusImageError: obj.imageError,
                 stimulusSecondaryLabel: crit.label,
-                correctSide: 'left', // placeholder — both sides are valid
+                correctSide: 'left',
                 phase: 'test',
             });
         }
@@ -171,6 +174,7 @@ export function buildBlocksObjectsComparing(
             stimulusId: t.id,
             stimulusLabel: t.name,
             stimulusImage: t.imageUrl,
+            stimulusImageError: t.imageError,
             correctSide: reversed
                 ? (targetSide(idx) === 'left' ? 'right' as const : 'left' as const)
                 : targetSide(idx),

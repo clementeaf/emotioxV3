@@ -10,6 +10,7 @@ export interface IATTarget {
     name: string;
     imageUrl?: string;
     imageStorageKey?: string;
+    imageError?: boolean;
 }
 
 export interface IATCriteriaItem {
@@ -29,6 +30,7 @@ export interface IATTrial {
     stimulusId: string;
     stimulusLabel: string;
     stimulusImage?: string;
+    stimulusImageError?: boolean;
     /** Secondary text shown below stimulus (e.g. criteria under object for Comparing Attribute) */
     stimulusSecondaryLabel?: string;
     /** Which button is correct */
