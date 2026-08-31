@@ -406,7 +406,7 @@ export const ModuleContentEditor = ({
                                 onChange={(value) => onValueChange(item.component!.id, value)}
                                 researchId={researchId}
                                                                                                 iatTargets={iatTargetOptions}
-                                iatHideTargetSelector={isComparingAttribute}
+                                iatHideTargetSelector={isComparingAttribute || isAttributeTesting}
                             />
                         </div>
                     );
