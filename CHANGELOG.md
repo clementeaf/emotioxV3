@@ -15,9 +15,13 @@
 - **IAT targets.** Broken-image placeholder icon with label when target image has `status: "error"` (upload failed). Applies to all 3 paradigms.
 - **Eye Tracking.** Warning icon with "The stimulus image could not be loaded. Please contact the researcher." instead of generic "not configured" when stimuli have failed uploads.
 
+### fix: IAT take-note screen keyboard shortcuts
+- **Problem.** Take-note screen displayed `← = Chile` / `→ = Estonia` buttons but only Space/Enter were wired as keyboard shortcuts. Arrow keys and A/L did nothing.
+- **Fix.** Added ArrowLeft, ArrowRight, A, and L as valid keys to advance from take-note to the first trial.
+
 ### quality
 - **TypeScript strict** — 0 errors, 0 warnings in all 3 subprojects.
-- **Verified:** CORS preflight 204, POST /api/media/upload 401 (auth gate), face-api-models GET 200, Attribute Testing criteria table without target column.
+- **Verified:** CORS preflight 204, POST /api/media/upload 401 (auth gate), face-api-models GET 200, Attribute Testing criteria table without target column, take-note keyboard shortcuts in production.
 
 ---
 
