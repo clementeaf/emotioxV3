@@ -1,3 +1,15 @@
+## v0.95.1 — Fix image upload in Implicit Association targets (2026-08-31)
+
+### fix: image upload fails with "Upload failed" in IAT builder
+- **Root cause.** Physical directory `~/public_html/api/media/` (containing face-api-models for tracking snippet) collided with the API route `POST /api/media`. Apache's `mod_dir` issued a 301 redirect (`/api/media` → `/api/media/`) before Passenger could handle the request. CORS preflight rejects redirects, so the browser blocked the request entirely — affecting all file uploads that save metadata via `POST /api/media`.
+- **Fix.** Moved `face-api-models/` out of `~/public_html/api/media/` into `~/emotioxv3/media/face-api-models/` (served by Express static at the same URL). Added `DirectorySlash Off` to `/api/.htaccess` as defense-in-depth. No code changes — server configuration only.
+- **Impact.** All image uploads in IAT targets (Attribute Testing, Comparing Attribute, Objects Comparing), Eye Tracking stimuli, Navigation Flow, and Preference Test now work correctly.
+
+### quality
+- **Verified:** CORS preflight 204, POST /api/media/upload 401 (auth gate), face-api-models GET 200.
+
+---
+
 ## v0.95.0 — Mobile gaze tracking for Website Tracking + PDF export fix (2026-08-26)
 
 ### feat: mobile gaze calibration in Website Tracking snippet
