@@ -1,15 +1,18 @@
-## v0.95.1 — Fix image upload + IAT Attribute Testing paradigm rewrite (2026-08-31)
+## v0.95.1 — Fix image upload + IAT unified paradigm rewrite (2026-08-31)
 
 ### fix: image upload fails with "Upload failed" in IAT builder
 - **Root cause.** Physical directory `~/public_html/api/media/` (containing face-api-models for tracking snippet) collided with the API route `POST /api/media`. Apache's `mod_dir` issued a 301 redirect (`/api/media` → `/api/media/`) before Passenger could handle the request. CORS preflight rejects redirects, so the browser blocked the request entirely — affecting all file uploads that save metadata via `POST /api/media`.
 - **Fix.** Moved `face-api-models/` out of `~/public_html/api/media/` into `~/emotioxv3/media/face-api-models/` (served by Express static at the same URL). Added `DirectorySlash Off` to `/api/.htaccess` as defense-in-depth. No code changes — server configuration only.
 - **Impact.** All image uploads in IAT targets (Attribute Testing, Comparing Attribute, Objects Comparing), Eye Tracking stimuli, Navigation Flow, and Preference Test now work correctly.
 
-### fix: IAT Attribute Testing — paradigm rewrite
-- **Problem.** Previous implementation pre-assigned each criterion to a target via a selector, used priming (criterion flash → target classify), and showed correct/incorrect feedback. This biases the instrument — the researcher predetermines the association instead of measuring it.
-- **New paradigm.** Practice: 8 trials (learn A=Target1, L=Target2), not scored. Test: each criterion appears 4 times in random order (no consecutive repeats via `shuffleNoConsecutive`). Criterion IS the stimulus — no priming phase. Both sides valid — no feedback. 2000ms trial timeout (auto-advance, recorded as timeout). Implicit association measured by choice distribution (% Target 1 vs Target 2) and median RT per criterion.
-- **Validity filters.** 250 ≤ RT ≤ 2000ms and key pressed. <3 valid trials per criterion → quality flag, no index computed.
-- **Target selector removed** from all 3 IAT paradigms (Attribute Testing, Comparing Attribute, Objects Comparing). Criteria are never pre-assigned to targets.
+### fix: IAT — unified paradigm rewrite (all 3 types)
+- **Problem.** Each IAT paradigm had different trial mechanics: Attribute Testing used priming incorrectly (criterion flash → target classify) with correct/incorrect feedback and pre-assigned targets. Comparing Attribute skipped priming entirely. Objects Comparing used a 7-block Greenwald structure with 180 trials causing participant fatigue. None followed the shared base principle.
+- **Shared principle.** All 3 paradigms now follow: target/object IMAGE shown briefly (priming, configurable ms) → criterion TEXT replaces it → waits for keypress indefinitely → no feedback. Practice: 8 trials to learn key mapping. Test: all criterion × target combinations, shuffled with no consecutive repeats (`shuffleNoConsecutive`). Both sides valid — implicit association measured by choice distribution + RT.
+- **Attribute Testing.** Target image (400ms) → criterion text → keypress. All criterion × target combinations.
+- **Comparing Attribute.** Object image (400ms) → criterion text → keypress. Dimension labels as buttons. Added practice block (was missing).
+- **Objects Comparing.** Simplified from 7-block Greenwald (180 trials) to 2-block base pattern. Target image (400ms) → criterion text → keypress. Category labels as buttons.
+- **Removed.** 2000ms auto-advance timeout, correct/incorrect feedback, keep-in-mind phase, target selector in builder (all 3 paradigms). −233 lines of dead code.
+- **Target selector removed** from all 3 IAT paradigms in builder. Criteria are never pre-assigned to targets.
 
 ### feat: upload error placeholders (participant)
 - **IAT targets.** Broken-image placeholder icon with label when target image has `status: "error"` (upload failed). Applies to all 3 paradigms.
@@ -21,7 +24,7 @@
 
 ### quality
 - **TypeScript strict** — 0 errors, 0 warnings in all 3 subprojects.
-- **Verified:** CORS preflight 204, POST /api/media/upload 401 (auth gate), face-api-models GET 200, Attribute Testing criteria table without target column, take-note keyboard shortcuts in production.
+- **Verified:** CORS preflight 204, POST /api/media/upload 401, face-api-models GET 200, all 3 IAT paradigms: priming → text → keypress flow, no auto-advance, no feedback.
 
 ---
 
