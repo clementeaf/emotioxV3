@@ -10,7 +10,8 @@
     "startOver": "Comenzar de nuevo",
     "reloadPage": "Recargar página",
     "select": "Seleccionar...",
-    "continue": "Continuar"
+    "continue": "Continuar",
+    "stepOf": "Paso {{step}} de {{total}}"
   },
   "welcome": {
     "defaultTitle": "Bienvenido a la Investigación",
@@ -114,7 +115,10 @@
     "viewDetail": "Ver detalle",
     "selected": "Seleccionado",
     "zoomHint": "Usa la rueda del mouse para hacer zoom",
-    "selectThisImage": "Seleccionar esta imagen"
+    "selectThisImage": "Seleccionar esta imagen",
+    "howMuch": "¿Qué tan fuerte es tu preferencia?",
+    "slightPreference": "Leve",
+    "strongPreference": "Fuerte"
   },
   "kiosk": {
     "transitionTitle": "¡Gracias por tu respuesta!",

@@ -10,7 +10,8 @@
     "startOver": "Start over",
     "reloadPage": "Reload page",
     "select": "Select...",
-    "continue": "Continue"
+    "continue": "Continue",
+    "stepOf": "Step {{step}} of {{total}}"
   },
   "welcome": {
     "defaultTitle": "Welcome to the Research",
@@ -114,7 +115,10 @@
     "viewDetail": "View detail",
     "selected": "Selected",
     "zoomHint": "Use the mouse wheel to zoom",
-    "selectThisImage": "Select this image"
+    "selectThisImage": "Select this image",
+    "howMuch": "How strong is your preference?",
+    "slightPreference": "Slight",
+    "strongPreference": "Strong"
   },
   "kiosk": {
     "transitionTitle": "Thank you for your response!",

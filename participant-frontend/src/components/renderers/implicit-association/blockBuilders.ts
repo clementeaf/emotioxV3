@@ -22,6 +22,11 @@ export const padAndShuffle = (trials: IATTrial[], min: number): IATTrial[] => {
     return shuffle(padded);
 };
 
+const TRIAL_REPETITIONS = 4;
+
+const repeatTrials = (trials: IATTrial[], times: number): IATTrial[] =>
+    Array.from({ length: times }, () => trials).flat();
+
 // ---------------------------------------------------------------------------
 // Block builders per test type
 // ---------------------------------------------------------------------------
@@ -101,7 +106,7 @@ export function buildBlocksAttributeTesting(
             rightLabel: tRight.name,
             leftId: tLeft.id,
             rightId: tRight.id,
-            trials: shuffleNoConsecutive(testTrials),
+            trials: shuffleNoConsecutive(repeatTrials(testTrials, TRIAL_REPETITIONS)),
         },
     ];
 }
@@ -159,7 +164,7 @@ export function buildBlocksComparingAttribute(
             rightLabel: `${dims.right} >`,
             leftId: 'dimension-1',
             rightId: 'dimension-2',
-            trials: shuffleNoConsecutive(testTrials),
+            trials: shuffleNoConsecutive(repeatTrials(testTrials, TRIAL_REPETITIONS)),
         },
     ];
 }
@@ -217,7 +222,7 @@ export function buildBlocksObjectsComparing(
             rightLabel: categories.right,
             leftId: categories.leftId,
             rightId: categories.rightId,
-            trials: shuffleNoConsecutive(testTrials),
+            trials: shuffleNoConsecutive(repeatTrials(testTrials, TRIAL_REPETITIONS)),
         },
     ];
 }

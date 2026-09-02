@@ -277,36 +277,37 @@ export const PreferenceTest: React.FC<PreferenceTestProps> = ({
                             </svg>
                             {t('preferenceTest.viewDetail')}
                         </button>
+
+                        {selectedImage === image.id && (
+                            <div className="flex flex-col items-center gap-2 pt-1">
+                                <span className="text-sm text-gray-500">{t('preferenceTest.howMuch', 'How strong is your preference?')}</span>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => handleIntensitySelect('slight')}
+                                        className={`px-4 py-2 text-sm font-medium rounded-lg border transition-colors ${
+                                            preferenceIntensity === 'slight'
+                                                ? 'bg-blue-100 border-blue-400 text-blue-700'
+                                                : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                                        }`}
+                                    >
+                                        {t('preferenceTest.slightPreference', 'Slight')}
+                                    </button>
+                                    <button
+                                        onClick={() => handleIntensitySelect('strong')}
+                                        className={`px-4 py-2 text-sm font-medium rounded-lg border transition-colors ${
+                                            preferenceIntensity === 'strong'
+                                                ? 'bg-blue-600 border-blue-600 text-white'
+                                                : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                                        }`}
+                                    >
+                                        {t('preferenceTest.strongPreference', 'Strong')}
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 ))}
             </div>
-            )}
-
-            {/* Preference intensity selector — shown after selecting an image */}
-            {selectedImage !== null && !loading && (
-                <div className="flex items-center justify-center gap-3 pt-2">
-                    <span className="text-sm text-gray-500">{t('preferenceTest.howMuch', 'How strong is your preference?')}</span>
-                    <button
-                        onClick={() => handleIntensitySelect('slight')}
-                        className={`px-4 py-2 text-sm font-medium rounded-lg border transition-colors ${
-                            preferenceIntensity === 'slight'
-                                ? 'bg-blue-100 border-blue-400 text-blue-700'
-                                : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
-                        }`}
-                    >
-                        {t('preferenceTest.slightPreference', 'Slight')}
-                    </button>
-                    <button
-                        onClick={() => handleIntensitySelect('strong')}
-                        className={`px-4 py-2 text-sm font-medium rounded-lg border transition-colors ${
-                            preferenceIntensity === 'strong'
-                                ? 'bg-blue-600 border-blue-600 text-white'
-                                : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
-                        }`}
-                    >
-                        {t('preferenceTest.strongPreference', 'Strong')}
-                    </button>
-                </div>
             )}
 
             {/* Zoom Modal */}

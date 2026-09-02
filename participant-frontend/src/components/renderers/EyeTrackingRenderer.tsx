@@ -126,7 +126,7 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
     const isShelf = displayMode === 'shelf';
 
     // Skip intro/setup/calibration if a recent ET calibration exists (consecutive ET modules)
-    const cachedCalibration = useMemo(() => isDesktop ? loadCalibrationFromSession() : null, [isDesktop]);
+    const cachedCalibration = useMemo(() => loadCalibrationFromSession(), []);
     const [phase, setPhase] = useState<ETPhase>(cachedCalibration ? 'preparing' : 'intro');
     const [resolvedUrl, setResolvedUrl] = useState<string>('');
     const [resolvedShelfUrls, setResolvedShelfUrls] = useState<string[]>([]);
@@ -1096,7 +1096,6 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
      */
     const handleCalibrationClick = useCallback(() => {
         if (phase !== 'calibration') return;
-        if (isDesktop) return; // desktop uses dwell loop
         const el = getStimulusElement();
         if (!el) return;
         const pts = HYBRID_IMAGE_CALIBRATION_POINTS;
@@ -1116,7 +1115,7 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
             setCalibrationIndex(idx + 1);
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- getStimulusElement reads refs only, stable
-    }, [phase, calibrationIndex, isDesktop, viewingDuration]);
+    }, [phase, calibrationIndex, viewingDuration]);
 
     // Toggle a setup checkbox
     const toggleCheck = useCallback((index: number) => {
