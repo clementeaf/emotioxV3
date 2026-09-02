@@ -277,23 +277,6 @@ const ComparingAttributeChart = ({ module: mod }: { module: IATModuleResult }) =
                     dataKey={target.name}
                     fill={TARGET_COLORS[i % TARGET_COLORS.length]}
                     radius={[3, 3, 0, 0]}
-                    label={{
-                      position: 'top' as const,
-                      fontSize: 10,
-                      fill: TARGET_COLORS[i % TARGET_COLORS.length],
-                      content: ({ value, x, y, width // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Recharts Label internal
-}: any) => (
-                        <text
-                          x={(x ?? 0) + (width ?? 0) / 2}
-                          y={(y ?? 0) - 4}
-                          textAnchor="middle"
-                          fontSize={10}
-                          fill={TARGET_COLORS[i % TARGET_COLORS.length]}
-                        >
-                          {value}%
-                        </text>
-                      ),
-                    }}
                   />
                 ))}
                 <Tooltip

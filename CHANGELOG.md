@@ -1,3 +1,38 @@
+## v0.96.0 — IAT 4x trials, Comparing Attribute results redesign, stage reorder (2026-09-02)
+
+### feat: IAT — each stimulus 4 times in random order
+- All 3 paradigms (Attribute Testing, Comparing Attribute, Objects Comparing) now repeat each criterion×target combination 4 times before shuffling. Practice remains 8 trials.
+
+### feat: IAT Comparing Attribute results redesign
+- **Grouped bar chart.** Criteria on X-axis, bars per object. Association bands: baja <25%, media 25-55%, fuerte ≥56%. Tooltip on hover.
+- **Radar/spider chart.** Same criteria as axes, one line per object.
+- **Net Association Strength.** Summary: "X de Y atributos a favor de [leader]".
+- **Backend.** Extracts criteria items for Comparing Attribute. `criteriaScores`: per-criterion per-object scores (dim1Pct, dim2Pct, netScore, meanRT, trials).
+
+### feat: stage reorder in research builder
+- **Backend.** `PUT /research/:id/stages/reorder` — updates `display_order` of multiple stages in a transaction.
+- **Frontend.** Arrow buttons (↑↓) on hover to move stages up/down. Welcome Screen and Thank You Screen stay pinned first/last.
+- **`sortStages`** now uses `display_order` from backend instead of name-based ordering.
+
+### feat: Research Configuration separated from stages
+- Research Configuration extracted from the stage list into a fixed "Configuration" section with ⚙️ icon, between Status and Stages. No longer reorderable or deletable from the stage list.
+
+### fix: Eye Tracking — click fallback on all devices
+- Calibration click handler was blocked on desktop (`if (isDesktop) return`). If gaze tracking failed to start (Safari, camera permissions), participants were stuck. Click now works on all devices as fallback.
+- Calibration cache (sessionStorage, 2min TTL) was desktop-only. Now enabled on mobile — consecutive ET modules skip calibration.
+
+### feat: Preference Test — intensity below selected image (ES)
+- "How strong is your preference?" with Slight/Strong buttons moved below the selected image (proximity association). i18n translations: "¿Qué tan fuerte es tu preferencia?" / "Leve" / "Fuerte".
+
+### feat: i18n "Step X of Y"
+- `StepProgressPill` in Eye Tracking and IAT now uses i18n. ES: "Paso X de Y".
+
+### quality
+- **TypeScript strict** — 0 errors, 0 warnings in all 3 subprojects.
+- **Builds** — all 3 subprojects build successfully.
+
+---
+
 ## v0.95.1 — Fix image upload + IAT unified paradigm rewrite (2026-08-31)
 
 ### fix: image upload fails with "Upload failed" in IAT builder
