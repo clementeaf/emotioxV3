@@ -4,6 +4,6 @@
 export { buildOwnershipClause, type ResearchData } from './research.helpers';
 export { create } from './research.create';
 export { list, listByEnterprise, getById, update, updateStatus, activate, deleteResearch } from './research.crud';
-export { createStage, deleteStage, updateModulesOrderInStage, deleteModule, addWelcomeAndThankYouStages } from './research.stages';
+export { createStage, deleteStage, updateModulesOrderInStage, reorderStages, deleteModule, addWelcomeAndThankYouStages } from './research.stages';
 export { duplicate } from './research.duplicate';
 export { listCollaborators, addCollaborator, removeCollaborator } from './research.collaborators';

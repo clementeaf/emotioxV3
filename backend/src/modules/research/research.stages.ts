@@ -318,6 +318,52 @@ export const updateModulesOrderInStage = async (
     }
 };
 
+export const reorderStages = async (
+    researchId: string,
+    userId: string,
+    updates: Array<{ stageId: string; display_order: number }>,
+    role?: string
+): Promise<{ message: string }> => {
+    const client = await pool.connect();
+    const ownership = buildOwnershipClause(userId, role, '');
+
+    try {
+        await client.query('BEGIN');
+
+        const researchCheck = await client.query(
+            `SELECT id FROM researches WHERE id = ? AND ${ownership.clause} AND deleted_at IS NULL`,
+            [researchId, ...ownership.params]
+        );
+        if (researchCheck.rows.length === 0) {
+            throw new Error('Research not found');
+        }
+
+        const stageIds = updates.map(u => u.stageId);
+        const stagesCheck = await client.query(
+            `SELECT id FROM stages WHERE id IN (${stageIds.map(() => '?').join(',')}) AND research_id = ?`,
+            [...stageIds, researchId]
+        );
+        if (stagesCheck.rows.length !== stageIds.length) {
+            throw new Error('One or more stages not found in this research');
+        }
+
+        for (const { stageId, display_order } of updates) {
+            await client.query(
+                'UPDATE stages SET display_order = ? WHERE id = ? AND research_id = ?',
+                [display_order, stageId, researchId]
+            );
+        }
+
+        await client.query('COMMIT');
+        return { message: 'Stages order updated successfully' };
+    } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+    } finally {
+        client.release();
+    }
+};
+
 /**
  * Elimina un módulo de un research
  * @param researchId - ID del research

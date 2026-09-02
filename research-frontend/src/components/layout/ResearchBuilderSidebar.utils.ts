@@ -11,26 +11,23 @@ export const IAT_MODULE_TYPES = [
     { name: 'Objects Comparing', description: 'Up to 5 targets, positive/negative criteria' },
 ];
 
-/**
- * Sorts stages in the correct order:
- * 1. Welcome Screen (first)
- * 2. Research Configuration (second)
- * 3. Other stages (middle, in their original order)
- * 4. Thank You Screen (last)
- */
-export const sortStages = <T extends { name: string }>(stages: T[]): T[] => {
-    const getStageOrder = (name: string): number => {
-        const lowerName = name.toLowerCase();
-        if (lowerName === 'welcome screen') return 0;
-        if (lowerName === 'research configuration') return 1;
-        if (lowerName === 'thank you screen') return 999;
-        return 2; // All other stages go in the middle
+export const FIXED_STAGES = new Set(['welcome screen', 'thank you screen']);
+
+export const sortStages = <T extends { name: string; order_index?: number }>(stages: T[]): T[] => {
+    const getFixedOrder = (name: string): number | null => {
+        const lower = name.toLowerCase();
+        if (lower === 'welcome screen') return -2;
+        if (lower === 'thank you screen') return 999;
+        return null;
     };
 
     return [...stages].sort((a, b) => {
-        const orderA = getStageOrder(a.name);
-        const orderB = getStageOrder(b.name);
-        return orderA - orderB;
+        const fixA = getFixedOrder(a.name);
+        const fixB = getFixedOrder(b.name);
+        if (fixA !== null && fixB !== null) return fixA - fixB;
+        if (fixA !== null) return fixA < 0 ? -1 : 1;
+        if (fixB !== null) return fixB < 0 ? 1 : -1;
+        return (a.order_index ?? 0) - (b.order_index ?? 0);
     });
 };
 

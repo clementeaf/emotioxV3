@@ -4,17 +4,19 @@ import {
     Trash2,
     BarChart3,
     ChevronDown,
+    ChevronUp,
     Image as ImageIcon,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useModuleDraftStore } from '../../stores/useModuleDraftStore';
-import { sortStages, isStageSingleModule } from './ResearchBuilderSidebar.utils';
+import { sortStages, isStageSingleModule, FIXED_STAGES } from './ResearchBuilderSidebar.utils';
 
 interface Stage {
     id: string;
     name: string;
     description?: string;
     stage_type?: string;
+    order_index?: number;
     modules?: Array<{ id: string; name: string }>;
 }
 
@@ -35,6 +37,7 @@ interface SidebarStageListProps {
     isViewer: boolean;
     onAddStageClick: () => void;
     onDeleteStageClick: (e: React.MouseEvent, stageId: string, stageName: string) => void;
+    onReorderStage?: (stageId: string, direction: 'up' | 'down') => void;
 }
 
 export const SidebarStageList = ({
@@ -48,6 +51,7 @@ export const SidebarStageList = ({
     isViewer,
     onAddStageClick,
     onDeleteStageClick,
+    onReorderStage,
 }: SidebarStageListProps) => {
     const location = useLocation();
     const { moduleId, stageId: activeStageId } = useParams<{ moduleId?: string; stageId?: string }>();
@@ -60,6 +64,11 @@ export const SidebarStageList = ({
     if (isWebsiteTracking) return null;
 
     const sectionLabel = isFileBasedResearch ? (isClientsBenchmark ? 'Researches' : isInsightsFinding ? 'Files' : 'Stimuli') : 'Stages';
+
+    const sorted = !isFileBasedResearch && stages && stages.length > 0
+        ? sortStages(stages).filter((stage) => stage.description !== 'Automatically created during migration')
+        : [];
+    const movableIds = sorted.filter(s => !FIXED_STAGES.has(s.name.toLowerCase())).map(s => s.id);
 
     return (
         <div className="mb-6">
@@ -113,10 +122,8 @@ export const SidebarStageList = ({
                         </p>
                     )
                 ) : (
-                    stages && stages.length > 0 ? (
-                        sortStages(stages)
-                            .filter((stage) => stage.description !== 'Automatically created during migration')
-                            .map((stage) => {
+                    sorted.length > 0 ? (
+                        sorted.map((stage) => {
                             const isSingleModule = isStageSingleModule(stage);
                             let singleModule = isSingleModule && stage.modules?.[0] ? stage.modules[0] : null;
 
@@ -125,10 +132,14 @@ export const SidebarStageList = ({
                                 singleModule = allModules.find(m => m.name.toLowerCase() === stage.name.toLowerCase()) || null;
                             }
 
-                            // Check if this stage is active (either by stageId URL param or by containing active module)
                             const isStageActiveByUrl = activeStageId === stage.id;
                             const hasActiveModule = (stage.modules || []).some(m => m.id === activeModuleId);
                             const isStageActive = isStageActiveByUrl || hasActiveModule || (singleModule && singleModule.id === activeModuleId);
+
+                            const movableIndex = movableIds.indexOf(stage.id);
+                            const isMovable = movableIndex !== -1;
+                            const canMoveUp = isMovable && movableIndex > 0;
+                            const canMoveDown = isMovable && movableIndex < movableIds.length - 1;
 
                             return (
                                 <div key={stage.id} className="flex items-center group">
@@ -176,6 +187,22 @@ export const SidebarStageList = ({
                                             <div className="font-medium">{stage.name}</div>
                                         </Link>
                                     )}
+                                    {isMovable && onReorderStage && !isViewer && (
+                                        <div className="flex flex-col opacity-0 group-hover:opacity-100 transition-all">
+                                            <button
+                                                onClick={() => onReorderStage(stage.id, 'up')}
+                                                className={cn('p-0.5 text-gray-400 hover:text-blue-600 transition-colors', !canMoveUp && 'invisible')}
+                                            >
+                                                <ChevronUp className="h-3 w-3" />
+                                            </button>
+                                            <button
+                                                onClick={() => onReorderStage(stage.id, 'down')}
+                                                className={cn('p-0.5 text-gray-400 hover:text-blue-600 transition-colors', !canMoveDown && 'invisible')}
+                                            >
+                                                <ChevronDown className="h-3 w-3" />
+                                            </button>
+                                        </div>
+                                    )}
                                     <button
                                         onClick={(e) => onDeleteStageClick(e, stage.id, stage.name)}
                                         className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-600 transition-all ml-1"
@@ -186,7 +213,7 @@ export const SidebarStageList = ({
                                 </div>
                             );
                         })
-                ) : (
+                    ) : (
                     <p className="text-xs text-gray-400 italic px-2">No stages defined</p>
                 ))}
             </div>

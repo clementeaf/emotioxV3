@@ -21,7 +21,7 @@ import { useToast } from '../../hooks/useToast';
 import { researchKeys, useResearch } from '../../hooks/useResearchQuery';
 import { useAuthStore } from '../../stores/auth.store';
 import { ShareResearchDrawer } from '../research/ShareResearchDrawer';
-import { checkedResearchIds, SINGLETON_STAGES } from './ResearchBuilderSidebar.utils';
+import { checkedResearchIds, SINGLETON_STAGES, sortStages, FIXED_STAGES } from './ResearchBuilderSidebar.utils';
 import { StatusModal } from './StatusModal';
 import { AddStageDrawer } from './AddStageDrawer';
 import { SidebarStageList } from './SidebarStageList';
@@ -263,6 +263,27 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
         setDeleteStageModalOpen(true);
     };
 
+    const handleReorderStage = useCallback(async (stageId: string, direction: 'up' | 'down') => {
+        if (!activeResearch) return;
+        const stages = activeResearch.stages || [];
+        const movable = sortStages(stages).filter(s => !FIXED_STAGES.has(s.name.toLowerCase()));
+        const idx = movable.findIndex(s => s.id === stageId);
+        const targetIdx = direction === 'up' ? idx - 1 : idx + 1;
+        if (idx < 0 || targetIdx < 0 || targetIdx >= movable.length) return;
+
+        const reordered = [...movable];
+        [reordered[idx], reordered[targetIdx]] = [reordered[targetIdx], reordered[idx]];
+        const updates = reordered.map((s, i) => ({ stageId: s.id, display_order: i + 1 }));
+
+        try {
+            await researchService.reorderStages(activeResearch.id, updates);
+            await queryClient.invalidateQueries({ queryKey: researchKeys.detail(activeResearch.id) });
+        } catch (err) {
+            console.error('Failed to reorder stages:', err);
+            toast.error('Failed to reorder stages');
+        }
+    }, [activeResearch, queryClient, toast]);
+
     const handleConfirmDeleteStage = async () => {
         if (!activeResearch || !stageToDelete) return;
 
@@ -487,11 +508,38 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
                     )}
                 </div>
 
+                {/* Research Configuration — fixed section, separate from stages */}
+                {!isCollapsed && !isFileBasedResearch && (() => {
+                    const rcStage = (activeResearch.stages || []).find(s => s.name.toLowerCase() === 'research configuration');
+                    const rcModule = rcStage?.modules?.[0];
+                    if (!rcModule) return null;
+                    const isRcActive = location.pathname.includes(`/module/${rcModule.id}`);
+                    return (
+                        <div className="mb-6">
+                            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-2">
+                                Configuration
+                            </h3>
+                            <Link
+                                to={`/research/${activeResearch.id}/builder/module/${rcModule.id}`}
+                                className={cn(
+                                    'flex items-center px-2 py-1.5 text-sm rounded transition-colors cursor-pointer',
+                                    isRcActive
+                                        ? 'bg-blue-50 text-blue-600 font-medium'
+                                        : 'text-gray-700 hover:bg-gray-50'
+                                )}
+                            >
+                                <Settings className="h-4 w-4 mr-2" />
+                                Research Configuration
+                            </Link>
+                        </div>
+                    );
+                })()}
+
                 {/* Stages Section or Stimuli Section for Attention Prediction */}
                 {!isCollapsed && (
                     <SidebarStageList
                         researchId={activeResearch.id}
-                        stages={activeResearch.stages || []}
+                        stages={(activeResearch.stages || []).filter(s => s.name.toLowerCase() !== 'research configuration')}
                         stimuli={stimuli}
                         isFileBasedResearch={isFileBasedResearch}
                         isClientsBenchmark={isClientsBenchmark}
@@ -504,6 +552,7 @@ export const ResearchBuilderSidebar = ({ researchId }: ResearchBuilderSidebarPro
                             void loadStageTemplates();
                         }}
                         onDeleteStageClick={handleDeleteStageClick}
+                        onReorderStage={handleReorderStage}
                     />
                 )}
 

@@ -338,6 +338,17 @@ class ResearchService {
         }
     }
 
+    async reorderStages(
+        researchId: string,
+        updates: Array<{ stageId: string; display_order: number }>
+    ): Promise<{ message: string }> {
+        try {
+            return await apiClient.put<{ message: string }>(`/research/${researchId}/stages/reorder`, { updates });
+        } catch (error: unknown) {
+            throw this.handleError(error, 'Failed to reorder stages');
+        }
+    }
+
     /**
      * Elimina un módulo de un research
      * @param researchId - ID del research

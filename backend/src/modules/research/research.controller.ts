@@ -274,6 +274,29 @@ export const handleResearchRoutes = async (event: APIGatewayProxyEvent): Promise
             }
         }
 
+        // PUT /research/:id/stages/reorder
+        const reorderStagesMatch = path.match(/^\/research\/([^\/]+)\/stages\/reorder$/);
+        if (reorderStagesMatch && httpMethod === 'PUT') {
+            const researchId = reorderStagesMatch[1];
+            const body = JSON.parse(event.body || '{}');
+            if (!body.updates || !Array.isArray(body.updates)) {
+                return error('updates array is required', 400, undefined, origin);
+            }
+            try {
+                const result = await researchService.reorderStages(researchId, user.id, body.updates, user.role);
+                return success(result, 200, undefined, origin);
+            } catch (err: unknown) {
+                const errorMessage = err instanceof Error ? err.message : 'Failed to update stages order';
+                if (errorMessage === 'Research not found') {
+                    return error(errorMessage, 404, undefined, origin);
+                }
+                if (errorMessage.includes('not found in this research')) {
+                    return error(errorMessage, 400, undefined, origin);
+                }
+                return error(errorMessage, 500, undefined, origin);
+            }
+        }
+
         // POST /research/:id/share-progress — send progress link by email
         const shareProgressMatch = path.match(/^\/research\/([^\/]+)\/share-progress$/);
         if (shareProgressMatch && httpMethod === 'POST') {
