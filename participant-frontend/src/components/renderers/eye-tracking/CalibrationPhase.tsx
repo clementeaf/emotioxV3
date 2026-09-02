@@ -39,8 +39,8 @@ export const CalibrationPhase: React.FC<CalibrationPhaseProps> = ({
     };
 
     const hintText = isDesktop
-        ? t('eyeTracking.calibrationHintDwell', 'Look at the green dot and hold your gaze for 1.5 seconds.')
-        : t('eyeTracking.calibrationHint4Point', 'Look at the green dot, then click anywhere.');
+        ? t('eyeTracking.calibrationHintDwell', 'Look at the green dot and hold your gaze for 1.5 seconds. You can also click the dot.')
+        : t('eyeTracking.calibrationHintMobile', 'Look at the green dot, then tap on it.');
 
     return (
         <div
