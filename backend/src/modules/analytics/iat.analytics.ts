@@ -72,6 +72,18 @@ interface RTDistributionStats {
   count: number;
 }
 
+interface IATCriterionScore {
+  criterionId: string;
+  criterionLabel: string;
+  objectScores: Record<string, {
+    netScore: number;
+    dim1Pct: number;
+    dim2Pct: number;
+    meanRT: number;
+    trials: number;
+  }>;
+}
+
 interface IATModuleResult {
   moduleId: string;
   moduleName: string;
@@ -86,21 +98,15 @@ interface IATModuleResult {
     attributeLabel: string;
     targetScores: Record<string, number>;
   }>;
+  criteriaScores?: IATCriterionScore[];
   participantData?: IATParticipantData[];
-  /** Greenwald D-score aggregate (Objects Comparing / Attribute Testing) */
   dScore?: DScoreResult;
-  /** Error analysis per block and per combination */
   errorAnalysis?: {
-    /** Error rate per phase (practice vs test) */
     byPhase: Array<{ phase: string; total: number; errors: number; errorRate: number }>;
-    /** Error rate per target-attribute combination */
     byCombination: Array<{ targetId: string; targetName: string; attributeId: string; attributeLabel: string; total: number; errors: number; errorRate: number }>;
-    /** Overall error rate */
     overallErrorRate: number;
-    /** Overall fast response rate */
     overallFastRate: number;
   };
-  /** RT distribution statistics per condition (box plot data) */
   rtDistribution?: RTDistributionStats[];
 }
 
@@ -126,9 +132,9 @@ const extractIATConfig = (config: any, testType: IATModuleResult['testType']) =>
 
   const targets: IATTarget[] = [];
   const attributes: IATAttribute[] = [];
+  const criteria: Array<{ id: string; label: string }> = [];
 
   if (testType === 'comparing_attribute') {
-    // Comparing Attribute: object-N-name, object-N-image, dimension-1, dimension-2, criteria list
     for (let i = 1; i <= 20; i++) {
       const nameComp = components.find((c: any) => c.id === `object-${i}-name`);
       if (!nameComp) continue;
@@ -141,7 +147,6 @@ const extractIATConfig = (config: any, testType: IATModuleResult['testType']) =>
         });
       }
     }
-    // Dimensions become the "attributes" axis (2 dimensions)
     const dim1 = components.find((c: any) => c.id === 'dimension-1');
     const dim2 = components.find((c: any) => c.id === 'dimension-2');
     if (dim1?.value || dim1?.placeholder?.text) {
@@ -149,6 +154,19 @@ const extractIATConfig = (config: any, testType: IATModuleResult['testType']) =>
     }
     if (dim2?.value || dim2?.placeholder?.text) {
       attributes.push({ id: 'dimension-2', label: dim2.value || dim2.placeholder.text });
+    }
+    const criteriaComp = components.find((c: any) => c.id === 'criteria');
+    if (criteriaComp?.value) {
+      const items = typeof criteriaComp.value === 'string'
+        ? JSON.parse(criteriaComp.value)
+        : criteriaComp.value;
+      const list = Array.isArray(items) ? items : items?.items ?? [];
+      for (const item of list) {
+        if (item.hidden) continue;
+        const label = (item.label || item.text || item.value || item.name || '').toString().trim();
+        if (!label) continue;
+        criteria.push({ id: item.id || String(list.indexOf(item)), label });
+      }
     }
   } else {
     // Attribute Testing / Objects Comparing: target-N-name, target-N-image, criteria list
@@ -199,7 +217,7 @@ const extractIATConfig = (config: any, testType: IATModuleResult['testType']) =>
     }
   }
 
-  return { primingTime, targets, attributes };
+  return { primingTime, targets, attributes, criteria };
 };
 
 /**
@@ -319,6 +337,63 @@ const computeIATScores = (
       attributeId: attr.id,
       attributeLabel: attr.label,
       targetScores,
+    };
+  });
+};
+
+const computeCriteriaScores = (
+  responses: any[],
+  criteria: Array<{ id: string; label: string }>,
+  attributes: IATAttribute[],
+  targets: IATTarget[],
+): IATCriterionScore[] => {
+  if (criteria.length === 0 || attributes.length < 2 || targets.length === 0) return [];
+
+  const dim1Id = attributes[0].id;
+
+  type ParsedTrial = { objectId: string; criterionId: string; chosenDimension: string; rt: number };
+  const allTrials: ParsedTrial[] = [];
+
+  for (const row of responses) {
+    try {
+      const parsed = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
+      const trials = Array.isArray(parsed) ? parsed : parsed?.trials ?? [];
+      for (const t of trials) {
+        if (t.rt <= 0 || t.phase === 'practice') continue;
+        const stimId: string = t.targetId ?? '';
+        const parts = stimId.split('__');
+        if (parts.length !== 2) continue;
+        allTrials.push({
+          objectId: parts[0],
+          criterionId: parts[1],
+          chosenDimension: t.criterionId ?? '',
+          rt: t.rt,
+        });
+      }
+    } catch { /* skip */ }
+  }
+
+  return criteria.map(crit => {
+    const objectScores: IATCriterionScore['objectScores'] = {};
+
+    for (const target of targets) {
+      const trials = allTrials.filter(t => t.criterionId === crit.id && t.objectId === target.id);
+      const total = trials.length;
+      const dim1Count = trials.filter(t => t.chosenDimension === dim1Id).length;
+      const dim2Count = total - dim1Count;
+      const dim1Pct = total > 0 ? Math.round((dim1Count / total) * 100) : 0;
+      const dim2Pct = total > 0 ? Math.round((dim2Count / total) * 100) : 0;
+      const netScore = dim1Pct - dim2Pct;
+      const rts = trials.map(t => t.rt);
+      const meanRT = rts.length > 0 ? Math.round(rts.reduce((s, r) => s + r, 0) / rts.length) : 0;
+
+      objectScores[target.id] = { netScore, dim1Pct, dim2Pct, meanRT, trials: total };
+    }
+
+    return {
+      criterionId: crit.id,
+      criterionLabel: crit.label,
+      objectScores,
     };
   });
 };
@@ -869,7 +944,7 @@ export const getImplicitAssociationResults = async (researchId: string) => {
       config = typeof mod.config === 'string' ? JSON.parse(mod.config) : mod.config;
     } catch { /* ignore */ }
 
-    const { primingTime, targets, attributes } = extractIATConfig(config, testType);
+    const { primingTime, targets, attributes, criteria } = extractIATConfig(config, testType);
 
     // Extract internal test title
     const structure = config?.structure ?? config;
@@ -905,6 +980,10 @@ export const getImplicitAssociationResults = async (researchId: string) => {
 
     const rtDistribution = computeRTDistribution(responsesResult.rows, targets, attributes, testType);
 
+    const criteriaScores = testType === 'comparing_attribute' && criteria.length > 0
+      ? computeCriteriaScores(responsesResult.rows, criteria, attributes, targets)
+      : undefined;
+
     modules.push({
       moduleId: mod.id,
       moduleName: mod.name,
@@ -915,6 +994,7 @@ export const getImplicitAssociationResults = async (researchId: string) => {
       attributes,
       totalResponses: responsesResult.rows.length,
       scores,
+      criteriaScores,
       participantData,
       dScore,
       errorAnalysis,

@@ -30,9 +30,6 @@ const TARGET_COLORS = [
   '#EF4444', // red (Target 5)
 ];
 
-// Reference line color
-const REFERENCE_LINE_COLOR = '#EF4444';
-
 // ─── Association strength classification ─────────────────────────
 type AssociationStrength = 'strong' | 'moderate' | 'weak' | 'none';
 
@@ -147,116 +144,230 @@ const AttributeTestingChart = ({ module: mod }: { module: IATModuleResult }) => 
 };
 
 // ==========================================
-// COMPARING ATTRIBUTE — GROUPED BAR CHART
+// COMPARING ATTRIBUTE — GROUPED BAR + RADAR CHART
 // ==========================================
 
+const ASSOCIATION_BANDS = [
+  { min: 56, label: 'Asociación fuerte', color: '#DCFCE7' },
+  { min: 25, label: 'Asociación media', color: '#FEF9C3' },
+  { min: 0, label: 'Asociación baja', color: '#FEE2E2' },
+];
+
+const classifyAssociationBand = (score: number): string => {
+  const abs = Math.abs(score);
+  if (abs >= 56) return 'Asociación fuerte';
+  if (abs >= 25) return 'Asociación media';
+  return 'Asociación baja';
+};
+
 const ComparingAttributeChart = ({ module: mod }: { module: IATModuleResult }) => {
-  const barData = mod.scores.map(score => {
-    const entry: Record<string, string | number> = { attribute: score.attributeLabel };
+  const cs = mod.criteriaScores ?? [];
+  const hasCriteria = cs.length > 0;
+
+  const barData = cs.map(criterion => {
+    const entry: Record<string, string | number> = { attribute: criterion.criterionLabel };
     for (const target of mod.targets) {
-      entry[target.name] = score.targetScores[target.id] ?? 0;
+      const score = criterion.objectScores[target.id];
+      entry[target.name] = score?.dim1Pct ?? 0;
     }
     return entry;
   });
 
-  // Compute reference lines (average across all scores)
-  const allValues = mod.scores.flatMap(s => Object.values(s.targetScores));
-  const avg = allValues.length > 0
-    ? Math.round(allValues.reduce((a, b) => a + b, 0) / allValues.length)
-    : 0;
+  const radarData = cs.map(criterion => {
+    const entry: Record<string, string | number> = { attribute: criterion.criterionLabel };
+    for (const target of mod.targets) {
+      const score = criterion.objectScores[target.id];
+      entry[target.name] = score?.dim1Pct ?? 0;
+    }
+    return entry;
+  });
+
+  const winsPerObject: Record<string, number> = {};
+  for (const target of mod.targets) winsPerObject[target.id] = 0;
+  for (const criterion of cs) {
+    let bestId = '';
+    let bestScore = -Infinity;
+    for (const target of mod.targets) {
+      const s = criterion.objectScores[target.id]?.dim1Pct ?? 0;
+      if (s > bestScore) { bestScore = s; bestId = target.id; }
+    }
+    if (bestId) winsPerObject[bestId]++;
+  }
+
+  const netSummary = mod.targets.length >= 2 ? (() => {
+    const sorted = [...mod.targets].sort((a, b) => (winsPerObject[b.id] ?? 0) - (winsPerObject[a.id] ?? 0));
+    const leader = sorted[0];
+    const runner = sorted[1];
+    if (!leader || !runner) return null;
+    return {
+      leaderName: leader.name,
+      runnerName: runner.name,
+      leaderWins: winsPerObject[leader.id] ?? 0,
+      total: cs.length,
+    };
+  })() : null;
 
   return (
     <div>
       <h3 className="text-lg font-semibold text-gray-900 mb-1">
         IAT - Comparing Attribute
       </h3>
-      <p className="text-sm text-gray-500 mb-4">
+      <p className="text-sm text-gray-500 mb-1">
         Priming display time set in {mod.primingTime} ms
       </p>
-      <div className="w-full" style={{ height: 400 }}>
-        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-          <BarChart data={barData} barCategoryGap="20%" barGap={4}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" />
-            <XAxis
-              dataKey="attribute"
-              tick={{ fontSize: 12, fill: '#374151' }}
-              axisLine={{ stroke: '#E5E7EB' }}
-            />
-            <YAxis
-              domain={[0, 120]}
-              tick={{ fontSize: 11, fill: '#9CA3AF' }}
-              axisLine={{ stroke: '#E5E7EB' }}
-            />
-            {/* Average reference line */}
-            {avg > 0 && (
-              <svg>
-                <line
-                  x1="0%"
-                  y1={`${100 - (avg / 120) * 100}%`}
-                  x2="100%"
-                  y2={`${100 - (avg / 120) * 100}%`}
-                  stroke={REFERENCE_LINE_COLOR}
-                  strokeWidth={1}
-                  strokeDasharray="4 4"
-                />
-              </svg>
-            )}
-            {mod.targets.map((target, i) => (
-              <Bar
-                key={target.id}
-                dataKey={target.name}
-                fill={TARGET_COLORS[i % TARGET_COLORS.length]}
-                radius={[4, 4, 0, 0]}
-                label={{
-                  position: 'top' as const,
-                  fontSize: 11,
-                  fill: TARGET_COLORS[i % TARGET_COLORS.length],
-                  content: ({ value, x, y, width // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Recharts Label.Props internal type
-}: any) => (
-                    <text
-                      x={(x ?? 0) + (width ?? 0) / 2}
-                      y={(y ?? 0) - 6}
-                      textAnchor="middle"
-                      fontSize={11}
-                      fill={TARGET_COLORS[i % TARGET_COLORS.length]}
-                    >
-                      {value}%
-                    </text>
-                  ),
-                }}
-              />
-            ))}
-            <Tooltip
-              formatter={(value: number, name: string) => [`${value}%`, name]}
-              contentStyle={{
-                backgroundColor: '#fff',
-                border: '1px solid #E5E7EB',
-                borderRadius: '8px',
-                fontSize: 12,
-              }}
-            />
-            <Legend
-              wrapperStyle={{ fontSize: 12 }}
-              iconType="circle"
-            />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
+      {netSummary && (
+        <p className="text-sm text-gray-700 mb-4">
+          <span className="font-semibold">Net Association Strength:</span>{' '}
+          {netSummary.leaderWins} de {netSummary.total} atributos a favor de{' '}
+          <span className="font-semibold">{netSummary.leaderName}</span>{' '}
+          vs {netSummary.runnerName}
+        </p>
+      )}
 
-      {/* Association strength per object */}
-      <div className="mt-4 space-y-2">
-        <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Association Strength</h4>
-        {mod.targets.map(target => {
-          const scores = mod.scores.map(s => s.targetScores[target.id] ?? 0);
-          const avgScore = scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0;
-          return (
-            <div key={target.id} className="flex items-center gap-3">
-              <span className="text-sm text-gray-700 w-32 truncate">{target.name}</span>
-              <AssociationBadge score={avgScore} />
+      {hasCriteria && (
+        <>
+          {/* Grouped bar chart — criteria × objects */}
+          <div className="w-full relative" style={{ height: 420 }}>
+            <div className="absolute right-0 top-0 flex flex-col gap-0.5 text-[10px] text-gray-500 z-10">
+              {ASSOCIATION_BANDS.map(b => (
+                <div key={b.label} className="flex items-center gap-1">
+                  <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: b.color }} />
+                  {b.label}
+                </div>
+              ))}
             </div>
-          );
-        })}
-      </div>
+            <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+              <BarChart data={barData} barCategoryGap="15%" barGap={2}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" />
+                <XAxis
+                  dataKey="attribute"
+                  tick={{ fontSize: 11, fill: '#374151' }}
+                  axisLine={{ stroke: '#E5E7EB' }}
+                  interval={0}
+                  angle={-25}
+                  textAnchor="end"
+                  height={70}
+                />
+                <YAxis
+                  domain={[0, 70]}
+                  ticks={[0, 25, 56, 70]}
+                  tick={{ fontSize: 11, fill: '#9CA3AF' }}
+                  axisLine={{ stroke: '#E5E7EB' }}
+                  tickFormatter={(v: number) => `${v}%`}
+                />
+                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any -- Recharts ReferenceArea props */}
+                {[
+                  { y1: 56, y2: 70, fill: ASSOCIATION_BANDS[0].color },
+                  { y1: 25, y2: 56, fill: ASSOCIATION_BANDS[1].color },
+                  { y1: 0, y2: 25, fill: ASSOCIATION_BANDS[2].color },
+                ].map((band, i) => (
+                  <svg key={i}>
+                    <rect
+                      x="0%" width="100%"
+                      y={`${((70 - band.y2) / 70) * 100}%`}
+                      height={`${((band.y2 - band.y1) / 70) * 100}%`}
+                      fill={band.fill}
+                      opacity={0.3}
+                    />
+                  </svg>
+                ))}
+                {mod.targets.map((target, i) => (
+                  <Bar
+                    key={target.id}
+                    dataKey={target.name}
+                    fill={TARGET_COLORS[i % TARGET_COLORS.length]}
+                    radius={[3, 3, 0, 0]}
+                    label={{
+                      position: 'top' as const,
+                      fontSize: 10,
+                      fill: TARGET_COLORS[i % TARGET_COLORS.length],
+                      content: ({ value, x, y, width // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Recharts Label internal
+}: any) => (
+                        <text
+                          x={(x ?? 0) + (width ?? 0) / 2}
+                          y={(y ?? 0) - 4}
+                          textAnchor="middle"
+                          fontSize={10}
+                          fill={TARGET_COLORS[i % TARGET_COLORS.length]}
+                        >
+                          {value}%
+                        </text>
+                      ),
+                    }}
+                  />
+                ))}
+                <Tooltip
+                  formatter={(value: number, name: string) => [`${value}%`, name]}
+                  contentStyle={{ backgroundColor: '#fff', border: '1px solid #E5E7EB', borderRadius: '8px', fontSize: 12 }}
+                />
+                <Legend wrapperStyle={{ fontSize: 12 }} iconType="circle" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* Association strength per object */}
+          <div className="mt-4 space-y-2">
+            <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Association Strength</h4>
+            {mod.targets.map(target => {
+              const avgPct = cs.length > 0
+                ? Math.round(cs.reduce((sum, c) => sum + (c.objectScores[target.id]?.dim1Pct ?? 0), 0) / cs.length)
+                : 0;
+              return (
+                <div key={target.id} className="flex items-center gap-3">
+                  <span className="text-sm text-gray-700 w-32 truncate">{target.name}</span>
+                  <span className="text-sm font-medium text-gray-900">{avgPct}%</span>
+                  <span className="text-xs text-gray-500">— {classifyAssociationBand(avgPct)}</span>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Radar chart */}
+          <div className="mt-8">
+            <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+              Radar — Atributos evaluados
+            </h4>
+            <div className="w-full flex justify-center" style={{ height: 400 }}>
+              <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                <RadarChart data={radarData} outerRadius="75%">
+                  <PolarGrid stroke="#E5E7EB" />
+                  <PolarAngleAxis
+                    dataKey="attribute"
+                    tick={{ fontSize: 11, fill: '#374151' }}
+                  />
+                  <PolarRadiusAxis
+                    domain={[0, 70]}
+                    tick={{ fontSize: 10, fill: '#9CA3AF' }}
+                    tickFormatter={(v: number) => `${v}%`}
+                  />
+                  {mod.targets.map((target, i) => (
+                    <Radar
+                      key={target.id}
+                      name={target.name}
+                      dataKey={target.name}
+                      stroke={TARGET_COLORS[i % TARGET_COLORS.length]}
+                      fill={TARGET_COLORS[i % TARGET_COLORS.length]}
+                      fillOpacity={0.15}
+                      strokeWidth={2}
+                    />
+                  ))}
+                  <Legend wrapperStyle={{ fontSize: 12 }} iconType="circle" />
+                  <Tooltip
+                    formatter={(value: number, name: string) => [`${value}%`, name]}
+                    contentStyle={{ backgroundColor: '#fff', border: '1px solid #E5E7EB', borderRadius: '8px', fontSize: 12 }}
+                  />
+                </RadarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </>
+      )}
+
+      {!hasCriteria && (
+        <div className="mt-4">
+          <p className="text-sm text-gray-400 italic">No criteria data available</p>
+        </div>
+      )}
     </div>
   );
 };

@@ -385,6 +385,17 @@ export interface IATModuleResult {
         attributeLabel: string;
         targetScores: Record<string, number>;
     }>;
+    criteriaScores?: Array<{
+        criterionId: string;
+        criterionLabel: string;
+        objectScores: Record<string, {
+            netScore: number;
+            dim1Pct: number;
+            dim2Pct: number;
+            meanRT: number;
+            trials: number;
+        }>;
+    }>;
     participantData?: IATParticipantData[];
     dScore?: DScoreResult;
     errorAnalysis?: {
