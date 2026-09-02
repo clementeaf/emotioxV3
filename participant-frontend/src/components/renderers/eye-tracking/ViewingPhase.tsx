@@ -86,7 +86,7 @@ export const ViewingPhase: React.FC<ViewingPhaseProps> = ({
                     <video
                         ref={stimulusVideoRef}
                         src={resolvedUrl}
-                        className="max-w-[95vw] max-h-[95vh] object-contain"
+                        className="max-w-[100vw] max-h-[100vh] object-contain"
                         muted
                         playsInline
                         preload="auto"
@@ -98,7 +98,7 @@ export const ViewingPhase: React.FC<ViewingPhaseProps> = ({
                         ref={imgRef}
                         src={resolvedUrl}
                         alt="Stimulus"
-                        className="max-w-[95vw] max-h-[95vh] object-contain"
+                        className="max-w-[100vw] max-h-[100vh] object-contain"
                         draggable={false}
                         onLoad={onImageLoad}
                     />
