@@ -1016,27 +1016,24 @@ function extractV3Heatmap(responses: any[]): V3AggregatedHeatmap | undefined {
 }
 
 export const getEyeTrackingResults = async (researchId: string) => {
-  // 1. Find the Eye Tracking stage
   const stageQuery = `
-    SELECT s.id as stage_id, s.name as stage_name
+    SELECT s.id as stage_id
     FROM stages s
     WHERE s.research_id = ?
       AND LOWER(s.name) = 'eye tracking'
-    LIMIT 1
   `;
   const stageResult = await pool.query(stageQuery, [researchId]);
   if (stageResult.rows.length === 0) {
     return { stimuli: [] };
   }
-  const stageId = stageResult.rows[0].stage_id;
+  const stageIds = stageResult.rows.map((r: Record<string, unknown>) => r.stage_id as string);
 
-  // 2. Get modules in this stage
   const moduleQuery = `
     SELECT id, name, config FROM modules
-    WHERE research_id = ? AND stage_id = ?
+    WHERE research_id = ? AND stage_id IN (${stageIds.map(() => '?').join(',')})
     ORDER BY order_index
   `;
-  const moduleResult = await pool.query(moduleQuery, [researchId, stageId]);
+  const moduleResult = await pool.query(moduleQuery, [researchId, ...stageIds]);
 
   const stimuli: EyeTrackingStimulus[] = [];
 
@@ -1194,22 +1191,20 @@ export const getBenchmarkResults = async (researchId: string) => {
       SELECT s.id as stage_id
       FROM stages s
       WHERE s.research_id = ? AND LOWER(s.name) = 'eye tracking'
-      LIMIT 1
     `;
     const stageResult = await pool.query(stageQuery, [targetResearchId]);
     if (stageResult.rows.length === 0) {
       researches.push({ researchId: targetResearchId, researchName, modules: [] });
       continue;
     }
-    const stageId = stageResult.rows[0].stage_id;
+    const benchStageIds = stageResult.rows.map((r: Record<string, unknown>) => r.stage_id as string);
 
-    // Get modules in the Eye Tracking stage
     const moduleQuery = `
       SELECT id, name, config FROM modules
-      WHERE research_id = ? AND stage_id = ?
+      WHERE research_id = ? AND stage_id IN (${benchStageIds.map(() => '?').join(',')})
       ORDER BY order_index
     `;
-    const moduleResult = await pool.query(moduleQuery, [targetResearchId, stageId]);
+    const moduleResult = await pool.query(moduleQuery, [targetResearchId, ...benchStageIds]);
 
     const modules: BenchmarkResearchResult['modules'] = [];
 

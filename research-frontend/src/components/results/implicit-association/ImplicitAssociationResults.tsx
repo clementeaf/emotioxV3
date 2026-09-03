@@ -173,6 +173,12 @@ const ComparingAttributeChart = ({ module: mod }: { module: IATModuleResult }) =
     return entry;
   });
 
+  const maxValue = Math.max(
+    70,
+    ...cs.flatMap(c => mod.targets.map(t => c.objectScores[t.id]?.dim1Pct ?? 0))
+  );
+  const yMax = Math.ceil(maxValue / 10) * 10;
+
   const radarData = cs.map(criterion => {
     const entry: Record<string, string | number> = { attribute: criterion.criterionLabel };
     for (const target of mod.targets) {
@@ -249,23 +255,23 @@ const ComparingAttributeChart = ({ module: mod }: { module: IATModuleResult }) =
                   height={70}
                 />
                 <YAxis
-                  domain={[0, 70]}
-                  ticks={[0, 25, 56, 70]}
+                  domain={[0, yMax]}
+                  ticks={[0, 25, 56, yMax]}
                   tick={{ fontSize: 11, fill: '#9CA3AF' }}
                   axisLine={{ stroke: '#E5E7EB' }}
                   tickFormatter={(v: number) => `${v}%`}
                 />
                 {/* eslint-disable-next-line @typescript-eslint/no-explicit-any -- Recharts ReferenceArea props */}
                 {[
-                  { y1: 56, y2: 70, fill: ASSOCIATION_BANDS[0].color },
+                  { y1: 56, y2: yMax, fill: ASSOCIATION_BANDS[0].color },
                   { y1: 25, y2: 56, fill: ASSOCIATION_BANDS[1].color },
                   { y1: 0, y2: 25, fill: ASSOCIATION_BANDS[2].color },
                 ].map((band, i) => (
                   <svg key={i}>
                     <rect
                       x="0%" width="100%"
-                      y={`${((70 - band.y2) / 70) * 100}%`}
-                      height={`${((band.y2 - band.y1) / 70) * 100}%`}
+                      y={`${((yMax - band.y2) / yMax) * 100}%`}
+                      height={`${((band.y2 - band.y1) / yMax) * 100}%`}
                       fill={band.fill}
                       opacity={0.3}
                     />
@@ -319,7 +325,7 @@ const ComparingAttributeChart = ({ module: mod }: { module: IATModuleResult }) =
                     tick={{ fontSize: 11, fill: '#374151' }}
                   />
                   <PolarRadiusAxis
-                    domain={[0, 70]}
+                    domain={[0, yMax]}
                     tick={{ fontSize: 10, fill: '#9CA3AF' }}
                     tickFormatter={(v: number) => `${v}%`}
                   />

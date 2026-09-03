@@ -840,19 +840,18 @@ export const getIATRawTrials = async (researchId: string) => {
     FROM stages s
     WHERE s.research_id = ?
       AND LOWER(s.name) = 'implicit association'
-    LIMIT 1
   `;
   const stageResult = await pool.query(stageQuery, [researchId]);
   if (stageResult.rows.length === 0) return { trials: [] };
-  const stageId = stageResult.rows[0].stage_id;
+  const stageIds = stageResult.rows.map((r: Record<string, unknown>) => r.stage_id as string);
 
   const moduleQuery = `
     SELECT id, name, config FROM modules
-    WHERE research_id = ? AND stage_id = ?
+    WHERE research_id = ? AND stage_id IN (${stageIds.map(() => '?').join(',')})
       AND (LOWER(name) LIKE '%attribute%' OR LOWER(name) LIKE '%objects comparing%' OR LOWER(name) LIKE '%object comparing%')
     ORDER BY order_index
   `;
-  const moduleResult = await pool.query(moduleQuery, [researchId, stageId]);
+  const moduleResult = await pool.query(moduleQuery, [researchId, ...stageIds]);
 
   interface RawTrial {
     participantId: string;
@@ -914,26 +913,24 @@ export const getIATRawTrials = async (researchId: string) => {
 export const getImplicitAssociationResults = async (researchId: string) => {
   // 1. Find the Implicit Association stage
   const stageQuery = `
-    SELECT s.id as stage_id, s.name as stage_name
+    SELECT s.id as stage_id
     FROM stages s
     WHERE s.research_id = ?
       AND LOWER(s.name) = 'implicit association'
-    LIMIT 1
   `;
   const stageResult = await pool.query(stageQuery, [researchId]);
   if (stageResult.rows.length === 0) {
     return { modules: [] };
   }
-  const stageId = stageResult.rows[0].stage_id;
+  const stageIds = stageResult.rows.map((r: Record<string, unknown>) => r.stage_id as string);
 
-  // 2. Get modules in this stage — only IAT modules (Attribute Testing, Comparing Attribute, Objects Comparing)
   const moduleQuery = `
     SELECT id, name, config FROM modules
-    WHERE research_id = ? AND stage_id = ?
+    WHERE research_id = ? AND stage_id IN (${stageIds.map(() => '?').join(',')})
       AND (LOWER(name) LIKE '%attribute%' OR LOWER(name) LIKE '%objects comparing%' OR LOWER(name) LIKE '%object comparing%')
     ORDER BY order_index
   `;
-  const moduleResult = await pool.query(moduleQuery, [researchId, stageId]);
+  const moduleResult = await pool.query(moduleQuery, [researchId, ...stageIds]);
 
   const modules: IATModuleResult[] = [];
 
