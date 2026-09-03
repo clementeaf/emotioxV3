@@ -10,10 +10,10 @@ export const ZoneHeatmapOverlay = ({ imageUrl, zoneMass }: { imageUrl: string; z
             {[0, 1, 2].map(col => {
               const zoneId = `r${row}c${col}`;
               const mass = zoneMass[zoneId] || 0;
-              const intensity = mass / maxMass;
+              const intensity = Math.sqrt(mass / maxMass);
               const r = Math.round(intensity > 0.5 ? 255 : intensity * 2 * 255);
               const g = Math.round(intensity < 0.5 ? 255 : (1 - intensity) * 2 * 255);
-              const alpha = Math.max(0.05, intensity * 0.65);
+              const alpha = Math.max(0.15, intensity * 0.7);
               return (
                 <div
                   key={zoneId}
