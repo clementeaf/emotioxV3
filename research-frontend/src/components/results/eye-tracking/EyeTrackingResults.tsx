@@ -8,10 +8,11 @@ import { StimulusCard } from './StimulusCard';
 
 interface EyeTrackingResultsProps {
   researchId: string;
+  stageId?: string;
   className?: string;
 }
 
-export const EyeTrackingResults = ({ researchId, className }: EyeTrackingResultsProps) => {
+export const EyeTrackingResults = ({ researchId, stageId, className }: EyeTrackingResultsProps) => {
   const [data, setData] = useState<analyticsService.EyeTrackingResults | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -31,14 +32,14 @@ export const EyeTrackingResults = ({ researchId, className }: EyeTrackingResults
     if (!silent) setIsLoading(true);
     setError(null);
     try {
-      const results = await analyticsService.getEyeTrackingResults(researchId);
+      const results = await analyticsService.getEyeTrackingResults(researchId, stageId);
       setData(results);
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Failed to load eye tracking results'));
     } finally {
       if (!silent) setIsLoading(false);
     }
-  }, [researchId]);
+  }, [researchId, stageId]);
 
   const refreshData = useCallback(() => fetchData(true), [fetchData]);
 

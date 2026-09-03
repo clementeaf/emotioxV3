@@ -910,19 +910,23 @@ export const getIATRawTrials = async (researchId: string) => {
   return { trials };
 };
 
-export const getImplicitAssociationResults = async (researchId: string) => {
-  // 1. Find the Implicit Association stage
-  const stageQuery = `
-    SELECT s.id as stage_id
-    FROM stages s
-    WHERE s.research_id = ?
-      AND LOWER(s.name) = 'implicit association'
-  `;
-  const stageResult = await pool.query(stageQuery, [researchId]);
-  if (stageResult.rows.length === 0) {
-    return { modules: [] };
+export const getImplicitAssociationResults = async (researchId: string, filterStageId?: string) => {
+  let stageIds: string[];
+  if (filterStageId) {
+    stageIds = [filterStageId];
+  } else {
+    const stageQuery = `
+      SELECT s.id as stage_id
+      FROM stages s
+      WHERE s.research_id = ?
+        AND LOWER(s.name) = 'implicit association'
+    `;
+    const stageResult = await pool.query(stageQuery, [researchId]);
+    if (stageResult.rows.length === 0) {
+      return { modules: [] };
+    }
+    stageIds = stageResult.rows.map((r: Record<string, unknown>) => r.stage_id as string);
   }
-  const stageIds = stageResult.rows.map((r: Record<string, unknown>) => r.stage_id as string);
 
   const moduleQuery = `
     SELECT id, name, config FROM modules

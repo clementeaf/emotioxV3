@@ -24,71 +24,49 @@ import { useResultsFilter } from '../../hooks/useResultsFilter';
 import { useToast } from '../../hooks/useToast';
 import apiClient from '../../services/api/client';
 
-type TabId = 'screener' | 'smart-voc' | 'cognitive-task' | 'implicit-association' | 'eye-tracking' | 'emotion-analysis' | 'eeg' | 'wearable';
+type StageType = 'screener' | 'smart-voc' | 'cognitive-task' | 'implicit-association' | 'eye-tracking' | 'emotion-analysis' | 'eeg' | 'wearable';
 
-interface TabDef {
-    id: TabId;
+interface DynamicTab {
+    key: string;
+    stageType: StageType;
     label: string;
     icon: React.ReactNode;
-    stageDetector: (name: string) => boolean;
+    stageId: string;
 }
 
-const TAB_DEFS: TabDef[] = [
-    {
-        id: 'screener',
-        label: 'Screener',
-        icon: <Filter className="h-5 w-5" />,
-        stageDetector: (name) => name.toLowerCase() === 'screener',
-    },
-    {
-        id: 'smart-voc',
-        label: 'SmartVOC Results',
-        icon: <BarChart3 className="h-5 w-5" />,
-        stageDetector: (name) => {
-            const lower = name.toLowerCase();
-            return lower.includes('smart voc') || lower === 'smart voc';
-        },
-    },
-    {
-        id: 'cognitive-task',
-        label: 'Cognitive Task Results',
-        icon: <Brain className="h-5 w-5" />,
-        stageDetector: (name) => {
-            const lower = name.toLowerCase();
-            return lower.includes('cognitive task') || lower === 'cognitive tasks';
-        },
-    },
-    {
-        id: 'implicit-association',
-        label: 'Implicit Association',
-        icon: <Zap className="h-5 w-5" />,
-        stageDetector: (name) => name.toLowerCase() === 'implicit association',
-    },
-    {
-        id: 'eye-tracking',
-        label: 'Eye Tracking Results',
-        icon: <Eye className="h-5 w-5" />,
-        stageDetector: (name) => name.toLowerCase() === 'eye tracking',
-    },
-    {
-        id: 'emotion-analysis',
-        label: 'Emotion Analysis',
-        icon: <SmilePlus className="h-5 w-5" />,
-        stageDetector: (name) => name.toLowerCase().includes('emotion analysis'),
-    },
-    {
-        id: 'eeg',
-        label: 'EEG Recording',
-        icon: <Activity className="h-5 w-5" />,
-        stageDetector: (name) => name.toLowerCase().includes('eeg'),
-    },
-    {
-        id: 'wearable',
-        label: 'Biometric Wearable',
-        icon: <Heart className="h-5 w-5" />,
-        stageDetector: (name) => name.toLowerCase().includes('biometric wearable'),
-    },
+const STAGE_TYPE_MAP: Array<{ type: StageType; label: string; icon: React.ReactNode; detector: (name: string) => boolean }> = [
+    { type: 'screener', label: 'Screener', icon: <Filter className="h-5 w-5" />, detector: (n) => n.toLowerCase() === 'screener' },
+    { type: 'smart-voc', label: 'SmartVOC', icon: <BarChart3 className="h-5 w-5" />, detector: (n) => { const l = n.toLowerCase(); return l.includes('smart voc') || l === 'smart voc'; } },
+    { type: 'cognitive-task', label: 'Cognitive Tasks', icon: <Brain className="h-5 w-5" />, detector: (n) => { const l = n.toLowerCase(); return l.includes('cognitive task') || l === 'cognitive tasks'; } },
+    { type: 'implicit-association', label: 'IAT', icon: <Zap className="h-5 w-5" />, detector: (n) => n.toLowerCase() === 'implicit association' },
+    { type: 'eye-tracking', label: 'Eye Tracking', icon: <Eye className="h-5 w-5" />, detector: (n) => n.toLowerCase() === 'eye tracking' },
+    { type: 'emotion-analysis', label: 'Emotion Analysis', icon: <SmilePlus className="h-5 w-5" />, detector: (n) => n.toLowerCase().includes('emotion analysis') },
+    { type: 'eeg', label: 'EEG', icon: <Activity className="h-5 w-5" />, detector: (n) => n.toLowerCase().includes('eeg') },
+    { type: 'wearable', label: 'Wearable', icon: <Heart className="h-5 w-5" />, detector: (n) => n.toLowerCase().includes('biometric wearable') },
 ];
+
+const SKIP_STAGES = new Set(['welcome screen', 'thank you screen', 'research configuration']);
+
+function buildDynamicTabs(stages: Array<{ id: string; name: string }>): DynamicTab[] {
+    const tabs: DynamicTab[] = [];
+    const countByType: Record<string, number> = {};
+
+    for (const stage of stages) {
+        if (SKIP_STAGES.has(stage.name.toLowerCase())) continue;
+        const match = STAGE_TYPE_MAP.find(s => s.detector(stage.name));
+        if (!match) continue;
+        countByType[match.type] = (countByType[match.type] ?? 0) + 1;
+        const idx = countByType[match.type];
+        tabs.push({
+            key: `${match.type}-${stage.id}`,
+            stageType: match.type,
+            label: idx > 1 ? `${match.label} ${idx}` : match.label,
+            icon: match.icon,
+            stageId: stage.id,
+        });
+    }
+    return tabs;
+}
 
 /**
  * Research Results Page
@@ -97,7 +75,7 @@ const TAB_DEFS: TabDef[] = [
 export const ResearchResultsPage = () => {
     const { id } = useParams<{ id: string }>();
     const { data: research } = useResearch(id || null);
-    const [activeTab, setActiveTab] = useState<TabId | null>(null);
+    const [activeTabKey, setActiveTabKey] = useState<string | null>(null);
     const [tabInitialized, setTabInitialized] = useState(false);
     const [exporting, setExporting] = useState(false);
     const [exportingPptx, setExportingPptx] = useState(false);
@@ -160,26 +138,18 @@ export const ResearchResultsPage = () => {
         }
     }, [id, exportingPptx, research?.name, toast]);
 
+    const dynamicTabs = useMemo(() => {
+        if (!research?.stages) return [];
+        return buildDynamicTabs(research.stages as Array<{ id: string; name: string }>);
+    }, [research?.stages]);
+
     useEffect(() => {
-        if (!research || tabInitialized) return;
-
-        const stageNames = (research.stages ?? []).map((s: { name: string }) => s.name);
-
-        // Pick the first available tab that has a matching stage
-        const firstAvailable = TAB_DEFS.find(tab =>
-            stageNames.some(name => tab.stageDetector(name))
-        );
-        if (firstAvailable) {
-            setActiveTab(firstAvailable.id);
-        }
+        if (tabInitialized || dynamicTabs.length === 0) return;
+        setActiveTabKey(dynamicTabs[0].key);
         setTabInitialized(true);
-    }, [research, tabInitialized]);
+    }, [dynamicTabs, tabInitialized]);
 
-    // Compute which tabs are visible based on stages present
-    const visibleTabs = TAB_DEFS.filter(tab => {
-        if (!research?.stages) return true; // Show all while loading
-        return research.stages.some((s: { name: string }) => tab.stageDetector(s.name));
-    });
+    const activeTab = dynamicTabs.find(t => t.key === activeTabKey) ?? null;
 
     const isWebsiteTracking = research?.research_type_name === 'Website Tracking';
 
@@ -207,15 +177,15 @@ export const ResearchResultsPage = () => {
         <div className="flex flex-col h-full overflow-hidden">
             {/* Top bar: Tabs + Export — fixed height */}
             <div className="shrink-0 px-6 pt-4 pb-0 border-b border-gray-200 flex items-center justify-between">
-                <nav className="flex gap-1">
-                    {visibleTabs.map(tab => (
+                <nav className="flex gap-1 overflow-x-auto">
+                    {dynamicTabs.map(tab => (
                         <button
-                            key={tab.id}
-                            onClick={() => setActiveTab(tab.id)}
+                            key={tab.key}
+                            onClick={() => setActiveTabKey(tab.key)}
                             className={`
-                                flex items-center gap-1.5 px-3 py-2 text-sm border-b-2 transition-colors
+                                flex items-center gap-1.5 px-3 py-2 text-sm border-b-2 transition-colors whitespace-nowrap
                                 ${
-                                    activeTab === tab.id
+                                    activeTabKey === tab.key
                                         ? 'border-blue-600 text-blue-600 font-medium'
                                         : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                                 }
@@ -233,7 +203,7 @@ export const ResearchResultsPage = () => {
                         className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors disabled:opacity-50"
                     >
                         <Download className="h-3.5 w-3.5" />
-                        {exporting ? '...' : 'XLSX'}
+                        {exporting ? '...' : 'Export CSV'}
                     </button>
                     <button
                         onClick={handleExportPptx}
@@ -280,24 +250,22 @@ export const ResearchResultsPage = () => {
                         </div>
                     ) : (
                         <>
-                            {activeTab === 'screener' && <ScreenerResults researchId={id} />}
-                            {activeTab === 'smart-voc' && <SmartVOCResults researchId={id} />}
-                            {activeTab === 'cognitive-task' && <CognitiveTaskResults researchId={id} />}
-                            {activeTab === 'implicit-association' && <ImplicitAssociationResults researchId={id} />}
-                            {activeTab === 'eye-tracking' && <EyeTrackingResults researchId={id} />}
-                            {activeTab === 'emotion-analysis' && <EmotionAnalysisResults researchId={id} />}
-                            {activeTab === 'eeg' && (
+                            {activeTab.stageType === 'screener' && <ScreenerResults researchId={id} />}
+                            {activeTab.stageType === 'smart-voc' && <SmartVOCResults researchId={id} />}
+                            {activeTab.stageType === 'cognitive-task' && <CognitiveTaskResults researchId={id} />}
+                            {activeTab.stageType === 'implicit-association' && <ImplicitAssociationResults researchId={id} stageId={activeTab.stageId} />}
+                            {activeTab.stageType === 'eye-tracking' && <EyeTrackingResults researchId={id} stageId={activeTab.stageId} />}
+                            {activeTab.stageType === 'emotion-analysis' && <EmotionAnalysisResults researchId={id} />}
+                            {activeTab.stageType === 'eeg' && (
                                 <div className="bg-gray-50 border border-gray-200 rounded-lg p-12 text-center">
                                     <Activity className="h-10 w-10 text-gray-300 mx-auto mb-3" />
                                     <p className="text-gray-500">EEG recording results will appear here when participants complete sessions with connected EEG devices.</p>
-                                    <p className="text-xs text-gray-400 mt-2">Supports Muse 2/S, Emotiv Insight/EPOC, OpenBCI via Web Bluetooth</p>
                                 </div>
                             )}
-                            {activeTab === 'wearable' && (
+                            {activeTab.stageType === 'wearable' && (
                                 <div className="bg-gray-50 border border-gray-200 rounded-lg p-12 text-center">
                                     <Heart className="h-10 w-10 text-gray-300 mx-auto mb-3" />
                                     <p className="text-gray-500">Heart rate and HRV results will appear here when participants complete sessions with connected wearables.</p>
-                                    <p className="text-xs text-gray-400 mt-2">Supports any BLE heart rate monitor (Polar, Garmin, Wahoo, etc.)</p>
                                 </div>
                             )}
                         </>

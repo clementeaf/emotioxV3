@@ -495,9 +495,19 @@ export async function downloadResearchExport(researchId: string, researchName: s
         }
     }
 
-    // Download
-    const fileName = `${researchName.replace(/[^a-zA-Z0-9_-]/g, '_')}_export.xlsx`;
-    XLSX.writeFile(wb, fileName);
+    // Download as CSV (one sheet at a time — use first sheet with data)
+    const sheetNames = wb.SheetNames;
+    for (const name of sheetNames) {
+        const csv = XLSX.utils.sheet_to_csv(wb.Sheets[name]);
+        if (!csv.trim()) continue;
+        const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${researchName.replace(/[^a-zA-Z0-9_-]/g, '_')}_${name.replace(/\s+/g, '_')}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+    }
 }
 
 function formatDuration(ms: number): string {

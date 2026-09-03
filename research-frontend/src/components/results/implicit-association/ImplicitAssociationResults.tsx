@@ -18,6 +18,7 @@ import { downloadResearchExport } from '../../../services/export.service';
 
 interface ImplicitAssociationResultsProps {
   researchId: string;
+  stageId?: string;
   className?: string;
 }
 
@@ -879,7 +880,7 @@ const IATModuleCard = ({ module: mod }: { module: IATModuleResult }) => {
 // MAIN COMPONENT
 // ==========================================
 
-export const ImplicitAssociationResults = ({ researchId, className }: ImplicitAssociationResultsProps) => {
+export const ImplicitAssociationResults = ({ researchId, stageId, className }: ImplicitAssociationResultsProps) => {
   const [data, setData] = useState<analyticsService.ImplicitAssociationResults | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -912,14 +913,14 @@ export const ImplicitAssociationResults = ({ researchId, className }: ImplicitAs
     setIsLoading(true);
     setError(null);
     try {
-      const results = await analyticsService.getImplicitAssociationResults(researchId);
+      const results = await analyticsService.getImplicitAssociationResults(researchId, stageId);
       setData(results);
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Failed to load implicit association results'));
     } finally {
       setIsLoading(false);
     }
-  }, [researchId]);
+  }, [researchId, stageId]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 

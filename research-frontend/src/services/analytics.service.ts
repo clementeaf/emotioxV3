@@ -411,9 +411,10 @@ export interface ImplicitAssociationResults {
     modules: IATModuleResult[];
 }
 
-export const getImplicitAssociationResults = async (researchId: string): Promise<ImplicitAssociationResults> => {
+export const getImplicitAssociationResults = async (researchId: string, stageId?: string): Promise<ImplicitAssociationResults> => {
+    const qs = stageId ? `?stageId=${stageId}` : '';
     const response = await apiClient.get<{ results: ImplicitAssociationResults }>(
-        `/analytics/research/${researchId}/implicit-association`
+        `/analytics/research/${researchId}/implicit-association${qs}`
     );
     return response.results;
 };
@@ -573,9 +574,10 @@ export interface EyeTrackingResults {
     stimuli: EyeTrackingStimulus[];
 }
 
-export const getEyeTrackingResults = async (researchId: string): Promise<EyeTrackingResults> => {
+export const getEyeTrackingResults = async (researchId: string, stageId?: string): Promise<EyeTrackingResults> => {
+    const qs = stageId ? `?stageId=${stageId}` : '';
     const response = await apiClient.get<{ results: EyeTrackingResults }>(
-        `/analytics/research/${researchId}/eye-tracking`
+        `/analytics/research/${researchId}/eye-tracking${qs}`
     );
     return response.results;
 };

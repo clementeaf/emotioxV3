@@ -5,7 +5,7 @@ import * as analyticsService from './index';
 import { getRequestOrigin } from '../../utils/request';
 
 export const handleAnalyticsRoutes = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
-    const { httpMethod, path } = event;
+    const { httpMethod, path, queryStringParameters: queryParams } = event;
     const origin = getRequestOrigin(event);
     try {
         await requireAuth(event);
@@ -46,7 +46,8 @@ export const handleAnalyticsRoutes = async (event: APIGatewayProxyEvent): Promis
         const implicitMatch = path.match(/^\/analytics\/research\/([^\/]+)\/implicit-association$/);
         if (implicitMatch && httpMethod === 'GET') {
             const researchId = implicitMatch[1];
-            const results = await analyticsService.getImplicitAssociationResults(researchId);
+            const stageId = queryParams?.stageId as string | undefined;
+            const results = await analyticsService.getImplicitAssociationResults(researchId, stageId);
             return success({ results }, 200, undefined, origin);
         }
 
@@ -54,7 +55,8 @@ export const handleAnalyticsRoutes = async (event: APIGatewayProxyEvent): Promis
         const eyeTrackingMatch = path.match(/^\/analytics\/research\/([^\/]+)\/eye-tracking$/);
         if (eyeTrackingMatch && httpMethod === 'GET') {
             const researchId = eyeTrackingMatch[1];
-            const results = await analyticsService.getEyeTrackingResults(researchId);
+            const stageId = queryParams?.stageId as string | undefined;
+            const results = await analyticsService.getEyeTrackingResults(researchId, stageId);
             return success({ results }, 200, undefined, origin);
         }
 
