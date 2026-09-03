@@ -350,7 +350,8 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
                   blur={heatmapSettings.blur}
                   opacity={heatmapSettings.opacity}
                   threshold={heatmapSettings.threshold}
-                  className="w-full"
+                  className="max-h-[60vh] w-auto"
+                  canvasClassName="max-h-[60vh] w-auto block"
                 />
               ) : hasZoneMass ? (
                 <ZoneHeatmapOverlay imageUrl={stimulus.stimulusUrl} zoneMass={stimulus.zoneMass!} />
