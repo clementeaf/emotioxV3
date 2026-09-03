@@ -145,10 +145,10 @@ export const TransparencyMap = ({
         </label>
         <span className="text-xs text-gray-400">{fixations.length} fixations</span>
       </div>
-      <div className="rounded-lg overflow-hidden border bg-gray-100 w-fit mx-auto">
+      <div className="rounded-lg overflow-hidden border bg-gray-100">
         <canvas
           ref={canvasRef}
-          className="max-h-[60vh] w-auto block"
+          className="w-full h-full block object-contain"
         />
       </div>
       <p className="text-xs text-gray-400 mt-2 text-center">

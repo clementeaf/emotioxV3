@@ -52,15 +52,13 @@ export const FirstLookOverlay = ({
           per participant &middot; {participantCount} participants &middot; {firstFixations.length} points
         </span>
       </div>
-      <div className="w-fit mx-auto">
-        <HeatmapRenderer
-          imageUrl={imageUrl}
-          data={heatmapData}
-          coordSystem="percent"
-          className="max-h-[60vh] w-auto"
-          canvasClassName="max-h-[60vh] w-auto block"
-        />
-      </div>
+      <HeatmapRenderer
+        imageUrl={imageUrl}
+        data={heatmapData}
+        coordSystem="percent"
+        className="w-full h-full"
+        canvasClassName="w-full h-full block object-contain"
+      />
     </div>
   );
 };

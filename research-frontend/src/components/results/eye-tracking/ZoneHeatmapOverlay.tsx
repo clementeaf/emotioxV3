@@ -2,8 +2,8 @@ export const ZoneHeatmapOverlay = ({ imageUrl, zoneMass }: { imageUrl: string; z
   const maxMass = Math.max(...Object.values(zoneMass), 1);
 
   return (
-    <div className="relative rounded-lg overflow-hidden border bg-gray-100 w-fit mx-auto">
-      <img src={imageUrl} alt="Eye tracking stimulus" className="max-h-[60vh] w-auto block" draggable={false} />
+    <div className="relative rounded-lg overflow-hidden border bg-gray-100">
+      <img src={imageUrl} alt="Eye tracking stimulus" className="w-full h-full object-contain block" draggable={false} />
       <div className="absolute inset-0 flex flex-col">
         {[0, 1, 2].map(row => (
           <div key={row} className="flex flex-1">

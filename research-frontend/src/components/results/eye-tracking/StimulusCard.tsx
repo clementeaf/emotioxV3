@@ -33,6 +33,19 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
   const [heatmapSettings, setHeatmapSettings] = useState<HeatmapSettings>(DEFAULT_HEATMAP_SETTINGS);
   const [showSettings, setShowSettings] = useState(false);
   const [showAoiModal, setShowAoiModal] = useState(false);
+  const [stimulusSize, setStimulusSize] = useState<{ width: number; height: number } | null>(null);
+
+  useEffect(() => {
+    if (!stimulus.stimulusUrl || isVideo) return;
+    const img = new window.Image();
+    img.onload = () => {
+      const maxH = window.innerHeight * 0.6;
+      const maxW = Math.min(window.innerWidth - 400, 1000);
+      const scale = Math.min(maxW / img.naturalWidth, maxH / img.naturalHeight, 1);
+      setStimulusSize({ width: Math.round(img.naturalWidth * scale), height: Math.round(img.naturalHeight * scale) });
+    };
+    img.src = stimulus.stimulusUrl;
+  }, [stimulus.stimulusUrl, isVideo]);
 
   /** Decode a base64 Float64Array grid into cell-center points with values. */
   const decodeGridToPoints = useCallback((base64: string, cols: number, rows: number, cellW: number, cellH: number, minVal = 0.01) => {
@@ -264,6 +277,12 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
 
       {/* Stimulus image / heatmap / emotions / prediction */}
       <div className="px-5 pb-4">
+        <div
+          className="mx-auto"
+          style={stimulusSize && viewMode !== 'emotions' && viewMode !== 'prediction' && viewMode !== 'sequence'
+            ? { width: stimulusSize.width, height: stimulusSize.height }
+            : undefined}
+        >
         {viewMode === 'density' && hasV3 && stimulus.stimulusUrl ? (
           <div ref={setImageContainerRef} className="w-fit mx-auto relative">
             {hasV3Temporal && (
@@ -350,18 +369,18 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
                   blur={heatmapSettings.blur}
                   opacity={heatmapSettings.opacity}
                   threshold={heatmapSettings.threshold}
-                  className="max-h-[60vh] w-auto"
-                  canvasClassName="max-h-[60vh] w-auto block"
+                  className="w-full h-full"
+                  canvasClassName="w-full h-full block object-contain"
                 />
               ) : hasZoneMass ? (
                 <ZoneHeatmapOverlay imageUrl={stimulus.stimulusUrl} zoneMass={stimulus.zoneMass!} />
               ) : null
             ) : (
-              <div className="rounded-lg overflow-hidden border bg-gray-100 w-fit mx-auto relative">
+              <div className="rounded-lg overflow-hidden border bg-gray-100 relative">
                 <img
                   src={stimulus.stimulusUrl}
                   alt={stimulus.moduleName}
-                  className="max-h-[60vh] w-auto block"
+                  className="w-full h-full object-contain block"
                 />
                 {stimulus.aois.length > 0 && (
                   <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
@@ -394,6 +413,7 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
             </div>
           </div>
         )}
+        </div>
       </div>
 
 

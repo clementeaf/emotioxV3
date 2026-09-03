@@ -204,7 +204,7 @@ export const VideoGazePlayer = ({
           ref={videoPlayerRef}
           src={videoUrl}
           controls
-          className="max-h-[60vh] w-auto block"
+          className="w-full h-full object-contain block"
           playsInline
         />
         {/* Dots overlay */}
