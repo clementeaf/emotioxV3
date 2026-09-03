@@ -682,46 +682,10 @@ export const predictAttention = async (
     autoPresets: ReturnType<typeof computeAutoPresets>;
     griddedAOIs: ReturnType<typeof computeGriddedAOIs>;
 }> => {
-    if (!fs.existsSync(imagePath)) {
-        throw new Error(`Image not found: ${imagePath}`);
-    }
-
-    const sess = await getSession();
-
-    // Step 1: Run 3 augmentations and average (not logit — preserves natural distribution)
-    const augmentations = generateAugmentations(imagePath);
-    const rawMaps: Float32Array[] = [];
-
-    for (let i = 0; i < augmentations.length; i++) {
-        const map = await inferSaliencyRaw(sess, augmentations[i]);
-        // Un-augment: flip back the h-flip result (index 1)
-        rawMaps.push(i === 1 ? unflipHorizontal(map, MODEL_WIDTH, MODEL_HEIGHT) : map);
-    }
-
-    // Step 2: Simple average of 3 maps
-    const len = rawMaps[0].length;
-    let averaged = new Float32Array(len);
-    for (let i = 0; i < len; i++) {
-        let sum = 0;
-        for (const m of rawMaps) sum += m[i];
-        averaged[i] = sum / rawMaps.length;
-    }
-
-    // Step 3: Light center bias + blur + normalize
-    const biased = applyCenterBias(averaged, MODEL_WIDTH, MODEL_HEIGHT, 0.5);
-    const blurred = applyBlur(biased, MODEL_WIDTH, MODEL_HEIGHT, 5);
-    const normalized = normalizeMap(blurred);
-
-    // Step 4: Stochastic jitter — break mechanical symmetry
-    const jittered = applyStochasticJitter(normalized, MODEL_WIDTH, MODEL_HEIGHT, 0.15);
-    const final_ = normalizeMap(jittered);
-
-    // Compute auto-presets and gridded AOIs from the final map
-    const autoPresets = computeAutoPresets(final_);
-    const griddedAOIs = computeGriddedAOIs(final_, MODEL_WIDTH, MODEL_HEIGHT);
-
-    // Convert to heatmap data points
-    const points = extractHeatmapPoints(final_, MODEL_WIDTH, MODEL_HEIGHT, {
+    const { map, width, height } = await predictAttentionFast(imagePath);
+    const autoPresets = computeAutoPresets(map);
+    const griddedAOIs = computeGriddedAOIs(map, width, height);
+    const points = extractHeatmapPoints(map, width, height, {
         ...DEFAULT_EXTRACT_HEATMAP_OPTIONS,
         minAbsolute: Math.max(0.4, threshold),
     });
@@ -739,33 +703,7 @@ export const predictAttention = async (
 export const predictAttentionRaw = async (
     imagePath: string
 ): Promise<{ map: Float32Array; width: number; height: number }> => {
-    if (!fs.existsSync(imagePath)) {
-        throw new Error(`Image not found: ${imagePath}`);
-    }
-
-    const sess = await getSession();
-    const augmentations = generateAugmentations(imagePath);
-    const rawMaps: Float32Array[] = [];
-
-    for (let i = 0; i < augmentations.length; i++) {
-        const map = await inferSaliencyRaw(sess, augmentations[i]);
-        rawMaps.push(i === 1 ? unflipHorizontal(map, MODEL_WIDTH, MODEL_HEIGHT) : map);
-    }
-
-    // Simple average
-    const len = rawMaps[0].length;
-    let averaged = new Float32Array(len);
-    for (let i = 0; i < len; i++) {
-        let sum = 0;
-        for (const m of rawMaps) sum += m[i];
-        averaged[i] = sum / rawMaps.length;
-    }
-
-    // Light post-processing (no heavy center bias — hybrid will apply focal equalization)
-    const blurredRaw = applyBlur(averaged, MODEL_WIDTH, MODEL_HEIGHT, 4);
-    const normalizedRaw = normalizeMap(blurredRaw);
-
-    return { map: normalizedRaw, width: MODEL_WIDTH, height: MODEL_HEIGHT };
+    return predictAttentionFast(imagePath);
 };
 
 /**
@@ -1345,42 +1283,15 @@ export const computeGriddedAOIs = (
 export const predictAttentionAsImage = async (
     imagePath: string
 ): Promise<Buffer> => {
-    if (!fs.existsSync(imagePath)) {
-        throw new Error(`Image not found: ${imagePath}`);
-    }
+    const { map, width, height } = await predictAttentionFast(imagePath);
 
-    const sess = await getSession();
-
-    // 3-augmentation average pipeline — same as predictAttention
-    const augmentations = generateAugmentations(imagePath);
-    const rawMaps: Float32Array[] = [];
-
-    for (let i = 0; i < augmentations.length; i++) {
-        const map = await inferSaliencyRaw(sess, augmentations[i]);
-        rawMaps.push(i === 1 ? unflipHorizontal(map, MODEL_WIDTH, MODEL_HEIGHT) : map);
-    }
-
-    const len = rawMaps[0].length;
-    let averaged = new Float32Array(len);
-    for (let i = 0; i < len; i++) {
-        let sum = 0;
-        for (const m of rawMaps) sum += m[i];
-        averaged[i] = sum / rawMaps.length;
-    }
-
-    const biased = applyCenterBias(averaged, MODEL_WIDTH, MODEL_HEIGHT, 0.5);
-    const blurred = applyBlur(biased, MODEL_WIDTH, MODEL_HEIGHT, 5);
-    const normalized = normalizeMap(blurred);
-    const fused = applyStochasticJitter(normalized, MODEL_WIDTH, MODEL_HEIGHT, 0.15);
-
-    // Convert to 0-255 grayscale
-    const uint8Data = new Uint8Array(fused.length);
-    for (let i = 0; i < fused.length; i++) {
-        uint8Data[i] = Math.round(fused[i] * 255);
+    const uint8Data = new Uint8Array(map.length);
+    for (let i = 0; i < map.length; i++) {
+        uint8Data[i] = Math.round(map[i] * 255);
     }
 
     return sharp(Buffer.from(uint8Data), {
-        raw: { width: MODEL_WIDTH, height: MODEL_HEIGHT, channels: 1 },
+        raw: { width, height, channels: 1 },
     })
         .png()
         .toBuffer();
