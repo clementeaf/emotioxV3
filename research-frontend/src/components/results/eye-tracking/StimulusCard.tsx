@@ -342,9 +342,7 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
         ) : stimulus.stimulusUrl ? (
           <div ref={setImageContainerRef} className="w-fit mx-auto relative">
             {viewMode === 'heatmap' && hasHeatData ? (
-              hasZoneMass ? (
-                <ZoneHeatmapOverlay imageUrl={stimulus.stimulusUrl} zoneMass={stimulus.zoneMass!} />
-              ) : (
+              stimulus.heatmapData.length > 0 ? (
                 <HeatmapRenderer
                   imageUrl={stimulus.stimulusUrl}
                   data={stimulus.heatmapData.map(p => ({ x: p.x, y: p.y, value: p.duration }))}
@@ -354,7 +352,9 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
                   threshold={heatmapSettings.threshold}
                   className="w-full"
                 />
-              )
+              ) : hasZoneMass ? (
+                <ZoneHeatmapOverlay imageUrl={stimulus.stimulusUrl} zoneMass={stimulus.zoneMass!} />
+              ) : null
             ) : (
               <div className="rounded-lg overflow-hidden border bg-gray-100 w-fit mx-auto relative">
                 <img
