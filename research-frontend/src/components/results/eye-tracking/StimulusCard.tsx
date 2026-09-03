@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import { Eye, Users, Clock, Crosshair, Image, Download, SmilePlus, Sparkles, ShieldCheck, Settings, Grid3X3, Film, Signal, PenTool } from 'lucide-react';
 import { toPng } from 'html-to-image';
+import { cn } from '../../../lib/utils';
 import { HeatmapRenderer } from '../cognitive-task/components/HeatmapRenderer';
 import type { EyeTrackingStimulus } from '../../../services/analytics.service';
 import { resolveStimulusUrl, MetricBadge, ViewModeTab, AOIRow } from './shared';
@@ -33,6 +34,10 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
   const [heatmapSettings, setHeatmapSettings] = useState<HeatmapSettings>(DEFAULT_HEATMAP_SETTINGS);
   const [showSettings, setShowSettings] = useState(false);
   const [showAoiModal, setShowAoiModal] = useState(false);
+  const [showQualityTable, setShowQualityTable] = useState(false);
+  const [excludedParticipants, setExcludedParticipants] = useState<Set<string>>(() => {
+    return new Set(stimulus.participants.filter(p => p.qualityGrade === 'low').map(p => p.participantId));
+  });
   const [stimulusSize, setStimulusSize] = useState<{ width: number; height: number } | null>(null);
 
   useEffect(() => {
@@ -130,16 +135,74 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
         />
       </div>
 
-      {/* Quality summary */}
-      {stimulus.qualitySummary && stimulus.qualitySummary.low > 0 && (
-        <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 border-b border-amber-100 text-xs">
-          <ShieldCheck className="h-3.5 w-3.5 text-amber-600 shrink-0" />
-          <span className="text-amber-700">
-            Quality gate: <span className="font-medium">{stimulus.qualitySummary.good} good</span>
-            {stimulus.qualitySummary.fair > 0 && <>, <span className="font-medium">{stimulus.qualitySummary.fair} fair</span></>}
-            , <span className="font-medium text-amber-800">{stimulus.qualitySummary.low} excluded</span>
-            <span className="text-amber-500 ml-1">(low calibration quality)</span>
-          </span>
+      {/* Quality summary + participant table */}
+      {stimulus.qualitySummary && (
+        <div className="border-b border-amber-100">
+          <button
+            type="button"
+            onClick={() => setShowQualityTable(prev => !prev)}
+            className="flex items-center gap-2 w-full px-4 py-2 bg-amber-50 text-xs hover:bg-amber-100 transition-colors"
+          >
+            <ShieldCheck className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+            <span className="text-amber-700 flex-1 text-left">
+              Quality gate: <span className="font-medium text-green-700">{stimulus.qualitySummary.good} good</span>
+              {stimulus.qualitySummary.fair > 0 && <>, <span className="font-medium text-amber-700">{stimulus.qualitySummary.fair} fair</span></>}
+              {stimulus.qualitySummary.low > 0 && <>, <span className="font-medium text-red-700">{stimulus.qualitySummary.low} excluded</span></>}
+            </span>
+            <span className="text-amber-500">{showQualityTable ? '▲' : '▼'}</span>
+          </button>
+          {showQualityTable && stimulus.participants.length > 0 && (
+            <div className="px-4 py-3 bg-white overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-gray-200">
+                    <th className="text-left py-1.5 pr-3 font-medium text-gray-600">Participant</th>
+                    <th className="text-center py-1.5 px-2 font-medium text-gray-600">Grade</th>
+                    <th className="text-center py-1.5 px-2 font-medium text-gray-600">Calibration</th>
+                    <th className="text-center py-1.5 px-2 font-medium text-gray-600">RMSE</th>
+                    <th className="text-center py-1.5 px-2 font-medium text-gray-600">Integrity</th>
+                    <th className="text-center py-1.5 px-2 font-medium text-gray-600">Fixations</th>
+                    <th className="text-center py-1.5 px-2 font-medium text-gray-600">Dwell</th>
+                    <th className="text-center py-1.5 px-2 font-medium text-gray-600">Include</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {stimulus.participants.map(p => {
+                    const gradeColor = p.qualityGrade === 'good' ? 'text-green-700 bg-green-50' : p.qualityGrade === 'fair' ? 'text-amber-700 bg-amber-50' : 'text-red-700 bg-red-50';
+                    const isExcluded = excludedParticipants.has(p.participantId);
+                    return (
+                      <tr key={p.participantId} className={cn('border-b border-gray-100', isExcluded && 'opacity-40')}>
+                        <td className="py-1.5 pr-3 text-gray-800 font-mono">{p.participantId.slice(0, 12)}</td>
+                        <td className="text-center py-1.5 px-2">
+                          <span className={cn('px-1.5 py-0.5 rounded text-[10px] font-medium', gradeColor)}>{p.qualityGrade}</span>
+                        </td>
+                        <td className="text-center py-1.5 px-2 text-gray-500">{p.calibrationQuality}</td>
+                        <td className="text-center py-1.5 px-2 text-gray-500">{p.calibrationRmsePx != null ? `${Math.round(p.calibrationRmsePx)}px` : '—'}</td>
+                        <td className="text-center py-1.5 px-2 text-gray-500">{Math.round(p.integrityScore * 100)}%</td>
+                        <td className="text-center py-1.5 px-2 text-gray-500">{p.totalFixations}</td>
+                        <td className="text-center py-1.5 px-2 text-gray-500">{p.totalDwellTime.toFixed(1)}s</td>
+                        <td className="text-center py-1.5 px-2">
+                          <input
+                            type="checkbox"
+                            checked={!isExcluded}
+                            onChange={() => {
+                              setExcludedParticipants(prev => {
+                                const next = new Set(prev);
+                                if (next.has(p.participantId)) next.delete(p.participantId);
+                                else next.add(p.participantId);
+                                return next;
+                              });
+                            }}
+                            className="h-3.5 w-3.5 rounded border-gray-300 text-blue-600"
+                          />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
