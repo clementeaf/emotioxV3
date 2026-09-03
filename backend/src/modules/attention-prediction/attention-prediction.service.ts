@@ -56,6 +56,8 @@ const getSession = async (): Promise<ort.InferenceSession> => {
     session = await ort.InferenceSession.create(modelPath, {
         executionProviders: ['cpu'],
         graphOptimizationLevel: 'all',
+        intraOpNumThreads: 2,
+        interOpNumThreads: 1,
     });
     loadedModelFile = MODEL_FILE;
 
@@ -753,6 +755,8 @@ export const predictAttentionRaw = async (
  * ~3x faster than predictAttentionRaw. Designed for video frames where
  * temporal averaging across many frames replaces spatial augmentation.
  */
+const PREDICT_TIMEOUT_MS = parseInt(process.env.PREDICT_TIMEOUT_MS || '45000', 10);
+
 export const predictAttentionFast = async (
     imagePath: string
 ): Promise<{ map: Float32Array; width: number; height: number }> => {
@@ -763,7 +767,13 @@ export const predictAttentionFast = async (
     const sess = await getSession();
     const inputTensor = await preprocessImage(imagePath);
     const inputName = sess.inputNames[0];
-    const results = await sess.run({ [inputName]: inputTensor });
+
+    const runPromise = sess.run({ [inputName]: inputTensor });
+    const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Prediction timed out — server CPU limit may be throttling ONNX inference')), PREDICT_TIMEOUT_MS)
+    );
+    const results = await Promise.race([runPromise, timeoutPromise]);
+
     const outputName = sess.outputNames[0];
     const map = results[outputName].data as Float32Array;
 
