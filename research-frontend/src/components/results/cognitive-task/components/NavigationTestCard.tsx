@@ -502,7 +502,8 @@ export const NavigationTestCard = ({
                                       if (stepFileId) body.imageIndex = step.stepNumber - 1;
                                       await apiClient.post(
                                         `/attention-prediction/research/${researchId}/module/${moduleId}/predict`,
-                                        body
+                                        body,
+                                        { timeout: 120000 }
                                       );
                                       // Reload page to pick up new prediction data from module config
                                       window.location.reload();

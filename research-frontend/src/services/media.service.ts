@@ -180,6 +180,7 @@ class MediaService {
             await apiClient.post<{ status: string; mediaId: string }>(
                 `/attention-prediction/research/${researchId}/predict/${mediaId}`,
                 Object.keys(body).length > 0 ? body : undefined,
+                { timeout: 120000 },
             );
 
             const maxAttempts = 15;
@@ -212,7 +213,8 @@ class MediaService {
         try {
             return await apiClient.post<{ status: string; moduleId: string }>(
                 `/attention-prediction/research/${researchId}/module/${moduleId}/predict`,
-                threshold != null ? { threshold } : {}
+                threshold != null ? { threshold } : {},
+                { timeout: 120000 }
             );
         } catch (error: unknown) {
             throw this.handleError(error, 'Failed to start module attention prediction');
