@@ -110,3 +110,5 @@ participant-frontend/test-results/
 
 # Claude resume prompts
 .claude/RESUME_PROMPT.md
+saliency-service/models/
+saliency-service/models/*.onnx

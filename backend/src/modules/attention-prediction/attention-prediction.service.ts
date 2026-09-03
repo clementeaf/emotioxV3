@@ -773,7 +773,9 @@ export const predictAttentionRaw = async (
  * ~3x faster than predictAttentionRaw. Designed for video frames where
  * temporal averaging across many frames replaces spatial augmentation.
  */
-const PREDICT_TIMEOUT_MS = parseInt(process.env.PREDICT_TIMEOUT_MS || '60000', 10);
+const SALIENCY_API_URL = process.env.SALIENCY_API_URL || 'https://emotiox-saliency.fly.dev/predict';
+const SALIENCY_API_SECRET = process.env.SALIENCY_API_SECRET || 'emotiox-saliency-2026';
+const PREDICT_TIMEOUT_MS = parseInt(process.env.PREDICT_TIMEOUT_MS || '120000', 10);
 
 export const predictAttentionFast = async (
     imagePath: string
@@ -782,35 +784,51 @@ export const predictAttentionFast = async (
         throw new Error(`Image not found: ${imagePath}`);
     }
 
-    const { fork } = await import('child_process');
-    const workerPath = path.join(__dirname, 'predict-worker.js');
+    const imageBuffer = fs.readFileSync(imagePath);
+    const boundary = '----SaliencyBoundary' + Date.now();
+    const body = Buffer.concat([
+        Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="image"; filename="stimulus.jpg"\r\nContent-Type: image/jpeg\r\n\r\n`),
+        imageBuffer,
+        Buffer.from(`\r\n--${boundary}--\r\n`),
+    ]);
 
-    return new Promise((resolve, reject) => {
-        const child = fork(workerPath, [imagePath], { silent: true });
-        const timer = setTimeout(() => {
-            child.kill('SIGKILL');
-            reject(new Error('Prediction timed out'));
-        }, PREDICT_TIMEOUT_MS);
+    const { default: https } = await import('https');
+    const url = new URL(SALIENCY_API_URL);
 
-        child.on('message', (msg: { map?: string; width?: number; height?: number; error?: string }) => {
-            clearTimeout(timer);
-            if (msg.error) {
-                reject(new Error(msg.error));
-                return;
-            }
-            const buf = Buffer.from(msg.map!, 'base64');
-            const raw = new Float32Array(buf.buffer, buf.byteOffset, buf.byteLength / 4);
-            const blurred = applyBlur(raw, msg.width!, msg.height!, 4);
-            const normalized = normalizeMap(blurred);
-            resolve({ map: normalized, width: msg.width!, height: msg.height! });
+    const response = await new Promise<{ map: string; width: number; height: number }>((resolve, reject) => {
+        const req = https.request({
+            hostname: url.hostname,
+            path: url.pathname,
+            method: 'POST',
+            headers: {
+                'Content-Type': `multipart/form-data; boundary=${boundary}`,
+                'x-saliency-secret': SALIENCY_API_SECRET,
+                'Content-Length': body.length,
+            },
+            timeout: PREDICT_TIMEOUT_MS,
+        }, (res) => {
+            let data = '';
+            res.on('data', (chunk: Buffer) => { data += chunk.toString(); });
+            res.on('end', () => {
+                if (res.statusCode !== 200) {
+                    reject(new Error(`Saliency API returned ${res.statusCode}: ${data.slice(0, 200)}`));
+                    return;
+                }
+                try { resolve(JSON.parse(data)); } catch { reject(new Error('Invalid saliency API response')); }
+            });
         });
-
-        child.on('error', (err) => { clearTimeout(timer); reject(err); });
-        child.on('exit', (code) => {
-            clearTimeout(timer);
-            if (code && code !== 0) reject(new Error(`Worker exited with code ${code}`));
-        });
+        req.on('error', reject);
+        req.on('timeout', () => { req.destroy(); reject(new Error('Saliency API timed out')); });
+        req.write(body);
+        req.end();
     });
+
+    const buf = Buffer.from(response.map, 'base64');
+    const raw = new Float32Array(buf.buffer, buf.byteOffset, buf.byteLength / 4);
+    const blurred = applyBlur(raw, response.width, response.height, 4);
+    const normalized = normalizeMap(blurred);
+
+    return { map: normalized, width: response.width, height: response.height };
 };
 
 /**
