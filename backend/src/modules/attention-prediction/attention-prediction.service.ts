@@ -48,7 +48,11 @@ const getModelPath = (): string => {
  * Loads the ONNX model session (lazy singleton).
  * Reloads if SALIENCY_MODEL env var changed (supports hot-swapping).
  */
+const UNLOAD_AFTER_MS = parseInt(process.env.SALIENCY_UNLOAD_MS || '30000', 10);
+let unloadTimer: ReturnType<typeof setTimeout> | null = null;
+
 const getSession = async (): Promise<ort.InferenceSession> => {
+    if (unloadTimer) { clearTimeout(unloadTimer); unloadTimer = null; }
     if (session && loadedModelFile === MODEL_FILE) return session;
 
     const modelPath = getModelPath();
@@ -62,6 +66,20 @@ const getSession = async (): Promise<ort.InferenceSession> => {
     loadedModelFile = MODEL_FILE;
 
     return session;
+};
+
+const scheduleUnload = () => {
+    if (unloadTimer) clearTimeout(unloadTimer);
+    unloadTimer = setTimeout(async () => {
+        if (session) {
+            console.log('[Saliency] Unloading model to free memory');
+            await session.release();
+            session = null;
+            loadedModelFile = '';
+            if (global.gc) global.gc();
+        }
+        unloadTimer = null;
+    }, UNLOAD_AFTER_MS);
 };
 
 /**
@@ -779,6 +797,8 @@ export const predictAttentionFast = async (
 
     const blurred = applyBlur(map, MODEL_WIDTH, MODEL_HEIGHT, 4);
     const normalized = normalizeMap(blurred);
+
+    scheduleUnload();
 
     return { map: normalized, width: MODEL_WIDTH, height: MODEL_HEIGHT };
 };
