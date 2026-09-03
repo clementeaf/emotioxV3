@@ -773,7 +773,7 @@ export const predictAttentionRaw = async (
  * ~3x faster than predictAttentionRaw. Designed for video frames where
  * temporal averaging across many frames replaces spatial augmentation.
  */
-const PREDICT_TIMEOUT_MS = parseInt(process.env.PREDICT_TIMEOUT_MS || '45000', 10);
+const PREDICT_TIMEOUT_MS = parseInt(process.env.PREDICT_TIMEOUT_MS || '60000', 10);
 
 export const predictAttentionFast = async (
     imagePath: string
@@ -782,25 +782,35 @@ export const predictAttentionFast = async (
         throw new Error(`Image not found: ${imagePath}`);
     }
 
-    const sess = await getSession();
-    const inputTensor = await preprocessImage(imagePath);
-    const inputName = sess.inputNames[0];
+    const { fork } = await import('child_process');
+    const workerPath = path.join(__dirname, 'predict-worker.js');
 
-    const runPromise = sess.run({ [inputName]: inputTensor });
-    const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Prediction timed out — server CPU limit may be throttling ONNX inference')), PREDICT_TIMEOUT_MS)
-    );
-    const results = await Promise.race([runPromise, timeoutPromise]);
+    return new Promise((resolve, reject) => {
+        const child = fork(workerPath, [imagePath], { silent: true });
+        const timer = setTimeout(() => {
+            child.kill('SIGKILL');
+            reject(new Error('Prediction timed out'));
+        }, PREDICT_TIMEOUT_MS);
 
-    const outputName = sess.outputNames[0];
-    const map = results[outputName].data as Float32Array;
+        child.on('message', (msg: { map?: string; width?: number; height?: number; error?: string }) => {
+            clearTimeout(timer);
+            if (msg.error) {
+                reject(new Error(msg.error));
+                return;
+            }
+            const buf = Buffer.from(msg.map!, 'base64');
+            const raw = new Float32Array(buf.buffer, buf.byteOffset, buf.byteLength / 4);
+            const blurred = applyBlur(raw, msg.width!, msg.height!, 4);
+            const normalized = normalizeMap(blurred);
+            resolve({ map: normalized, width: msg.width!, height: msg.height! });
+        });
 
-    const blurred = applyBlur(map, MODEL_WIDTH, MODEL_HEIGHT, 4);
-    const normalized = normalizeMap(blurred);
-
-    scheduleUnload();
-
-    return { map: normalized, width: MODEL_WIDTH, height: MODEL_HEIGHT };
+        child.on('error', (err) => { clearTimeout(timer); reject(err); });
+        child.on('exit', (code) => {
+            clearTimeout(timer);
+            if (code && code !== 0) reject(new Error(`Worker exited with code ${code}`));
+        });
+    });
 };
 
 /**
