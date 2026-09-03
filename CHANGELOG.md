@@ -1,3 +1,46 @@
+## v0.96.1 — ET heatmap + AOI move/resize + calibration table + Fly.io predict (2026-09-03)
+
+### fix: Eye Tracking heatmap not visible
+- **Heat map tab** now uses `HeatmapRenderer` (simpleheat with warm gradient) instead of `ZoneHeatmapOverlay` (colored rectangles) when fixation point data exists. Zone overlay kept as fallback.
+- **Zone overlay visibility** improved: `sqrt` intensity scale + min alpha raised from 0.05 to 0.15.
+
+### fix: Eye Tracking unified stimulus size across all sub-tabs
+- All sub-tabs (Heat map, Density, Scan Path, First Look, Transparency, Image) render within a fixed container computed on image load (max 60vh). Switching tabs no longer reloads the image or changes its size.
+
+### fix: Eye Tracking First Look zoom bug
+- `HeatmapRenderer` had no height limit, causing the image to stretch to full container width and overflow. Fixed with `max-h-[60vh]` constraint.
+
+### feat: AOI move + resize with mouse drag
+- AOIs now support drag-to-move (click inside) and resize via corner/edge handles. Cursor changes to indicate available action. Persists via Save button in module config.
+
+### feat: calibration quality table with include/exclude
+- Expandable table below Quality Gate banner showing per-participant: anonymized ID, grade (good/fair/low), calibration method, RMSE, integrity score, fixations, dwell time. Checkbox to include/exclude each participant. Low-quality excluded by default.
+
+### fix: Attention Prediction 503 — moved ONNX to Fly.io
+- **Root cause.** cPanel Passenger recycles Node process when RSS exceeds 512MB. TranSalNet ONNX model (290MB) pushed RSS to ~1GB.
+- **Fix.** New `saliency-service/` deployed on Fly.io (`emotiox-saliency.fly.dev`). shared-cpu-2x, 2GB RAM, auto-stop when idle. Backend sends image via multipart POST. Cold start ~45s, warm ~15s. Cost: ~$0-2/month.
+- All prediction functions (`predictAttention`, `predictAttentionRaw`, `predictAttentionFast`, `predictAttentionAsImage`) now route through Fly.io API.
+- Frontend timeout for predict endpoints raised from 30s to 120s.
+
+### fix: Emotion Recognition not capturing
+- **Root cause.** `face_landmark_68_model.bin` was deployed as `face_landmark_68_model-shard1`. face-api.js couldn't load the model, so `isLoaded` stayed false and emotion sampling never started.
+- **Fix.** Copied shard file to expected `.bin` name on server.
+
+### feat: dynamic results tabs per stage
+- Results tabs generated from research stages in order. Duplicate stage types get numbered suffix (IAT 2, Eye Tracking 2). IAT and Eye Tracking endpoints accept `?stageId=` query param to filter by specific stage.
+
+### feat: CSV export
+- Export changed from XLSX to CSV (one file per data sheet). More reliable, no dependency issues.
+
+### fix: multiple IAT/ET stages — LIMIT 1 removed
+- IAT and Eye Tracking analytics queries used `LIMIT 1` on stage lookup, missing modules in duplicate stages. Now queries all matching stages.
+
+### quality
+- **TypeScript strict** — 0 errors, 0 warnings in all 3 subprojects.
+- **Builds** — all 3 subprojects build successfully.
+
+---
+
 ## v0.96.0 — IAT 4x trials, Comparing Attribute results redesign, stage reorder (2026-09-02)
 
 ### feat: IAT — each stimulus 4 times in random order
