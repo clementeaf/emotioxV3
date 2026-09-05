@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, type Dispatch, type SetStateAction } from 'react';
 import { Download } from 'lucide-react';
 import {
   RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
@@ -30,6 +30,47 @@ const TARGET_COLORS = [
   '#F59E0B', // amber (Target 4)
   '#EF4444', // red (Target 5)
 ];
+
+const LS_COLOR_PREFIX = 'emotiox-iat-colors-';
+
+function useCustomColors(moduleId: string, count: number): [string[], Dispatch<SetStateAction<string[]>>] {
+  const [colors, setColors] = useState<string[]>(() => {
+    try {
+      const stored = localStorage.getItem(`${LS_COLOR_PREFIX}${moduleId}`);
+      if (stored) return JSON.parse(stored);
+    } catch { /* ignore */ }
+    return TARGET_COLORS.slice(0, Math.max(count, 2));
+  });
+
+  useEffect(() => {
+    try { localStorage.setItem(`${LS_COLOR_PREFIX}${moduleId}`, JSON.stringify(colors)); } catch { /* ignore */ }
+  }, [moduleId, colors]);
+
+  const getWithFallback = useMemo(() => {
+    const padded = [...colors];
+    while (padded.length < count) padded.push(TARGET_COLORS[padded.length % TARGET_COLORS.length]);
+    return padded;
+  }, [colors, count]);
+
+  return [getWithFallback, setColors];
+}
+
+const ColorLegend = ({ labels, colors, onChange }: { labels: string[]; colors: string[]; onChange: (i: number, color: string) => void }) => (
+  <div className="flex flex-wrap gap-3 mb-3">
+    {labels.map((label, i) => (
+      <label key={i} className="flex items-center gap-1.5 cursor-pointer text-xs text-gray-600">
+        <input
+          type="color"
+          value={colors[i] ?? colors[i % colors.length]}
+          onChange={e => onChange(i, e.target.value)}
+          className="w-5 h-5 rounded border border-gray-300 cursor-pointer p-0"
+          style={{ appearance: 'none', WebkitAppearance: 'none', backgroundColor: colors[i] }}
+        />
+        {label}
+      </label>
+    ))}
+  </div>
+);
 
 // ─── Association strength classification ─────────────────────────
 type AssociationStrength = 'strong' | 'moderate' | 'weak' | 'none';
@@ -64,7 +105,7 @@ const AssociationBadge = ({ score, targetName }: { score: number; targetName?: s
 // ATTRIBUTE TESTING — RADAR CHART
 // ==========================================
 
-const AttributeTestingChart = ({ module: mod }: { module: IATModuleResult }) => {
+const AttributeTestingChart = ({ module: mod, colors }: { module: IATModuleResult; colors: string[] }) => {
   const radarData = mod.scores.map(score => {
     const entry: Record<string, string | number> = { attribute: score.attributeLabel };
     for (const target of mod.targets) {
@@ -100,11 +141,11 @@ const AttributeTestingChart = ({ module: mod }: { module: IATModuleResult }) => 
                 key={target.id}
                 name={target.name}
                 dataKey={target.name}
-                stroke={TARGET_COLORS[i % TARGET_COLORS.length]}
-                fill={TARGET_COLORS[i % TARGET_COLORS.length]}
+                stroke={colors[i % colors.length]}
+                fill={colors[i % colors.length]}
                 fillOpacity={0.2}
                 strokeWidth={2}
-                dot={{ r: 4, fill: TARGET_COLORS[i % TARGET_COLORS.length] }}
+                dot={{ r: 4, fill: colors[i % colors.length] }}
               />
             ))}
             <Legend
@@ -161,7 +202,7 @@ const classifyAssociationBand = (score: number): string => {
   return 'Asociación baja';
 };
 
-const ComparingAttributeChart = ({ module: mod }: { module: IATModuleResult }) => {
+const ComparingAttributeChart = ({ module: mod, colors }: { module: IATModuleResult; colors: string[] }) => {
   const cs = mod.criteriaScores ?? [];
   const hasCriteria = cs.length > 0;
 
@@ -282,7 +323,7 @@ const ComparingAttributeChart = ({ module: mod }: { module: IATModuleResult }) =
                   <Bar
                     key={target.id}
                     dataKey={target.name}
-                    fill={TARGET_COLORS[i % TARGET_COLORS.length]}
+                    fill={colors[i % colors.length]}
                     radius={[3, 3, 0, 0]}
                   />
                 ))}
@@ -335,8 +376,8 @@ const ComparingAttributeChart = ({ module: mod }: { module: IATModuleResult }) =
                       key={target.id}
                       name={target.name}
                       dataKey={target.name}
-                      stroke={TARGET_COLORS[i % TARGET_COLORS.length]}
-                      fill={TARGET_COLORS[i % TARGET_COLORS.length]}
+                      stroke={colors[i % colors.length]}
+                      fill={colors[i % colors.length]}
                       fillOpacity={0.15}
                       strokeWidth={2}
                     />
@@ -366,7 +407,7 @@ const ComparingAttributeChart = ({ module: mod }: { module: IATModuleResult }) =
 // OBJECTS COMPARING — HORIZONTAL DIVERGENT BAR CHART
 // ==========================================
 
-const ObjectsComparingChart = ({ module: mod }: { module: IATModuleResult }) => {
+const ObjectsComparingChart = ({ module: mod, colors }: { module: IATModuleResult; colors: string[] }) => {
   // For Objects Comparing, targets = objects, attributes = 2 dimensions
   // Each object gets 2 bars: dimension-1 (negative side) and dimension-2 (positive side)
   const dim1 = mod.attributes[0];
@@ -428,12 +469,12 @@ const ObjectsComparingChart = ({ module: mod }: { module: IATModuleResult }) => 
             />
             <Bar
               dataKey={dim1Label}
-              fill={TARGET_COLORS[0]}
+              fill={colors[0]}
               radius={[4, 0, 0, 4]}
               label={{
                 position: 'left' as const,
                 fontSize: 10,
-                fill: TARGET_COLORS[0],
+                fill: colors[0],
                 content: ({ value, x, y, height // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Recharts Label.Props internal type
 }: any) => (
                   <text
@@ -441,7 +482,7 @@ const ObjectsComparingChart = ({ module: mod }: { module: IATModuleResult }) => 
                     y={(y ?? 0) + (height ?? 0) / 2 + 4}
                     textAnchor="end"
                     fontSize={10}
-                    fill={TARGET_COLORS[0]}
+                    fill={colors[0]}
                   >
                     {Math.abs(value ?? 0)}%
                   </text>
@@ -450,12 +491,12 @@ const ObjectsComparingChart = ({ module: mod }: { module: IATModuleResult }) => 
             />
             <Bar
               dataKey={dim2Label}
-              fill={TARGET_COLORS[1]}
+              fill={colors[1]}
               radius={[0, 4, 4, 0]}
               label={{
                 position: 'right' as const,
                 fontSize: 10,
-                fill: TARGET_COLORS[1],
+                fill: colors[1],
                 content: ({ value, x, y, width, height // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Recharts Label.Props internal type
 }: any) => (
                   <text
@@ -463,7 +504,7 @@ const ObjectsComparingChart = ({ module: mod }: { module: IATModuleResult }) => 
                     y={(y ?? 0) + (height ?? 0) / 2 + 4}
                     textAnchor="start"
                     fontSize={10}
-                    fill={TARGET_COLORS[1]}
+                    fill={colors[1]}
                   >
                     {Math.abs(value ?? 0)}%
                   </text>
@@ -744,7 +785,7 @@ const EffectSizeBar = ({ module: mod }: { module: IATModuleResult }) => {
 // RT DISTRIBUTION BOX PLOT
 // ==========================================
 
-const RTDistributionCard = ({ module: mod }: { module: IATModuleResult }) => {
+const RTDistributionCard = ({ module: mod, colors }: { module: IATModuleResult; colors: string[] }) => {
   const dist = mod.rtDistribution;
   if (!dist || dist.length === 0) return null;
 
@@ -793,7 +834,7 @@ const RTDistributionCard = ({ module: mod }: { module: IATModuleResult }) => {
             {dist.map((d, i) => {
               const cy = i * rowH + rowH / 2;
               const boxH = 14;
-              const color = TARGET_COLORS[i % TARGET_COLORS.length];
+              const color = colors[i % colors.length];
               return (
                 <g key={d.conditionId}>
                   {/* Whisker line */}
@@ -841,6 +882,15 @@ const RTDistributionCard = ({ module: mod }: { module: IATModuleResult }) => {
 // ==========================================
 
 const IATModuleCard = ({ module: mod }: { module: IATModuleResult }) => {
+  const targetLabels = mod.testType === 'objects_comparing'
+    ? (mod.attributes.length >= 2 ? [mod.attributes[0].label, mod.attributes[1].label] : mod.targets.map(t => t.name))
+    : mod.targets.map(t => t.name);
+  const [colors, setColors] = useCustomColors(mod.moduleId, targetLabels.length);
+
+  const handleColorChange = useCallback((i: number, color: string) => {
+    setColors(prev => { const next = [...prev]; next[i] = color; return next; });
+  }, [setColors]);
+
   const ChartComponent = {
     attribute_testing: AttributeTestingChart,
     comparing_attribute: ComparingAttributeChart,
@@ -852,7 +902,8 @@ const IATModuleCard = ({ module: mod }: { module: IATModuleResult }) => {
       {mod.testTitle && (
         <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-3">{mod.testTitle}</p>
       )}
-      <ChartComponent module={mod} />
+      <ColorLegend labels={targetLabels} colors={colors} onChange={handleColorChange} />
+      <ChartComponent module={mod} colors={colors} />
       {mod.testType !== 'comparing_attribute' && (
         <>
           <DScoreCard module={mod} />
@@ -860,7 +911,7 @@ const IATModuleCard = ({ module: mod }: { module: IATModuleResult }) => {
           <ErrorAnalysisCard module={mod} />
         </>
       )}
-      <RTDistributionCard module={mod} />
+      <RTDistributionCard module={mod} colors={colors} />
       {mod.totalResponses === 0 && (
         <div className="mt-4 bg-gray-50 border border-gray-200 rounded-xl p-4 text-center">
           <p className="text-sm font-semibold text-gray-700 mb-1">No responses yet</p>
