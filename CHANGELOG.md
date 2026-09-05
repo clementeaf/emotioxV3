@@ -1,3 +1,17 @@
+## v0.96.2 — IAT Objects Comparing analytics fix + i18n español (2026-09-05)
+
+### fix: IAT Objects Comparing results not registering
+- **Root cause.** Participant-frontend was rewritten in v0.95.1 from 7-block Greenwald to 2 blocks (`block-1` = practice, `block-2` = test). Backend analytics still looked for `block-3/4/6/7` — found 0 trials — returned empty scores.
+- **Fix.** Removed dead 7-block logic from `computeIATScores`, `computeIATParticipantData`, `computeIATErrorAnalysis`, `computeRTDistribution`, and `computeCriteriaScores`. All functions now universally exclude `block-1` (practice). Objects Comparing uses the same RT-based scoring as other paradigms. D-score limited to Attribute Testing (the only paradigm with congruent/incongruent via targetId assignment).
+
+### feat: IAT category labels visible during priming and trial
+- Persistent `A = Category` / `L = Category` labels at top of screen during priming phase and trial phase. Participants always know which side maps to which category.
+
+### fix: IAT participant-frontend text translated to Spanish
+- All `t()` fallback strings translated: intro, take-note, complete, results, not-configured.
+
+---
+
 ## v0.96.1 — ET heatmap + AOI move/resize + calibration table + Fly.io predict (2026-09-03)
 
 ### fix: Eye Tracking heatmap not visible

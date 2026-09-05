@@ -190,7 +190,7 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
         return (
             <div className="flex flex-col items-center justify-center min-h-[400px] px-4">
                 <p className="text-gray-400 text-center">
-                    {t('iat.notConfigured', 'This implicit association test has not been configured yet.')}
+                    {t('iat.notConfigured', 'Esta prueba de asociación implícita aún no ha sido configurada.')}
                 </p>
             </div>
         );
@@ -206,7 +206,7 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
             <div className="flex flex-col items-center justify-center min-h-[400px] px-4 py-8">
                 <div className="w-full max-w-lg space-y-6">
                     <h2 className="text-xl font-bold text-gray-900">
-                        {t('iat.introTitle', 'In this section')}
+                        {t('iat.introTitle', 'En esta sección')}
                     </h2>
                     {exerciseInstructions ? (
                         <InstructionList text={exerciseInstructions} />
@@ -214,11 +214,11 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
                         <>
                             <p className="text-gray-600">
                                 {responseKeys === 'arrows'
-                                    ? t('iat.introDescriptionArrows', 'You will be presented with words or images to classify into categories using the ← or → arrow keys.')
-                                    : t('iat.introDescription', 'You will be presented with words or images to classify into categories using either the \'A\' or \'L\' key.')}
+                                    ? t('iat.introDescriptionArrows', 'Se te presentarán palabras o imágenes para clasificar en categorías usando las teclas ← o →.')
+                                    : t('iat.introDescription', 'Se te presentarán palabras o imágenes para clasificar en categorías usando las teclas \'A\' o \'L\'.')}
                             </p>
                             <p className="text-gray-600">
-                                {t('iat.introSpeed', 'Try to go as fast as possible while making as few mistakes as possible.')}
+                                {t('iat.introSpeed', 'Intenta ir lo más rápido posible cometiendo la menor cantidad de errores.')}
                             </p>
                         </>
                     )}
@@ -226,7 +226,7 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
                         onClick={() => setPhase(nextPhase)}
                         className="px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
                     >
-                        {exerciseInstructions ? t('iat.start', 'Start') : t('iat.next', 'Next')}
+                        {exerciseInstructions ? t('iat.start', 'Comenzar') : t('iat.next', 'Siguiente')}
                     </button>
                 </div>
             </div>
@@ -247,25 +247,25 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
                 />
                 <div className="w-full max-w-lg space-y-6 mt-8">
                     <h2 className="text-xl font-bold text-gray-900">
-                        {t('iat.takeNoteTitle', 'Take note')}
+                        {t('iat.takeNoteTitle', 'Toma nota')}
                     </h2>
                     {testInstructions ? (
                         <InstructionList text={testInstructions} />
                     ) : (
                         <>
                             <p className="text-gray-600">
-                                {t('iat.takeNoteCategories', 'Take note of the categories below')}
+                                {t('iat.takeNoteCategories', 'Toma nota de las categorías a continuación')}
                             </p>
                             <p className="text-gray-600">
-                                {t('iat.takeNoteFingers', 'Position your index fingers')}
+                                {t('iat.takeNoteFingers', 'Posiciona tus dedos índice')}
                             </p>
                         </>
                     )}
                     <div className="flex items-center gap-3 text-gray-500 text-sm">
                         <kbd className="inline-flex items-center gap-1 px-4 py-1.5 bg-gray-100 border border-gray-300 rounded-md text-xs font-mono text-gray-600 shadow-[0_1px_0_1px_rgba(0,0,0,0.08)]">
-                            ␣ space
+                            ␣ espacio
                         </kbd>
-                        <span>{t('iat.takeNoteBegin', 'or tap one of the buttons to begin')}</span>
+                        <span>{t('iat.takeNoteBegin', 'o presiona uno de los botones para comenzar')}</span>
                     </div>
                     <div className="flex gap-4">
                         <button
@@ -292,9 +292,15 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
 
     if (phase === 'priming' && currentTrial) {
         return (
-            <div className="flex flex-col items-center justify-center min-h-[400px]">
+            <div className="flex flex-col items-center justify-center min-h-[400px] relative">
                 {currentBlock && (
-                    <StepProgressPill step={currentBlock.step} total={totalBlocks} percent={blockProgress} />
+                    <>
+                        <StepProgressPill step={currentBlock.step} total={totalBlocks} percent={blockProgress} />
+                        <div className="flex justify-between w-full max-w-lg mt-4 px-4">
+                            <span className="text-sm font-semibold text-blue-600">{`${leftKey} = ${currentBlock.leftLabel}`}</span>
+                            <span className="text-sm font-semibold text-blue-600">{`${rightKey} = ${currentBlock.rightLabel}`}</span>
+                        </div>
+                    </>
                 )}
                 <div className="flex-1 flex flex-col items-center justify-center mt-8 gap-2">
                     {currentTrial.primingLabel ? (
@@ -325,6 +331,11 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
         return (
             <div className="flex flex-col items-center justify-center min-h-[400px] px-4 select-none">
                 <StepProgressPill step={currentBlock.step} total={totalBlocks} percent={blockProgress} />
+
+                <div className="flex justify-between w-full max-w-lg mt-4 px-4">
+                    <span className="text-sm font-semibold text-blue-600">{`${leftKey} = ${currentBlock.leftLabel}`}</span>
+                    <span className="text-sm font-semibold text-blue-600">{`${rightKey} = ${currentBlock.rightLabel}`}</span>
+                </div>
 
                 {/* Stimulus */}
                 <div className="flex flex-col items-center justify-center min-h-[200px] my-8 gap-2">
@@ -397,21 +408,21 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
                         </svg>
                     </div>
                     <p className="text-lg font-medium text-gray-700">
-                        {t('iat.complete', 'Test completed. Thank you!')}
+                        {t('iat.complete', 'Prueba completada. ¡Gracias!')}
                     </p>
                     {showResults && results.length > 0 && (
                         <div className="mt-6 w-full max-w-sm mx-auto bg-gray-50 rounded-xl p-5 space-y-4 text-left">
                             <h3 className="text-sm font-semibold text-gray-900 text-center">
-                                {t('iat.yourResults', 'Your results')}
+                                {t('iat.yourResults', 'Tus resultados')}
                             </h3>
                             <div className="grid grid-cols-2 gap-3">
                                 <div className="bg-white rounded-lg p-3 text-center shadow-sm">
                                     <p className="text-2xl font-bold text-blue-600">{accuracy}%</p>
-                                    <p className="text-xs text-gray-500 mt-1">{t('iat.accuracy', 'Accuracy')}</p>
+                                    <p className="text-xs text-gray-500 mt-1">{t('iat.accuracy', 'Precisión')}</p>
                                 </div>
                                 <div className="bg-white rounded-lg p-3 text-center shadow-sm">
                                     <p className="text-2xl font-bold text-blue-600">{avgRT}<span className="text-sm font-normal">ms</span></p>
-                                    <p className="text-xs text-gray-500 mt-1">{t('iat.avgResponseTime', 'Avg. response time')}</p>
+                                    <p className="text-xs text-gray-500 mt-1">{t('iat.avgResponseTime', 'Tiempo promedio de respuesta')}</p>
                                 </div>
                             </div>
                         </div>
