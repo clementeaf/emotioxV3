@@ -21,7 +21,7 @@ import type { HeatmapSettings } from './HeatmapSettingsModal';
 
 export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: { stimulus: EyeTrackingStimulus; researchId: string; onRefresh: () => void }) => {
   const stimulus = { ...rawStimulus, stimulusUrl: resolveStimulusUrl(rawStimulus.stimulusUrl) };
-  const isShelf = stimulus.modality === 'shelf' && stimulus.shelfUrls && stimulus.shelfUrls.length > 1;
+  const isShelf = stimulus.modality === 'shelf' && stimulus.shelfUrls && stimulus.shelfUrls.length > 0;
   const resolvedShelfUrls = useMemo(
     () => stimulus.shelfUrls?.map(u => resolveStimulusUrl(u)) ?? [],
     [stimulus.shelfUrls],
@@ -131,13 +131,15 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
     let cancelled = false;
     Promise.all(resolvedShelfUrls.map(u => {
       const img = new window.Image();
-      img.crossOrigin = 'anonymous';
+      if (u.startsWith('http')) img.crossOrigin = 'anonymous';
       img.src = u;
       return new Promise<HTMLImageElement>(r => { img.onload = () => r(img); img.onerror = () => r(img); });
     })).then(images => {
-      if (cancelled || images.length === 0) return;
-      const cellW = images[0].naturalWidth || 200;
-      const cellH = images[0].naturalHeight || 200;
+      if (cancelled) return;
+      const validImages = images.filter(i => i.naturalWidth > 0);
+      if (validImages.length === 0) return;
+      const cellW = validImages[0].naturalWidth;
+      const cellH = validImages[0].naturalHeight;
       const canvas = document.createElement('canvas');
       canvas.width = cols * cellW;
       canvas.height = rows * cellH;
@@ -147,7 +149,7 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       const totalCells = rows * cols;
       for (let i = 0; i < totalCells; i++) {
-        const img = images[i % images.length];
+        const img = validImages[i % validImages.length];
         const col = i % cols;
         const row = Math.floor(i / cols);
         ctx.drawImage(img, col * cellW, row * cellH, cellW, cellH);
