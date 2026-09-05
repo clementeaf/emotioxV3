@@ -834,7 +834,7 @@ const computeEyeTrackingMetrics = (
     avgFixationCount,
     heatmapData,
     zoneMass: aggregatedZoneMass,
-    fixations: allFixations,
+    fixations: allFixationsRaw,
     aois,
     participants,
     qualitySummary,

@@ -6,16 +6,22 @@ import type { EyeTrackingStimulus } from '../../../services/analytics.service';
 export const FirstLookOverlay = ({
   imageUrl,
   fixations,
+  excludedParticipants,
 }: {
   imageUrl: string;
   fixations: EyeTrackingStimulus['fixations'];
+  excludedParticipants?: Set<string>;
 }) => {
   const [count, setCount] = useState(1);
 
-  // Extract first N fixations per participant (by lowest timestamp)
+  const includedFixations = useMemo(
+    () => excludedParticipants?.size ? fixations.filter(f => !excludedParticipants.has(f.participantId)) : fixations,
+    [fixations, excludedParticipants],
+  );
+
   const firstFixations = useMemo(() => {
     const byParticipant = new Map<string, typeof fixations>();
-    for (const f of fixations) {
+    for (const f of includedFixations) {
       if (!byParticipant.has(f.participantId)) byParticipant.set(f.participantId, []);
       byParticipant.get(f.participantId)!.push(f);
     }
@@ -25,7 +31,7 @@ export const FirstLookOverlay = ({
       result.push(...sorted.slice(0, count));
     }
     return result;
-  }, [fixations, count]);
+  }, [includedFixations, count]);
 
   const heatmapData = useMemo(
     () => firstFixations.map(f => ({ x: f.x, y: f.y, value: f.duration })),
@@ -33,8 +39,8 @@ export const FirstLookOverlay = ({
   );
 
   const participantCount = useMemo(
-    () => new Set(fixations.map(f => f.participantId)).size,
-    [fixations],
+    () => new Set(includedFixations.map(f => f.participantId)).size,
+    [includedFixations],
   );
 
   return (

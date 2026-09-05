@@ -472,7 +472,7 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
         ) : viewMode === 'transparency' && stimulus.stimulusUrl ? (
           <TransparencyMap imageUrl={stimulus.stimulusUrl} fixations={stimulus.fixations} />
         ) : viewMode === 'firstlook' && stimulus.stimulusUrl ? (
-          <FirstLookOverlay imageUrl={stimulus.stimulusUrl} fixations={stimulus.fixations} />
+          <FirstLookOverlay imageUrl={stimulus.stimulusUrl} fixations={stimulus.fixations} excludedParticipants={excludedParticipants} />
         ) : viewMode === 'scanpath' && stimulus.stimulusUrl ? (
           <ScanpathOverlay
             imageUrl={stimulus.stimulusUrl}
