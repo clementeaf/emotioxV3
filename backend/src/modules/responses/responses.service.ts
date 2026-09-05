@@ -64,9 +64,9 @@ export const save = async (researchId: string, participantId: string, moduleId: 
   return result.rows[0];
 };
 
-export const getByResearch = async (researchId: string) => {
+export const getByResearch = async (researchId: string, limit = 5000, offset = 0) => {
   const query = `
-    SELECT 
+    SELECT
       r.id,
       r.research_id,
       r.participant_id,
@@ -86,8 +86,9 @@ export const getByResearch = async (researchId: string) => {
     LEFT JOIN modules m ON r.module_id = m.id
     WHERE r.research_id = ?
     ORDER BY r.created_at DESC
+    LIMIT ? OFFSET ?
   `;
-  const result = await pool.query(query, [researchId]);
+  const result = await pool.query(query, [researchId, limit, offset]);
   return result.rows;
 };
 

@@ -12,7 +12,10 @@ export const handleResponsesRoutes = async (event: APIGatewayProxyEvent): Promis
         const match = path.match(/^\/responses\/research\/([^\/]+)$/);
         if (match && httpMethod === 'GET') {
             const researchId = match[1];
-            const responses = await responsesService.getByResearch(researchId);
+            const qs = event.queryStringParameters || {};
+            const limit = Math.min(parseInt(qs.limit || '') || 5000, 10000);
+            const offset = parseInt(qs.offset || '') || 0;
+            const responses = await responsesService.getByResearch(researchId, limit, offset);
             return success({ responses }, 200, undefined, origin);
         }
 

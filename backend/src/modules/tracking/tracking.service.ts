@@ -619,7 +619,8 @@ export const getSessionFrictionTags = async (researchId: string) => {
          WHERE ts.research_id = ?
            AND te.metadata IS NOT NULL
            AND JSON_EXTRACT(te.metadata, '$.friction') IS NOT NULL
-         GROUP BY ts.id`,
+         GROUP BY ts.id
+         LIMIT 5000`,
         [researchId]
     );
 
@@ -673,11 +674,10 @@ export const getAttentionHeatmapData = async (
     if (pageUrl) { query += ' AND ts.page_url = ?'; params.push(pageUrl); }
     query += deviceFilter.clause;
     params.push(...deviceFilter.params);
-    query += ' ORDER BY te.session_id, te.timestamp_ms ASC';
+    query += ' ORDER BY te.session_id, te.timestamp_ms ASC LIMIT 500000';
 
     const result = await pool.query(query, params);
 
-    // Band size: 2% of page height (as percentage of viewport width for coordinate system)
     const BAND_PCT = 2;
     const dwellMap = new Map<number, number>(); // bandY → total ms across all sessions
     const sessions = new Set<string>();
@@ -774,7 +774,6 @@ export const getAttentionHeatmapData = async (
 const VISIT_GAP_MS = 30 * 60 * 1000; // 30 min gap = new visit
 
 export const getVisitorJourneys = async (researchId: string, limit = 20, offset = 0) => {
-    // Fetch all sessions with event counts, ordered by time
     const sessionsResult = await pool.query(
         `SELECT ts.id, ts.visitor_id, ts.page_url, ts.page_title,
                 ts.started_at, ts.ended_at, ts.active_duration_ms, ts.rrweb_duration_ms,
@@ -786,7 +785,9 @@ export const getVisitorJourneys = async (researchId: string, limit = 20, offset 
          LEFT JOIN tracking_events te ON te.session_id = ts.id
          WHERE ts.research_id = ?
          GROUP BY ts.id
-         ORDER BY ts.started_at ASC`,
+         HAVING eventCount > 0
+         ORDER BY ts.started_at ASC
+         LIMIT 5000`,
         [researchId]
     );
 
@@ -1076,7 +1077,8 @@ export const getSessionEvents = async (sessionId: string) => {
         `SELECT event_type, x, y, scroll_y, scroll_depth_pct, target_selector, target_text, timestamp_ms, metadata
          FROM tracking_events
          WHERE session_id = ?
-         ORDER BY timestamp_ms ASC`,
+         ORDER BY timestamp_ms ASC
+         LIMIT 50000`,
         [sessionId]
     );
 
@@ -1342,7 +1344,8 @@ export const getExportData = async (researchId: string) => {
         `SELECT id, visitor_id, page_url, page_title, viewport_width, viewport_height,
                 user_agent, referrer, started_at, ended_at
          FROM tracking_sessions WHERE research_id = ?
-         ORDER BY started_at DESC`,
+         ORDER BY started_at DESC
+         LIMIT 10000`,
         [researchId]
     );
 
@@ -1352,7 +1355,8 @@ export const getExportData = async (researchId: string) => {
          FROM tracking_events te
          JOIN tracking_sessions ts ON te.session_id = ts.id
          WHERE ts.research_id = ?
-         ORDER BY te.timestamp_ms ASC`,
+         ORDER BY te.timestamp_ms ASC
+         LIMIT 500000`,
         [researchId]
     );
 
@@ -1530,7 +1534,8 @@ export const getMouseAttentionHeatmapData = async (
 
     let query = `SELECT id, viewport_width, gaze_samples
                  FROM tracking_sessions
-                 WHERE research_id = ? AND gaze_samples IS NOT NULL AND viewport_width > 0`;
+                 WHERE research_id = ? AND gaze_samples IS NOT NULL AND viewport_width > 0
+                 ORDER BY started_at DESC`;
     const params: unknown[] = [researchId];
 
     if (pageUrl) {
@@ -1539,6 +1544,7 @@ export const getMouseAttentionHeatmapData = async (
     }
     query += deviceFilter.clause;
     params.push(...deviceFilter.params);
+    query += ' LIMIT 500';
 
     const result = await pool.query(query, params);
     const rows = result.rows as Array<{
