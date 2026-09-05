@@ -258,7 +258,8 @@ export const EmotionPanel = ({ emotions }: { emotions: EmotionAggregation }) => 
     return (
       <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
         <SmilePlus className="h-8 w-8 text-gray-300 mx-auto mb-2" />
-        <p className="text-sm text-gray-500">Enable Emotion Recognition in the Eye Tracking stage to capture facial expressions.</p>
+        <p className="text-sm text-gray-500">No se detectaron emociones en las respuestas registradas.</p>
+        <p className="text-xs text-gray-400 mt-1">Las nuevas respuestas capturarán datos de expresiones faciales automáticamente.</p>
       </div>
     );
   }
