@@ -526,7 +526,7 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
         ) : viewMode === 'emotions' ? (
           <EmotionPanel emotions={stimulus.emotions} />
         ) : viewMode === 'prediction' ? (
-          <PredictionPanel stimulus={stimulus} researchId={researchId} onPredictionComplete={onRefresh} />
+          <PredictionPanel stimulus={stimulus} researchId={researchId} onPredictionComplete={onRefresh} displayImageUrl={effectiveStimulusUrl} />
         ) : stimulus.stimulusUrl ? (
           <div ref={setImageContainerRef} className="w-fit mx-auto relative">
             {viewMode === 'heatmap' && hasHeatData ? (

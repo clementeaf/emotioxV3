@@ -8,10 +8,12 @@ export const PredictionPanel = ({
   stimulus,
   researchId,
   onPredictionComplete,
+  displayImageUrl,
 }: {
   stimulus: EyeTrackingStimulus & { stimulusUrl: string };
   researchId: string;
   onPredictionComplete: () => void;
+  displayImageUrl?: string;
 }) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -46,7 +48,7 @@ export const PredictionPanel = ({
           </button>
         </div>
         <HeatmapRenderer
-          imageUrl={stimulus.stimulusUrl}
+          imageUrl={displayImageUrl || stimulus.stimulusUrl}
           data={stimulus.predictionHeatmap.map(p => ({ x: p.x, y: p.y, value: p.value }))}
           className="w-full"
         />
