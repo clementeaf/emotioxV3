@@ -1,14 +1,56 @@
-## v0.96.2 — IAT Objects Comparing analytics fix + i18n español (2026-09-05)
+## v0.96.2 — IAT analytics fix, ET shelf heatmap, quality gate, pagination (2026-09-05)
 
 ### fix: IAT Objects Comparing results not registering
 - **Root cause.** Participant-frontend was rewritten in v0.95.1 from 7-block Greenwald to 2 blocks (`block-1` = practice, `block-2` = test). Backend analytics still looked for `block-3/4/6/7` — found 0 trials — returned empty scores.
-- **Fix.** Removed dead 7-block logic from `computeIATScores`, `computeIATParticipantData`, `computeIATErrorAnalysis`, `computeRTDistribution`, and `computeCriteriaScores`. All functions now universally exclude `block-1` (practice). Objects Comparing uses the same RT-based scoring as other paradigms. D-score limited to Attribute Testing (the only paradigm with congruent/incongruent via targetId assignment).
+- **Fix.** Removed dead 7-block logic. All functions now universally exclude `block-1` (practice). Objects Comparing uses the same RT-based scoring as other paradigms. D-score limited to Attribute Testing. Backward compat: legacy 7-block data auto-detected and scored with Greenwald method.
 
 ### feat: IAT category labels visible during priming and trial
-- Persistent `A = Category` / `L = Category` labels at top of screen during priming phase and trial phase. Participants always know which side maps to which category.
+- Persistent `A = Category` / `L = Category` labels at top of screen during priming phase and trial phase.
 
 ### fix: IAT participant-frontend text translated to Spanish
 - All `t()` fallback strings translated: intro, take-note, complete, results, not-configured.
+
+### feat: customizable IAT chart colors
+- Color picker inputs above each IAT chart. Researchers change bar/radar colors in real time. Persisted in localStorage per module ID.
+
+### feat: ET shelf heatmap renders over full gondola grid
+- Backend sends all shelf image URLs (`shelfUrls`). Frontend composites them into a single canvas image matching the shelf layout. All tabs (Heat map, Density, Scan Path, First Look, Transparency, Prediction, Image) render over the composite shelf image.
+
+### fix: ET Density tab uses real fixation data
+- Density tab now shows fixation count density from real participant data instead of V3 probabilistic model. V3 kept as fallback.
+
+### fix: ET Heat map reacts to quality gate checkboxes
+- Heat map, Density, First Look, Transparency tabs all filter by `excludedParticipants`. Including/excluding participants via checkboxes updates visualizations in real time.
+
+### feat: ET quality gate select-all checkbox
+- "Include" column header has checkbox to select/deselect all participants. Indeterminate state for partial selection.
+
+### fix: ET First Look and Transparency show all participants
+- Backend now sends all fixations (including low-quality) so frontend quality gate controls inclusion. Low-quality excluded by default but toggleable.
+
+### fix: ET Scan Path fills stimulus image
+- Image constrained to `max-h-60vh` with `inline-block` container. SVG overlay uses `xMidYMid meet`.
+
+### fix: face-api.js emotion recognition not capturing
+- **Root cause.** `face_landmark_68_model.bin` missing from `participant-frontend/public/models/`. Only `-shard1` variant existed. Deploy rsync `--delete` overwrote prior server fix.
+- **Fix.** Committed `.bin` file to repo. Emotion recognition now works for new ET responses.
+
+### fix: unbounded database queries paginated
+- `responses.getByResearch`: LIMIT 5000 + offset pagination.
+- `tracking.getExportData`: sessions LIMIT 10000, events LIMIT 500000.
+- `tracking.getSessionEvents`: LIMIT 50000 per session.
+- `tracking.getAttentionHeatmapData`: LIMIT 500000.
+- `tracking.getMouseAttentionHeatmapData`: LIMIT 500 sessions.
+- `tracking.getVisitorJourneys`: LIMIT 5000 sessions.
+- `tracking.getSessionFrictionTags`: LIMIT 5000.
+
+### quality
+- **TypeScript strict** — 0 errors, 0 warnings in all 3 subprojects.
+- **Builds** — all 3 subprojects build successfully.
+
+---
+
+## v0.96.1 — ET heatmap + AOI move/resize + calibration table + Fly.io predict (2026-09-03)
 
 ---
 
