@@ -470,7 +470,7 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
         ) : viewMode === 'sequence' && stimulus.sequenceAnalysis ? (
           <SequencePanel sequenceAnalysis={stimulus.sequenceAnalysis} />
         ) : viewMode === 'transparency' && stimulus.stimulusUrl ? (
-          <TransparencyMap imageUrl={stimulus.stimulusUrl} fixations={stimulus.fixations} />
+          <TransparencyMap imageUrl={stimulus.stimulusUrl} fixations={stimulus.fixations} excludedParticipants={excludedParticipants} />
         ) : viewMode === 'firstlook' && stimulus.stimulusUrl ? (
           <FirstLookOverlay imageUrl={stimulus.stimulusUrl} fixations={stimulus.fixations} excludedParticipants={excludedParticipants} />
         ) : viewMode === 'scanpath' && stimulus.stimulusUrl ? (

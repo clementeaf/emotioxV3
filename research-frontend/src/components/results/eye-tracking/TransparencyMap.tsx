@@ -1,13 +1,20 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import type { EyeTrackingStimulus } from '../../../services/analytics.service';
 
 export const TransparencyMap = ({
   imageUrl,
   fixations,
+  excludedParticipants,
 }: {
   imageUrl: string;
   fixations: EyeTrackingStimulus['fixations'];
+  excludedParticipants?: Set<string>;
 }) => {
+  const includedFixations = useMemo(
+    () => excludedParticipants?.size ? fixations.filter(f => !excludedParticipants.has(f.participantId)) : fixations,
+    [fixations, excludedParticipants],
+  );
+
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [blurAmount, setBlurAmount] = useState(20);
   const [revealRadius, setRevealRadius] = useState(40);
@@ -39,7 +46,7 @@ export const TransparencyMap = ({
     renderTimerRef.current = setTimeout(() => renderTransparency(img), 80);
     return () => { if (renderTimerRef.current) clearTimeout(renderTimerRef.current); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fixations, blurAmount, revealRadius]);
+  }, [includedFixations, blurAmount, revealRadius]);
 
   const renderTransparency = useCallback((img: HTMLImageElement) => {
     const canvas = canvasRef.current;
@@ -73,7 +80,7 @@ export const TransparencyMap = ({
     offCtx.drawImage(img, 0, 0, w, h);
 
     // Only rebuild mask when fixations or revealRadius change (not blur)
-    const maskKey = `${fixations.length}-${revealRadius}`;
+    const maskKey = `${includedFixations.length}-${revealRadius}`;
     if (!maskRef.current || maskRef.current.width !== w || maskRef.current.height !== h) {
       maskRef.current = document.createElement('canvas');
       maskRef.current.width = w;
@@ -87,11 +94,11 @@ export const TransparencyMap = ({
       maskCtx.clearRect(0, 0, w, h);
 
       // Fixations are in percent (0-100) — convert to canvas pixels
-      const maxCoord = Math.max(...fixations.map(f => Math.max(f.x, f.y)), 1);
+      const maxCoord = Math.max(...includedFixations.map(f => Math.max(f.x, f.y)), 1);
       const isPercent = maxCoord <= 100;
 
-      const maxDur = Math.max(...fixations.map(f => f.duration), 1);
-      for (const fix of fixations) {
+      const maxDur = Math.max(...includedFixations.map(f => f.duration), 1);
+      for (const fix of includedFixations) {
         const fx = isPercent ? (fix.x / 100) * w : fix.x;
         const fy = isPercent ? (fix.y / 100) * h : fix.y;
         const baseR = (revealRadius / 100) * Math.min(w, h) * 0.1;
@@ -114,7 +121,7 @@ export const TransparencyMap = ({
 
     // Composite revealed areas onto blurred base
     ctx.drawImage(offscreenRef.current, 0, 0);
-  }, [fixations, blurAmount, revealRadius]);
+  }, [includedFixations, blurAmount, revealRadius]);
 
   return (
     <div>
@@ -143,7 +150,7 @@ export const TransparencyMap = ({
           />
           <span className="text-xs text-gray-400 w-8">{revealRadius}%</span>
         </label>
-        <span className="text-xs text-gray-400">{fixations.length} fixations</span>
+        <span className="text-xs text-gray-400">{includedFixations.length} fixations</span>
       </div>
       <div className="rounded-lg overflow-hidden border bg-gray-100">
         <canvas
