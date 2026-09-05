@@ -27,7 +27,7 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
   const hasV3Temporal = hasV3 && stimulus.v3Heatmap?.hasTemporalData;
   const hasHeatData = hasZoneMass || stimulus.heatmapData.length > 0 || hasV3;
   const hasVideoGaze = isVideo && stimulus.gazeTimeline && stimulus.gazeTimeline.length > 0;
-  const defaultViewMode: ViewMode = hasVideoGaze ? 'video' : hasV3 ? 'density' : 'heatmap';
+  const defaultViewMode: ViewMode = hasVideoGaze ? 'video' : 'heatmap';
   const [viewMode, setViewMode] = useState<ViewMode>(defaultViewMode);
   const [densityMode, setDensityMode] = useState<'density' | 'firstlook' | 'peak'>('density');
   const [imageContainerRef, setImageContainerRef] = useState<HTMLDivElement | null>(null);
@@ -93,6 +93,30 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
     if (!base64) return [];
     return decodeGridToPoints(base64, v3.cols, v3.rows, v3.cellW, v3.cellH, 0);
   }, [stimulus.v3Heatmap, densityMode, decodeGridToPoints]);
+
+  const fixationDensityPoints = useMemo(() => {
+    if (stimulus.fixations.length === 0) return [];
+    const cellSize = 2;
+    const grid = new Map<string, number>();
+    for (const f of stimulus.fixations) {
+      if (excludedParticipants.has(f.participantId)) continue;
+      const col = Math.floor(f.x / cellSize);
+      const row = Math.floor(f.y / cellSize);
+      const key = `${col},${row}`;
+      grid.set(key, (grid.get(key) ?? 0) + 1);
+    }
+    let max = 0;
+    for (const v of grid.values()) if (v > max) max = v;
+    if (max === 0) return [];
+    const points: Array<{ x: number; y: number; value: number }> = [];
+    for (const [key, count] of grid) {
+      const [c, r] = key.split(',').map(Number);
+      points.push({ x: (c + 0.5) * cellSize, y: (r + 0.5) * cellSize, value: count / max });
+    }
+    return points;
+  }, [stimulus.fixations, excludedParticipants]);
+
+  const hasRealDensity = fixationDensityPoints.length > 0;
 
   const handleDownload = useCallback(async () => {
     if (!imageContainerRef) return;
@@ -163,7 +187,24 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
                     <th className="text-center py-1.5 px-2 font-medium text-gray-600">Integrity</th>
                     <th className="text-center py-1.5 px-2 font-medium text-gray-600">Fixations</th>
                     <th className="text-center py-1.5 px-2 font-medium text-gray-600">Dwell</th>
-                    <th className="text-center py-1.5 px-2 font-medium text-gray-600">Include</th>
+                    <th className="text-center py-1.5 px-2 font-medium text-gray-600">
+                      <label className="flex items-center justify-center gap-1 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={excludedParticipants.size === 0}
+                          ref={el => { if (el) el.indeterminate = excludedParticipants.size > 0 && excludedParticipants.size < stimulus.participants.length; }}
+                          onChange={() => {
+                            setExcludedParticipants(prev =>
+                              prev.size === 0
+                                ? new Set(stimulus.participants.map(p => p.participantId))
+                                : new Set()
+                            );
+                          }}
+                          className="h-3.5 w-3.5 rounded border-gray-300 text-blue-600"
+                        />
+                        Include
+                      </label>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -236,7 +277,7 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
             icon={<Eye className="h-4 w-4" />}
             label="Heat map"
           />
-          {hasV3 && (
+          {(hasRealDensity || hasV3) && (
             <ViewModeTab
               active={viewMode === 'density'}
               onClick={() => setViewMode('density')}
@@ -346,61 +387,83 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
             ? { width: stimulusSize.width, height: stimulusSize.height }
             : undefined}
         >
-        {viewMode === 'density' && hasV3 && stimulus.stimulusUrl ? (
+        {viewMode === 'density' && stimulus.stimulusUrl ? (
           <div ref={setImageContainerRef} className="w-fit mx-auto relative">
-            {hasV3Temporal && (
-              <div className="flex items-center gap-1 mb-3">
-                {(['density', 'firstlook', 'peak'] as const).map(mode => (
-                  <button
-                    key={mode}
-                    onClick={() => setDensityMode(mode)}
-                    className={`text-xs px-2.5 py-1 rounded-md border transition-colors ${
-                      densityMode === mode
-                        ? 'bg-blue-50 border-blue-300 text-blue-700 font-medium'
-                        : 'bg-white border-gray-200 text-slate-500 hover:bg-gray-50'
-                    }`}
-                  >
-                    {mode === 'density' ? 'Density' : mode === 'firstlook' ? 'First Look' : 'Peak Time'}
-                  </button>
-                ))}
-              </div>
-            )}
-            <HeatmapRenderer
-              imageUrl={stimulus.stimulusUrl}
-              data={densityMode === 'density' || !hasV3Temporal ? v3HeatmapPoints : v3TemporalPoints}
-              coordSystem="percent"
-              blur={heatmapSettings.blur}
-              opacity={heatmapSettings.opacity}
-              threshold={heatmapSettings.threshold}
-              className="w-full"
-            />
-            <div className="flex items-center justify-between mt-2 text-xs text-gray-400">
-              <span>
-                V3 {densityMode === 'density' ? 'probabilistic' : densityMode === 'firstlook' ? 'first look (temporal)' : 'peak attention (temporal)'}
-                {' · '}{stimulus.v3Heatmap!.participantCount} participant{stimulus.v3Heatmap!.participantCount !== 1 ? 's' : ''}
-                · confidence {(stimulus.v3Heatmap!.avgConfidence * 100).toFixed(0)}%
-              </span>
-              <span>
-                {stimulus.v3Heatmap!.totalMassS.toFixed(1)}s total · coverage {(stimulus.v3Heatmap!.avgSpatialCoverage * 100).toFixed(0)}%
-              </span>
-            </div>
-            {/* V3 AOI metrics */}
-            {stimulus.v3Heatmap!.aoiMetrics.length > 0 && (
-              <div className="mt-3 space-y-1.5">
-                <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Probabilistic AOI Attention</h4>
-                {stimulus.v3Heatmap!.aoiMetrics.map(aoi => (
-                  <div key={aoi.aoiId} className="flex items-center justify-between text-sm bg-gray-50 rounded px-3 py-1.5">
-                    <span className="font-medium text-gray-700">{aoi.label}</span>
-                    <div className="flex gap-4 text-xs text-gray-500">
-                      <span>{aoi.totalDwellS.toFixed(1)}s dwell</span>
-                      <span>{(aoi.avgAttentionShare * 100).toFixed(0)}% share</span>
-                      {aoi.earliestFirstAttentionMs !== null && (
-                        <span>TTFA {(aoi.earliestFirstAttentionMs / 1000).toFixed(1)}s</span>
-                      )}
-                      <span>{aoi.participantCount} participant{aoi.participantCount !== 1 ? 's' : ''}</span>
-                    </div>
+            {hasRealDensity ? (
+              <>
+                <HeatmapRenderer
+                  imageUrl={stimulus.stimulusUrl}
+                  data={fixationDensityPoints}
+                  coordSystem="percent"
+                  blur={heatmapSettings.blur}
+                  opacity={heatmapSettings.opacity}
+                  threshold={heatmapSettings.threshold}
+                  className="w-full"
+                />
+                <div className="mt-2 text-xs text-gray-400">
+                  Fixation density · {stimulus.fixations.length - [...excludedParticipants].reduce((n, pid) => n + stimulus.fixations.filter(f => f.participantId === pid).length, 0)} fixations · {stimulus.uniqueParticipants - excludedParticipants.size} participants
+                </div>
+              </>
+            ) : hasV3 ? (
+              <>
+                {hasV3Temporal && (
+                  <div className="flex items-center gap-1 mb-3">
+                    {(['density', 'firstlook', 'peak'] as const).map(mode => (
+                      <button
+                        key={mode}
+                        onClick={() => setDensityMode(mode)}
+                        className={`text-xs px-2.5 py-1 rounded-md border transition-colors ${
+                          densityMode === mode
+                            ? 'bg-blue-50 border-blue-300 text-blue-700 font-medium'
+                            : 'bg-white border-gray-200 text-slate-500 hover:bg-gray-50'
+                        }`}
+                      >
+                        {mode === 'density' ? 'Density' : mode === 'firstlook' ? 'First Look' : 'Peak Time'}
+                      </button>
+                    ))}
                   </div>
-                ))}
+                )}
+                <HeatmapRenderer
+                  imageUrl={stimulus.stimulusUrl}
+                  data={densityMode === 'density' || !hasV3Temporal ? v3HeatmapPoints : v3TemporalPoints}
+                  coordSystem="percent"
+                  blur={heatmapSettings.blur}
+                  opacity={heatmapSettings.opacity}
+                  threshold={heatmapSettings.threshold}
+                  className="w-full"
+                />
+                <div className="flex items-center justify-between mt-2 text-xs text-gray-400">
+                  <span>
+                    V3 {densityMode === 'density' ? 'probabilistic' : densityMode === 'firstlook' ? 'first look (temporal)' : 'peak attention (temporal)'}
+                    {' · '}{stimulus.v3Heatmap!.participantCount} participant{stimulus.v3Heatmap!.participantCount !== 1 ? 's' : ''}
+                    · confidence {(stimulus.v3Heatmap!.avgConfidence * 100).toFixed(0)}%
+                  </span>
+                  <span>
+                    {stimulus.v3Heatmap!.totalMassS.toFixed(1)}s total · coverage {(stimulus.v3Heatmap!.avgSpatialCoverage * 100).toFixed(0)}%
+                  </span>
+                </div>
+                {stimulus.v3Heatmap!.aoiMetrics.length > 0 && (
+                  <div className="mt-3 space-y-1.5">
+                    <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Probabilistic AOI Attention</h4>
+                    {stimulus.v3Heatmap!.aoiMetrics.map(aoi => (
+                      <div key={aoi.aoiId} className="flex items-center justify-between text-sm bg-gray-50 rounded px-3 py-1.5">
+                        <span className="font-medium text-gray-700">{aoi.label}</span>
+                        <div className="flex gap-4 text-xs text-gray-500">
+                          <span>{aoi.totalDwellS.toFixed(1)}s dwell</span>
+                          <span>{(aoi.avgAttentionShare * 100).toFixed(0)}% share</span>
+                          {aoi.earliestFirstAttentionMs !== null && (
+                            <span>TTFA {(aoi.earliestFirstAttentionMs / 1000).toFixed(1)}s</span>
+                          )}
+                          <span>{aoi.participantCount} participant{aoi.participantCount !== 1 ? 's' : ''}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="rounded-lg bg-gray-100 border border-gray-200 h-64 flex items-center justify-center">
+                <p className="text-sm text-gray-400">No density data available</p>
               </div>
             )}
           </div>
