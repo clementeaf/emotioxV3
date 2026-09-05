@@ -501,6 +501,7 @@ export interface EyeTrackingStimulus {
     modality: 'stand_alone' | 'shelf';
     shelfCount?: number;
     shelfItems?: number;
+    shelfUrls?: string[];
     taskDescription: string;
     totalResponses: number;
     uniqueParticipants: number;

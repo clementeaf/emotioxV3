@@ -227,6 +227,7 @@ const extractEyeTrackingConfig = (config: any) => {
 
   // Find stimulus image URL — canonical ID: 'stimuli', fallback to known IDs
   let stimulusUrl = '';
+  const shelfUrls: string[] = [];
   const fileUploadComp = components.find((c: any) =>
     c.id === 'stimuli' || c.type === 'file-upload' || c.id === 'stimulus-image' || c.id === 'image' || c.id === 'stimulus'
   );
@@ -234,13 +235,15 @@ const extractEyeTrackingConfig = (config: any) => {
     try {
       const parsed = typeof fileUploadComp.value === 'string' ? JSON.parse(fileUploadComp.value) : fileUploadComp.value;
       if (Array.isArray(parsed) && parsed.length > 0) {
-        // Prefer url (already resolved), fallback to s3Key (needs getMediaUrl)
         stimulusUrl = parsed[0].url || (parsed[0].s3Key ? getMediaUrl(parsed[0].s3Key) : '');
+        for (const item of parsed) {
+          const url = item.url || (item.s3Key ? getMediaUrl(item.s3Key) : '');
+          if (url) shelfUrls.push(url);
+        }
       } else if (typeof parsed === 'string') {
         stimulusUrl = parsed;
       }
     } catch {
-      // Not JSON — use raw value as URL
       stimulusUrl = fileUploadComp.value;
     }
   }
@@ -294,7 +297,7 @@ const extractEyeTrackingConfig = (config: any) => {
   const emotionComp = components.find((c: any) => c.id === 'emotion-recognition');
   const hasEmotionRecognition = emotionComp ? String(emotionComp.value) === 'true' : true;
 
-  return { stimulusUrl, modality, taskDescription, configAois, hasEmotionRecognition, shelfCount, shelfItems };
+  return { stimulusUrl, shelfUrls, modality, taskDescription, configAois, hasEmotionRecognition, shelfCount, shelfItems };
 };
 
 /**
@@ -1048,7 +1051,7 @@ export const getEyeTrackingResults = async (researchId: string, filterStageId?: 
       config = typeof mod.config === 'string' ? JSON.parse(mod.config) : mod.config;
     } catch { /* ignore */ }
 
-    const { stimulusUrl, modality, taskDescription, configAois, hasEmotionRecognition, shelfCount, shelfItems } = extractEyeTrackingConfig(config);
+    const { stimulusUrl, shelfUrls, modality, taskDescription, configAois, hasEmotionRecognition, shelfCount, shelfItems } = extractEyeTrackingConfig(config);
 
     // 3. Get responses for this module (component_id = 'eye-tracking-data')
     const responsesQuery = `
@@ -1114,7 +1117,7 @@ export const getEyeTrackingResults = async (researchId: string, filterStageId?: 
       moduleName: mod.name,
       stimulusUrl,
       modality,
-      ...(modality === 'shelf' && { shelfCount, shelfItems }),
+      ...(modality === 'shelf' && { shelfCount, shelfItems, shelfUrls }),
       taskDescription,
       totalResponses: responsesResult.rows.length,
       ...metrics,
