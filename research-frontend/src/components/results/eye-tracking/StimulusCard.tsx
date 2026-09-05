@@ -30,7 +30,7 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
   const hasZoneMass = stimulus.zoneMass && Object.values(stimulus.zoneMass).some(v => v > 0);
   const hasV3 = !!stimulus.v3Heatmap;
   const hasV3Temporal = hasV3 && stimulus.v3Heatmap?.hasTemporalData;
-  const hasHeatData = hasZoneMass || stimulus.heatmapData.length > 0 || hasV3;
+  const hasHeatData = hasZoneMass || stimulus.heatmapData.length > 0 || stimulus.fixations.length > 0 || hasV3;
   const hasVideoGaze = isVideo && stimulus.gazeTimeline && stimulus.gazeTimeline.length > 0;
   const defaultViewMode: ViewMode = hasVideoGaze ? 'video' : 'heatmap';
   const [viewMode, setViewMode] = useState<ViewMode>(defaultViewMode);
@@ -122,6 +122,14 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
   }, [stimulus.fixations, excludedParticipants]);
 
   const hasRealDensity = fixationDensityPoints.length > 0;
+
+  const filteredHeatmapData = useMemo(() => {
+    const src = stimulus.fixations.length > 0 ? stimulus.fixations : [];
+    if (src.length === 0) return stimulus.heatmapData.map(p => ({ x: p.x, y: p.y, value: p.duration }));
+    return src
+      .filter(f => !excludedParticipants.has(f.participantId))
+      .map(f => ({ x: f.x, y: f.y, value: f.duration }));
+  }, [stimulus.fixations, stimulus.heatmapData, excludedParticipants]);
 
   const [shelfCompositeUrl, setShelfCompositeUrl] = useState<string | null>(null);
   useEffect(() => {
@@ -530,10 +538,10 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
         ) : stimulus.stimulusUrl ? (
           <div ref={setImageContainerRef} className="w-fit mx-auto relative">
             {viewMode === 'heatmap' && hasHeatData ? (
-              stimulus.heatmapData.length > 0 ? (
+              filteredHeatmapData.length > 0 ? (
                 <HeatmapRenderer
                   imageUrl={effectiveStimulusUrl}
-                  data={stimulus.heatmapData.map(p => ({ x: p.x, y: p.y, value: p.duration }))}
+                  data={filteredHeatmapData}
                   coordSystem="percent"
                   blur={heatmapSettings.blur}
                   opacity={heatmapSettings.opacity}
@@ -601,7 +609,7 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
       {showSettings && stimulus.stimulusUrl && (
         <HeatmapSettingsModal
           imageUrl={effectiveStimulusUrl}
-          heatmapData={stimulus.heatmapData.map(p => ({ x: p.x, y: p.y, value: p.duration }))}
+          heatmapData={filteredHeatmapData}
           settings={heatmapSettings}
           coordSystem="percent"
           onApply={setHeatmapSettings}
