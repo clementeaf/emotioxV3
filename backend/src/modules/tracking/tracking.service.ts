@@ -606,31 +606,72 @@ export const getFrictionSummary = async (researchId: string) => {
         } catch { /* skip */ }
     }
 
-    return { tags };
+    const detailResult = await pool.query(
+        `SELECT
+            JSON_UNQUOTE(JSON_EXTRACT(te.metadata, '$.friction')) as friction_type,
+            te.target_selector,
+            te.target_text,
+            COUNT(*) as cnt
+         FROM tracking_events te
+         JOIN tracking_sessions ts ON te.session_id = ts.id
+         WHERE ts.research_id = ?
+           AND te.metadata IS NOT NULL
+           AND JSON_EXTRACT(te.metadata, '$.friction') IS NOT NULL
+           AND te.target_selector IS NOT NULL
+         GROUP BY friction_type, te.target_selector, te.target_text
+         ORDER BY cnt DESC
+         LIMIT 50`,
+        [researchId]
+    );
+
+    const topElements: Record<string, Array<{ selector: string; text: string; count: number }>> = {};
+    for (const row of detailResult.rows as Array<Record<string, unknown>>) {
+        const frictionType = row.friction_type as string;
+        if (!topElements[frictionType]) topElements[frictionType] = [];
+        topElements[frictionType].push({
+            selector: row.target_selector as string,
+            text: ((row.target_text as string) || '').substring(0, 120),
+            count: Number(row.cnt),
+        });
+    }
+
+    return { tags, topElements };
 };
 
 export const getSessionFrictionTags = async (researchId: string) => {
     const result = await pool.query(
         `SELECT
             ts.id as session_id,
-            GROUP_CONCAT(DISTINCT JSON_UNQUOTE(JSON_EXTRACT(te.metadata, '$.friction'))) as friction_tags
+            ts.visitor_id,
+            GROUP_CONCAT(DISTINCT JSON_UNQUOTE(JSON_EXTRACT(te.metadata, '$.friction'))) as friction_tags,
+            COUNT(te.id) as friction_count
          FROM tracking_sessions ts
          JOIN tracking_events te ON te.session_id = ts.id
          WHERE ts.research_id = ?
            AND te.metadata IS NOT NULL
            AND JSON_EXTRACT(te.metadata, '$.friction') IS NOT NULL
-         GROUP BY ts.id
+         GROUP BY ts.id, ts.visitor_id
          LIMIT 5000`,
         [researchId]
     );
 
-    const sessionTags = new Map<string, string[]>();
+    const sessions: Array<{ sessionId: string; visitorId: string; tags: string[]; count: number }> = [];
     for (const row of result.rows as Array<Record<string, unknown>>) {
         const tags = (row.friction_tags as string || '').split(',').filter(Boolean);
-        if (tags.length > 0) sessionTags.set(row.session_id as string, tags);
+        if (tags.length > 0) {
+            sessions.push({
+                sessionId: row.session_id as string,
+                visitorId: row.visitor_id as string,
+                tags,
+                count: Number(row.friction_count),
+            });
+        }
     }
 
-    return { sessionTags: Object.fromEntries(sessionTags) };
+    const sessionTags: Record<string, string[]> = {};
+    for (const s of sessions) sessionTags[s.sessionId] = s.tags;
+
+    return { sessionTags, sessions };
 };
 
 export const getPageSnapshotHtml = async (researchId: string, pageUrl: string): Promise<string | null> => {

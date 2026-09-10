@@ -287,12 +287,35 @@ export const getExportData = async (researchId: string): Promise<ExportData> => 
 
 // ─── Friction ───────────────────────────────────────────────────────
 
-export const getFrictionSummary = async (researchId: string): Promise<{ tags: Record<string, number> }> => {
-    return apiClient.get<{ tags: Record<string, number> }>(`/tracking/${researchId}/friction`);
+export interface FrictionElement {
+    selector: string;
+    text: string;
+    count: number;
+}
+
+export interface FrictionSummary {
+    tags: Record<string, number>;
+    topElements?: Record<string, FrictionElement[]>;
+}
+
+export const getFrictionSummary = async (researchId: string): Promise<FrictionSummary> => {
+    return apiClient.get<FrictionSummary>(`/tracking/${researchId}/friction`);
 };
 
-export const getSessionFrictionTags = async (researchId: string): Promise<{ sessionTags: Record<string, string[]> }> => {
-    return apiClient.get<{ sessionTags: Record<string, string[]> }>(`/tracking/${researchId}/friction/sessions`);
+export interface FrictionSession {
+    sessionId: string;
+    visitorId: string;
+    tags: string[];
+    count: number;
+}
+
+export interface FrictionSessionsData {
+    sessionTags: Record<string, string[]>;
+    sessions?: FrictionSession[];
+}
+
+export const getSessionFrictionTags = async (researchId: string): Promise<FrictionSessionsData> => {
+    return apiClient.get<FrictionSessionsData>(`/tracking/${researchId}/friction/sessions`);
 };
 
 // ─── Page Snapshot ──────────────────────────────────────────────────
