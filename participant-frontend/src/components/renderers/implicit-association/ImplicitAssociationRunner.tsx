@@ -292,7 +292,7 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
 
     if (phase === 'priming' && currentTrial) {
         return (
-            <div className="flex flex-col items-center justify-center h-[500px] relative">
+            <div className="flex flex-col items-center h-[500px] px-4 select-none">
                 {currentBlock && (
                     <>
                         <StepProgressPill step={currentBlock.step} total={totalBlocks} percent={blockProgress} />
@@ -302,7 +302,7 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
                         </div>
                     </>
                 )}
-                <div className="flex flex-col items-center justify-center h-[200px] mt-8 gap-2">
+                <div className="flex flex-col items-center justify-center h-[200px] my-8 gap-2">
                     {currentTrial.primingLabel ? (
                         currentTrial.primingImage ? (
                             <img
@@ -319,6 +319,10 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
                         <span className="text-5xl font-bold text-gray-400 select-none">+</span>
                     )}
                 </div>
+                <div className="flex gap-4 w-full max-w-lg invisible" aria-hidden="true">
+                    <div className="flex-1 py-4 text-lg">&nbsp;</div>
+                    <div className="flex-1 py-4 text-lg">&nbsp;</div>
+                </div>
             </div>
         );
     }
@@ -329,7 +333,7 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
 
     if (phase === 'trial' && currentTrial && currentBlock) {
         return (
-            <div className="flex flex-col items-center justify-center h-[500px] px-4 select-none">
+            <div className="flex flex-col items-center h-[500px] px-4 select-none">
                 <StepProgressPill step={currentBlock.step} total={totalBlocks} percent={blockProgress} />
 
                 <div className="flex justify-between w-full max-w-lg mt-4 px-4">
