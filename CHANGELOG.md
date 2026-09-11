@@ -1,3 +1,49 @@
+## v0.96.3 — UI polish: results layout, charts, dashboard consistency (2026-09-11)
+
+### fix: Screener results layout
+- Right column (3 status cards + weekly chart) now matches left card height via flexbox. Weekly chart fills remaining space.
+- Removed banner "1.0.- Screener" and subtitle. Filters aligned to content top.
+- Cards use `rounded-lg shadow-none` to match Filters styling.
+
+### fix: IAT Reaction Time Distribution box plot rendering
+- **Root cause.** SVG used `viewBox="0 0 100 ${svgH}"` with `preserveAspectRatio="none"` — squashed Y axis, invisible strokes (0.3px), unreadable text (3px).
+- **Fix.** Removed viewBox. X coordinates use percentage, Y in real px. Normal stroke widths and font sizes.
+
+### fix: IAT Comparing Attribute association bands
+- Replaced raw `<svg><rect>` with Recharts `ReferenceArea` — bands now render inside plot area only.
+- Saturated band colors (`#86EFAC`, `#FDE047`, `#FCA5A5`) + higher opacity (0.45).
+- Toggleable bands: click pill to show/hide each association zone individually.
+
+### feat: IAT Comparing Attribute toggleable chart series
+- Bar chart and Radar chart share `visibleTargets` state — click target pills to show/hide series in both charts.
+- Replaced Recharts `Legend` with custom toggle pills (same style as band toggles).
+
+### fix: IAT color picker square overflow
+- Color swatch is now a styled `<span>` with hidden `input[type="color"]` — clean borders, no native chrome overflow.
+
+### fix: IAT header banner removed
+- Removed "3.0.- Implicit Association" banner with Export button.
+
+### fix: ET stimulus image size consistency across sub-tabs
+- Container uses fixed width from `stimulusSize` across all view modes. No more size jumps when switching tabs.
+- ScanpathOverlay: removed `inline-block max-h-[60vh]` — uses parent width.
+- Image scale cap raised from 1.0 to 1.2 (20% larger), maxH 60→72vh, maxW 1000→1200px.
+
+### fix: Research Tracking action labels
+- **Root cause.** Backend sends `research.active`, `research.completed` etc. Frontend displayed raw values.
+- **Fix.** `ACTION_CONFIG` maps full action strings to friendly labels (Active, Completed, etc.) with correct badge colors.
+
+### fix: Dashboard input heights
+- Search input and date pickers now use `h-10 text-sm` — same height as CustomSelect dropdowns.
+
+### fix: Dashboard border visibility
+- Summary cards and table wrapper: `border-gray-100` → `border-gray-200`.
+
+### quality
+- **TypeScript strict** — 0 errors, 0 warnings in all 3 subprojects.
+
+---
+
 ## v0.96.2 — IAT analytics fix, ET shelf heatmap, quality gate, pagination (2026-09-05)
 
 ### fix: IAT Objects Comparing results not registering

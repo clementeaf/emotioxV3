@@ -4,12 +4,20 @@ import { researchService, type ResearchActivity } from '../../services/research.
 import { ResearchDetailDrawer } from '../../components/tracking/ResearchDetailDrawer';
 import { CustomSelect } from '../../components/ui/CustomSelect';
 
-const ACTION_STYLES: Record<string, { bg: string; text: string }> = {
-    created:   { bg: 'bg-emerald-50', text: 'text-emerald-700' },
-    updated:   { bg: 'bg-blue-50',    text: 'text-blue-700' },
-    deleted:   { bg: 'bg-red-50',     text: 'text-red-700' },
-    activated: { bg: 'bg-emerald-50', text: 'text-emerald-700' },
-    archived:  { bg: 'bg-orange-50',  text: 'text-orange-700' },
+const ACTION_CONFIG: Record<string, { label: string; bg: string; text: string }> = {
+    'research.created':   { label: 'Created',   bg: 'bg-emerald-50', text: 'text-emerald-700' },
+    'research.updated':   { label: 'Updated',   bg: 'bg-blue-50',    text: 'text-blue-700' },
+    'research.active':    { label: 'Active',    bg: 'bg-emerald-50', text: 'text-emerald-700' },
+    'research.completed': { label: 'Completed', bg: 'bg-violet-50',  text: 'text-violet-700' },
+    'research.closed':    { label: 'Closed',    bg: 'bg-orange-50',  text: 'text-orange-700' },
+    'research.deleted':   { label: 'Deleted',   bg: 'bg-red-50',     text: 'text-red-700' },
+};
+
+const getActionDisplay = (action: string) => {
+    const config = ACTION_CONFIG[action];
+    if (config) return config;
+    const suffix = action.includes('.') ? action.split('.').pop()! : action;
+    return { label: suffix.charAt(0).toUpperCase() + suffix.slice(1), bg: 'bg-gray-50', text: 'text-gray-600' };
 };
 
 export const ResearchTrackingPage = () => {
@@ -102,7 +110,7 @@ export const ResearchTrackingPage = () => {
                         onChange={(v) => setActionFilter(v)}
                         options={[
                             { value: 'all', label: 'All actions' },
-                            ...actionTypes.map(a => ({ value: a, label: a })),
+                            ...actionTypes.map(a => ({ value: a, label: getActionDisplay(a).label })),
                         ]}
                         placeholder="All actions"
                     />
@@ -156,7 +164,7 @@ export const ResearchTrackingPage = () => {
                             <tbody className="divide-y divide-gray-50">
                                 {filteredActivities.map(activity => {
                                     const actorLabel = activity.actorName || activity.actorEmail || 'System';
-                                    const actionStyle = ACTION_STYLES[activity.action.toLowerCase()] ?? { bg: 'bg-gray-50', text: 'text-gray-600' };
+                                    const actionStyle = getActionDisplay(activity.action);
                                     return (
                                         <tr
                                             key={activity.id}
@@ -174,7 +182,7 @@ export const ResearchTrackingPage = () => {
                                             </td>
                                             <td className="px-3 py-2.5">
                                                 <span className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-medium ${actionStyle.bg} ${actionStyle.text}`}>
-                                                    {activity.action}
+                                                    {actionStyle.label}
                                                 </span>
                                             </td>
                                             <td className="px-3 py-2.5 text-[13px] text-gray-400 whitespace-nowrap">

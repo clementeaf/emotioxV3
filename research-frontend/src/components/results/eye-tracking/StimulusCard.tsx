@@ -49,9 +49,9 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
     if (!stimulus.stimulusUrl || isVideo) return;
     const img = new window.Image();
     img.onload = () => {
-      const maxH = window.innerHeight * 0.6;
-      const maxW = Math.min(window.innerWidth - 400, 1000);
-      const scale = Math.min(maxW / img.naturalWidth, maxH / img.naturalHeight, 1);
+      const maxH = window.innerHeight * 0.72;
+      const maxW = Math.min(window.innerWidth - 400, 1200);
+      const scale = Math.min(maxW / img.naturalWidth, maxH / img.naturalHeight, 1.2);
       setStimulusSize({ width: Math.round(img.naturalWidth * scale), height: Math.round(img.naturalHeight * scale) });
     };
     img.src = stimulus.stimulusUrl;
@@ -434,12 +434,12 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
       <div className="px-5 pb-4">
         <div
           className="mx-auto"
-          style={stimulusSize && viewMode !== 'emotions' && viewMode !== 'prediction' && viewMode !== 'sequence'
-            ? { width: stimulusSize.width, height: stimulusSize.height }
+          style={stimulusSize
+            ? { width: stimulusSize.width }
             : undefined}
         >
         {viewMode === 'density' && stimulus.stimulusUrl ? (
-          <div ref={setImageContainerRef} className="w-fit mx-auto relative">
+          <div ref={setImageContainerRef} className="w-full relative">
             {hasRealDensity ? (
               <>
                 <HeatmapRenderer
@@ -536,7 +536,7 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
         ) : viewMode === 'prediction' ? (
           <PredictionPanel stimulus={stimulus} researchId={researchId} onPredictionComplete={onRefresh} displayImageUrl={effectiveStimulusUrl} />
         ) : stimulus.stimulusUrl ? (
-          <div ref={setImageContainerRef} className="w-fit mx-auto relative">
+          <div ref={setImageContainerRef} className="w-full relative">
             {viewMode === 'heatmap' && hasHeatData ? (
               filteredHeatmapData.length > 0 ? (
                 <HeatmapRenderer

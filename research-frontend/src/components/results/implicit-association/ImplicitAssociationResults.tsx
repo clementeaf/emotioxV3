@@ -1,9 +1,8 @@
 import { useState, useEffect, useCallback, useMemo, type Dispatch, type SetStateAction } from 'react';
-import { Download } from 'lucide-react';
 import {
   RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-  ResponsiveContainer,
+  ReferenceArea, ResponsiveContainer,
 } from 'recharts';
 import { ResultsStateHandler } from '../shared/ResultsStateHandler';
 import { Filters } from '../shared/Filters';
@@ -11,7 +10,6 @@ import { DataTable, type DataTableColumn } from '../../ui/DataTable';
 import { useResultsFilter } from '../../../hooks/useResultsFilter';
 import * as analyticsService from '../../../services/analytics.service';
 import type { IATModuleResult, IATParticipantData } from '../../../services/analytics.service';
-import { downloadResearchExport } from '../../../services/export.service';
 
 // Recharts Label `content` callback uses internal Props with RenderableText (includes `false`).
 // A custom interface can't satisfy the overload without importing private types — eslint-disable is the pragmatic fix.
@@ -59,12 +57,15 @@ const ColorLegend = ({ labels, colors, onChange }: { labels: string[]; colors: s
   <div className="flex flex-wrap gap-3 mb-3">
     {labels.map((label, i) => (
       <label key={i} className="flex items-center gap-1.5 cursor-pointer text-xs text-gray-600">
+        <span
+          className="w-5 h-5 rounded border border-gray-300 shrink-0 block"
+          style={{ backgroundColor: colors[i] }}
+        />
         <input
           type="color"
           value={colors[i] ?? colors[i % colors.length]}
           onChange={e => onChange(i, e.target.value)}
-          className="w-5 h-5 rounded border border-gray-300 cursor-pointer p-0"
-          style={{ appearance: 'none', WebkitAppearance: 'none', backgroundColor: colors[i] }}
+          className="sr-only"
         />
         {label}
       </label>
@@ -190,9 +191,9 @@ const AttributeTestingChart = ({ module: mod, colors }: { module: IATModuleResul
 // ==========================================
 
 const ASSOCIATION_BANDS = [
-  { min: 56, label: 'Asociación fuerte', color: '#DCFCE7' },
-  { min: 25, label: 'Asociación media', color: '#FEF9C3' },
-  { min: 0, label: 'Asociación baja', color: '#FEE2E2' },
+  { min: 56, label: 'Asociación fuerte', color: '#86EFAC' },
+  { min: 25, label: 'Asociación media', color: '#FDE047' },
+  { min: 0, label: 'Asociación baja', color: '#FCA5A5' },
 ];
 
 const classifyAssociationBand = (score: number): string => {
@@ -203,6 +204,8 @@ const classifyAssociationBand = (score: number): string => {
 };
 
 const ComparingAttributeChart = ({ module: mod, colors }: { module: IATModuleResult; colors: string[] }) => {
+  const [visibleBands, setVisibleBands] = useState<Set<number>>(() => new Set([0, 1, 2]));
+  const [visibleTargets, setVisibleTargets] = useState<Set<string>>(() => new Set(mod.targets.map(t => t.id)));
   const cs = mod.criteriaScores ?? [];
   const hasCriteria = cs.length > 0;
 
@@ -275,15 +278,30 @@ const ComparingAttributeChart = ({ module: mod, colors }: { module: IATModuleRes
       {hasCriteria && (
         <>
           {/* Grouped bar chart — criteria × objects */}
-          <div className="w-full relative" style={{ height: 420 }}>
-            <div className="absolute right-0 top-0 flex flex-col gap-0.5 text-[10px] text-gray-500 z-10">
-              {ASSOCIATION_BANDS.map(b => (
-                <div key={b.label} className="flex items-center gap-1">
-                  <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: b.color }} />
+          <div className="flex justify-end gap-3 text-[11px] text-gray-500 mb-2">
+            {ASSOCIATION_BANDS.map((b, i) => {
+              const active = visibleBands.has(i);
+              return (
+                <button
+                  key={b.label}
+                  type="button"
+                  className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full border transition-colors ${active ? 'border-gray-300 bg-white' : 'border-transparent bg-gray-100 text-gray-400'}`}
+                  onClick={() => {
+                    const next = new Set(visibleBands);
+                    if (next.has(i)) next.delete(i); else next.add(i);
+                    setVisibleBands(next);
+                  }}
+                >
+                  <div
+                    className="w-3 h-3 rounded-sm transition-opacity"
+                    style={{ backgroundColor: b.color, opacity: active ? 1 : 0.3 }}
+                  />
                   {b.label}
-                </div>
-              ))}
-            </div>
+                </button>
+              );
+            })}
+          </div>
+          <div className="w-full" style={{ height: 400 }}>
             <ResponsiveContainer width="100%" height="100%" minWidth={0}>
               <BarChart data={barData} barCategoryGap="15%" barGap={2}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" />
@@ -303,37 +321,48 @@ const ComparingAttributeChart = ({ module: mod, colors }: { module: IATModuleRes
                   axisLine={{ stroke: '#E5E7EB' }}
                   tickFormatter={(v: number) => `${v}%`}
                 />
-                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any -- Recharts ReferenceArea props */}
-                {[
-                  { y1: 56, y2: yMax, fill: ASSOCIATION_BANDS[0].color },
-                  { y1: 25, y2: 56, fill: ASSOCIATION_BANDS[1].color },
-                  { y1: 0, y2: 25, fill: ASSOCIATION_BANDS[2].color },
-                ].map((band, i) => (
-                  <svg key={i}>
-                    <rect
-                      x="0%" width="100%"
-                      y={`${((yMax - band.y2) / yMax) * 100}%`}
-                      height={`${((band.y2 - band.y1) / yMax) * 100}%`}
-                      fill={band.fill}
-                      opacity={0.3}
-                    />
-                  </svg>
-                ))}
+                {visibleBands.has(0) && <ReferenceArea y1={56} y2={yMax} fill={ASSOCIATION_BANDS[0].color} fillOpacity={0.45} ifOverflow="hidden" />}
+                {visibleBands.has(1) && <ReferenceArea y1={25} y2={56} fill={ASSOCIATION_BANDS[1].color} fillOpacity={0.45} ifOverflow="hidden" />}
+                {visibleBands.has(2) && <ReferenceArea y1={0} y2={25} fill={ASSOCIATION_BANDS[2].color} fillOpacity={0.45} ifOverflow="hidden" />}
                 {mod.targets.map((target, i) => (
-                  <Bar
-                    key={target.id}
-                    dataKey={target.name}
-                    fill={colors[i % colors.length]}
-                    radius={[3, 3, 0, 0]}
-                  />
+                  visibleTargets.has(target.id) ? (
+                    <Bar
+                      key={target.id}
+                      dataKey={target.name}
+                      fill={colors[i % colors.length]}
+                      radius={[3, 3, 0, 0]}
+                    />
+                  ) : null
                 ))}
                 <Tooltip
                   formatter={(value: number, name: string) => [`${value}%`, name]}
                   contentStyle={{ backgroundColor: '#fff', border: '1px solid #E5E7EB', borderRadius: '8px', fontSize: 12 }}
                 />
-                <Legend wrapperStyle={{ fontSize: 12 }} iconType="circle" />
               </BarChart>
             </ResponsiveContainer>
+          </div>
+          <div className="flex justify-center gap-3 text-[11px] text-gray-500 mt-2">
+            {mod.targets.map((target, i) => {
+              const active = visibleTargets.has(target.id);
+              return (
+                <button
+                  key={target.id}
+                  type="button"
+                  className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full border transition-colors ${active ? 'border-gray-300 bg-white' : 'border-transparent bg-gray-100 text-gray-400'}`}
+                  onClick={() => {
+                    const next = new Set(visibleTargets);
+                    if (next.has(target.id)) next.delete(target.id); else next.add(target.id);
+                    setVisibleTargets(next);
+                  }}
+                >
+                  <div
+                    className="w-3 h-3 rounded-full transition-opacity"
+                    style={{ backgroundColor: colors[i % colors.length], opacity: active ? 1 : 0.3 }}
+                  />
+                  {target.name}
+                </button>
+              );
+            })}
           </div>
 
           {/* Association strength per object */}
@@ -372,23 +401,47 @@ const ComparingAttributeChart = ({ module: mod, colors }: { module: IATModuleRes
                     tickFormatter={(v: number) => `${v}%`}
                   />
                   {mod.targets.map((target, i) => (
-                    <Radar
-                      key={target.id}
-                      name={target.name}
-                      dataKey={target.name}
-                      stroke={colors[i % colors.length]}
-                      fill={colors[i % colors.length]}
-                      fillOpacity={0.15}
-                      strokeWidth={2}
-                    />
+                    visibleTargets.has(target.id) ? (
+                      <Radar
+                        key={target.id}
+                        name={target.name}
+                        dataKey={target.name}
+                        stroke={colors[i % colors.length]}
+                        fill={colors[i % colors.length]}
+                        fillOpacity={0.15}
+                        strokeWidth={2}
+                      />
+                    ) : null
                   ))}
-                  <Legend wrapperStyle={{ fontSize: 12 }} iconType="circle" />
                   <Tooltip
                     formatter={(value: number, name: string) => [`${value}%`, name]}
                     contentStyle={{ backgroundColor: '#fff', border: '1px solid #E5E7EB', borderRadius: '8px', fontSize: 12 }}
                   />
                 </RadarChart>
               </ResponsiveContainer>
+            </div>
+            <div className="flex justify-center gap-3 text-[11px] text-gray-500 mt-2">
+              {mod.targets.map((target, i) => {
+                const active = visibleTargets.has(target.id);
+                return (
+                  <button
+                    key={target.id}
+                    type="button"
+                    className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full border transition-colors ${active ? 'border-gray-300 bg-white' : 'border-transparent bg-gray-100 text-gray-400'}`}
+                    onClick={() => {
+                      const next = new Set(visibleTargets);
+                      if (next.has(target.id)) next.delete(target.id); else next.add(target.id);
+                      setVisibleTargets(next);
+                    }}
+                  >
+                    <div
+                      className="w-3 h-3 rounded-full transition-opacity"
+                      style={{ backgroundColor: colors[i % colors.length], opacity: active ? 1 : 0.3 }}
+                    />
+                    {target.name}
+                  </button>
+                );
+              })}
             </div>
           </div>
         </>
@@ -825,39 +878,31 @@ const RTDistributionCard = ({ module: mod, colors }: { module: IATModuleResult; 
         </div>
         {/* SVG box plots */}
         <div className="flex-1 min-w-0 overflow-hidden">
-          <svg width="100%" height={svgH} viewBox={`0 0 100 ${svgH}`} preserveAspectRatio="none">
-            {/* Grid lines */}
+          <svg width="100%" height={svgH} preserveAspectRatio="none">
             {ticks.map(t => (
-              <line key={t} x1={toX(t)} y1={0} x2={toX(t)} y2={dist.length * rowH} stroke="#E5E7EB" strokeWidth={0.3} />
+              <line key={t} x1={`${toX(t)}%`} y1={0} x2={`${toX(t)}%`} y2={dist.length * rowH} stroke="#E5E7EB" strokeWidth={1} />
             ))}
-            {/* Box plots */}
             {dist.map((d, i) => {
               const cy = i * rowH + rowH / 2;
               const boxH = 14;
               const color = colors[i % colors.length];
               return (
                 <g key={d.conditionId}>
-                  {/* Whisker line */}
-                  <line x1={toX(d.min)} y1={cy} x2={toX(d.max)} y2={cy} stroke={color} strokeWidth={0.5} />
-                  {/* Whisker caps */}
-                  <line x1={toX(d.min)} y1={cy - boxH / 3} x2={toX(d.min)} y2={cy + boxH / 3} stroke={color} strokeWidth={0.5} />
-                  <line x1={toX(d.max)} y1={cy - boxH / 3} x2={toX(d.max)} y2={cy + boxH / 3} stroke={color} strokeWidth={0.5} />
-                  {/* IQR box */}
+                  <line x1={`${toX(d.min)}%`} y1={cy} x2={`${toX(d.max)}%`} y2={cy} stroke={color} strokeWidth={1.5} />
+                  <line x1={`${toX(d.min)}%`} y1={cy - boxH / 3} x2={`${toX(d.min)}%`} y2={cy + boxH / 3} stroke={color} strokeWidth={1.5} />
+                  <line x1={`${toX(d.max)}%`} y1={cy - boxH / 3} x2={`${toX(d.max)}%`} y2={cy + boxH / 3} stroke={color} strokeWidth={1.5} />
                   <rect
-                    x={toX(d.q1)} y={cy - boxH / 2}
-                    width={Math.max(0.5, toX(d.q3) - toX(d.q1))} height={boxH}
-                    fill={color} fillOpacity={0.2} stroke={color} strokeWidth={0.4} rx={0.5}
+                    x={`${toX(d.q1)}%`} y={cy - boxH / 2}
+                    width={`${Math.max(0.5, toX(d.q3) - toX(d.q1))}%`} height={boxH}
+                    fill={color} fillOpacity={0.2} stroke={color} strokeWidth={1} rx={2}
                   />
-                  {/* Median line */}
-                  <line x1={toX(d.median)} y1={cy - boxH / 2} x2={toX(d.median)} y2={cy + boxH / 2} stroke={color} strokeWidth={0.8} />
-                  {/* Mean dot */}
-                  <circle cx={toX(d.mean)} cy={cy} r={1.2} fill={color} />
+                  <line x1={`${toX(d.median)}%`} y1={cy - boxH / 2} x2={`${toX(d.median)}%`} y2={cy + boxH / 2} stroke={color} strokeWidth={2} />
+                  <circle cx={`${toX(d.mean)}%`} cy={cy} r={3} fill={color} />
                 </g>
               );
             })}
-            {/* X axis */}
             {ticks.map(t => (
-              <text key={t} x={toX(t)} y={dist.length * rowH + 15} textAnchor="middle" fontSize={3} fill="#9CA3AF">
+              <text key={t} x={`${toX(t)}%`} y={dist.length * rowH + 16} textAnchor="middle" fontSize={11} fill="#9CA3AF">
                 {t}
               </text>
             ))}
@@ -935,8 +980,6 @@ export const ImplicitAssociationResults = ({ researchId, stageId, className }: I
   const [data, setData] = useState<analyticsService.ImplicitAssociationResults | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
-  const [exportingXlsx, setExportingXlsx] = useState(false);
-
   const {
     demographicData,
     demographicFilters,
@@ -994,29 +1037,6 @@ export const ImplicitAssociationResults = ({ researchId, stageId, className }: I
         <div className={`flex gap-6 ${className ?? ''}`}>
           <div className="flex-1 min-w-0">
             {/* Header */}
-            <div className="mb-6">
-              <div className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-2 mb-4 flex items-center justify-between">
-                <span className="text-sm font-semibold text-gray-700">3.0.- Implicit Association</span>
-                <button
-                  onClick={async () => {
-                    if (exportingXlsx) return;
-                    setExportingXlsx(true);
-                    try {
-                      await downloadResearchExport(researchId, 'IAT_Export', filteredParticipantIds ? Array.from(filteredParticipantIds) : undefined);
-                    } catch (e) {
-                      console.error('IAT export failed:', e);
-                    } finally {
-                      setExportingXlsx(false);
-                    }
-                  }}
-                  disabled={exportingXlsx}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors disabled:opacity-50"
-                >
-                  <Download className="h-3.5 w-3.5" />
-                  {exportingXlsx ? '...' : 'Export XLSX'}
-                </button>
-              </div>
-            </div>
 
             {filteredModules.length === 0 ? (
               <div className="bg-white border border-gray-200 rounded-xl p-12 text-center">

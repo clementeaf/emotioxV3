@@ -36,7 +36,7 @@ const SummaryCard = memo(({ label, value, icon: Icon, accent, trend, sparkData, 
     sparkData?: number[];
     sparkColor?: string;
 }) => (
-    <div className="flex items-center gap-3.5 rounded-xl border border-gray-100 bg-white px-4 py-3.5">
+    <div className="flex items-center gap-3.5 rounded-xl border border-gray-200 bg-white px-4 py-3.5">
         <div className={`h-9 w-9 rounded-lg flex items-center justify-center flex-shrink-0 ${accent}`}>
             <Icon className="h-4 w-4" />
         </div>
@@ -387,7 +387,7 @@ export const DashboardPage = () => {
             {/* Main Content */}
             <div className="flex flex-col xl:flex-row gap-3 flex-1 min-h-0 px-6 py-4">
                 {/* Left: Research Table */}
-                <div className="flex-1 rounded-xl border border-gray-100 bg-white overflow-hidden min-w-0 flex flex-col min-h-0">
+                <div className="flex-1 rounded-xl border border-gray-200 bg-white overflow-hidden min-w-0 flex flex-col min-h-0">
                     {/* Search + filters */}
                     <div className="px-3 pt-3 pb-2 border-b border-gray-100 flex-shrink-0 space-y-2">
                         <div className="flex flex-wrap items-center gap-2">
@@ -398,7 +398,7 @@ export const DashboardPage = () => {
                                     placeholder="Search..."
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="pl-8 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg w-48 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 placeholder:text-gray-400"
+                                    className="pl-8 pr-3 h-10 text-sm border border-gray-200 rounded-lg w-48 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 placeholder:text-gray-400"
                                 />
                             </div>
 
@@ -432,11 +432,11 @@ export const DashboardPage = () => {
 
                             <div className="flex items-center gap-1 flex-shrink-0">
                                 <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
-                                    className={`px-2 py-1.5 text-xs border rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 ${dateFrom ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-400'}`}
+                                    className={`px-3 h-10 text-sm border rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 ${dateFrom ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-400'}`}
                                     title="From date" />
                                 <span className="text-xs text-gray-300">–</span>
                                 <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
-                                    className={`px-2 py-1.5 text-xs border rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 ${dateTo ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-400'}`}
+                                    className={`px-3 h-10 text-sm border rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 ${dateTo ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-400'}`}
                                     title="To date" />
                             </div>
 

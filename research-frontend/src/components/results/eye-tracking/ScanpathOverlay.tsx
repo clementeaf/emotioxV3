@@ -92,9 +92,9 @@ export const ScanpathOverlay = ({
       </div>
 
       {/* Image with scanpath overlay */}
-      <div className="rounded-lg overflow-hidden border bg-gray-100 flex justify-center">
-        <div className="relative inline-block max-w-full">
-          <img src={imageUrl} alt="Stimulus" className="block max-w-full max-h-[60vh] object-contain" draggable={false} />
+      <div className="rounded-lg overflow-hidden border bg-gray-100">
+        <div className="relative w-full">
+          <img src={imageUrl} alt="Stimulus" className="block w-full object-contain" draggable={false} />
           {vw > 0 && vh > 0 && <svg
             className="absolute inset-0 w-full h-full pointer-events-none"
             viewBox={`0 0 ${vw} ${vh}`}

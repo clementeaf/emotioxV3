@@ -78,32 +78,20 @@ export const ScreenerResults = ({ researchId, className }: ScreenerResultsProps)
       loadingSkeleton={loadingSkeleton}
     >
       {data && (
-        <div className={`flex gap-6 ${className ?? ''}`}>
-          <div className="flex-1 min-w-0">
-            {/* Header */}
-            <div className="mb-6">
-              <div className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-2 mb-4">
-                <span className="text-sm font-semibold text-gray-700">1.0.- Screener</span>
-              </div>
-              {data.questionText ? (
-                <h2 className="text-xl font-semibold text-gray-900 mb-1">{data.questionText}</h2>
-              ) : null}
-              <p className="text-sm text-gray-500">
-                Screening questions for participant qualification.
-              </p>
-            </div>
+        <div className={className ?? ''}>
+          {data.questionText ? (
+            <h2 className="text-xl font-semibold text-gray-900 mb-6">{data.questionText}</h2>
+          ) : null}
 
-            {/* Main grid: Distribution chart + Status cards */}
-            <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-6">
-              {/* Left: Distribution chart (3 cols) */}
-              <Card className="lg:col-span-3">
+          <div className="flex items-start gap-6">
+            <div className="flex-1 min-w-0 grid grid-cols-1 lg:grid-cols-5 gap-6">
+              <Card className="lg:col-span-3 rounded-lg shadow-none">
                 <CardContent className="p-6">
                   <DistributionChart data={data} />
                 </CardContent>
               </Card>
 
-              {/* Right: Status cards + Weekly chart (2 cols) */}
-              <div className="lg:col-span-2 space-y-4">
+              <div className="lg:col-span-2 flex flex-col gap-4">
                 <StatusCard
                   label="Overquota interviews"
                   count={data.overquota}
@@ -120,26 +108,26 @@ export const ScreenerResults = ({ researchId, className }: ScreenerResultsProps)
                   icon={<CheckCircle className="h-5 w-5 text-green-500" />}
                 />
 
-                {/* Weekly line chart */}
-                <Card>
-                  <CardContent className="p-4">
+                <Card className="flex-1 rounded-lg shadow-none">
+                  <CardContent className="p-4 h-full">
                     <WeeklyChart timeSeries={data.weeklyTimeSeries} />
                   </CardContent>
                 </Card>
               </div>
             </div>
-          </div>
-          <div className="w-80 shrink-0 sticky top-4 self-start max-h-[calc(100vh-8rem)] overflow-y-auto">
-            <Filters
-              researchId={researchId}
-              demographicData={demographicData}
-              selectedFilters={demographicFilters}
-              onFilterChange={setDemographicFilters}
-              userIdFilter={userIdFilter}
-              onUserIdFilterChange={setUserIdFilter}
-              completionMin={completionMin}
-              onCompletionMinChange={setCompletionMin}
-            />
+
+            <div className="w-80 shrink-0 sticky top-0 max-h-[calc(100vh-8rem)] overflow-y-auto">
+              <Filters
+                researchId={researchId}
+                demographicData={demographicData}
+                selectedFilters={demographicFilters}
+                onFilterChange={setDemographicFilters}
+                userIdFilter={userIdFilter}
+                onUserIdFilterChange={setUserIdFilter}
+                completionMin={completionMin}
+                onCompletionMinChange={setCompletionMin}
+              />
+            </div>
           </div>
         </div>
       )}
@@ -244,7 +232,7 @@ function WeeklyChart({ timeSeries }: { timeSeries: ScreenerResultsType['weeklyTi
   if (timeSeries.length === 0) return null;
 
   return (
-    <ResponsiveContainer width="100%" height={120}>
+    <ResponsiveContainer width="100%" height="100%" minHeight={80}>
       <LineChart data={timeSeries} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
         <XAxis dataKey="dayName" tick={{ fontSize: 11 }} />
         <YAxis tick={{ fontSize: 10 }} hide />
@@ -269,7 +257,7 @@ function WeeklyChart({ timeSeries }: { timeSeries: ScreenerResultsType['weeklyTi
 
 function StatusCard({ label, count, icon }: { label: string; count: number; icon: React.ReactNode }) {
   return (
-    <Card>
+    <Card className="rounded-lg shadow-none">
       <CardContent className="p-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           {icon}
