@@ -302,13 +302,13 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
                         </div>
                     </>
                 )}
-                <div className="flex-1 flex flex-col items-center justify-center mt-8 gap-2">
+                <div className="flex flex-col items-center justify-center h-[200px] mt-8 gap-2">
                     {currentTrial.primingLabel ? (
                         currentTrial.primingImage ? (
                             <img
                                 src={currentTrial.primingImage}
                                 alt={currentTrial.primingLabel}
-                                className="max-h-32 max-w-xs object-contain"
+                                className="max-h-48 max-w-xs object-contain"
                             />
                         ) : (
                             <span className="text-2xl font-semibold text-gray-500 select-none">
