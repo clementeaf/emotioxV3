@@ -188,7 +188,7 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
 
     if (!isConfigured || blocks.length === 0) {
         return (
-            <div className="flex flex-col items-center justify-center min-h-[400px] px-4">
+            <div className="flex flex-col items-center justify-center h-[500px] px-4">
                 <p className="text-gray-400 text-center">
                     {t('iat.notConfigured', 'Esta prueba de asociación implícita aún no ha sido configurada.')}
                 </p>
@@ -203,7 +203,7 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
     if (phase === 'intro') {
         const nextPhase: IATPhase = 'take-note';
         return (
-            <div className="flex flex-col items-center justify-center min-h-[400px] px-4 py-8">
+            <div className="flex flex-col items-center justify-center h-[500px] px-4 py-8">
                 <div className="w-full max-w-lg space-y-6">
                     <h2 className="text-xl font-bold text-gray-900">
                         {t('iat.introTitle', 'En esta sección')}
@@ -239,7 +239,7 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
 
     if (phase === 'take-note' && currentBlock) {
         return (
-            <div className="flex flex-col items-center justify-center min-h-[400px] px-4 py-8">
+            <div className="flex flex-col items-center justify-center h-[500px] px-4 py-8">
                 <StepProgressPill
                     step={currentBlock.step}
                     total={totalBlocks}
@@ -292,7 +292,7 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
 
     if (phase === 'priming' && currentTrial) {
         return (
-            <div className="flex flex-col items-center justify-center min-h-[400px] relative">
+            <div className="flex flex-col items-center justify-center h-[500px] relative">
                 {currentBlock && (
                     <>
                         <StepProgressPill step={currentBlock.step} total={totalBlocks} percent={blockProgress} />
@@ -329,7 +329,7 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
 
     if (phase === 'trial' && currentTrial && currentBlock) {
         return (
-            <div className="flex flex-col items-center justify-center min-h-[400px] px-4 select-none">
+            <div className="flex flex-col items-center justify-center h-[500px] px-4 select-none">
                 <StepProgressPill step={currentBlock.step} total={totalBlocks} percent={blockProgress} />
 
                 <div className="flex justify-between w-full max-w-lg mt-4 px-4">
@@ -337,8 +337,7 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
                     <span className="text-sm font-semibold text-blue-600">{`${rightKey} = ${currentBlock.rightLabel}`}</span>
                 </div>
 
-                {/* Stimulus */}
-                <div className="flex flex-col items-center justify-center min-h-[200px] my-8 gap-2">
+                <div className="flex flex-col items-center justify-center h-[200px] my-8 gap-2">
                     {currentTrial.stimulusImage ? (
                         <img
                             src={currentTrial.stimulusImage}
@@ -400,7 +399,7 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
         const avgRT = results.length > 0 ? Math.round(results.reduce((sum, r) => sum + r.rt, 0) / results.length) : 0;
 
         return (
-            <div className="flex flex-col items-center justify-center min-h-[400px] px-4">
+            <div className="flex flex-col items-center justify-center h-[500px] px-4">
                 <div className="text-center space-y-4">
                     <div className="w-16 h-16 rounded-full bg-green-500 flex items-center justify-center mx-auto">
                         <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>

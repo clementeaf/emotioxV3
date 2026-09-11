@@ -1227,10 +1227,8 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
     // eslint-disable-next-line react-hooks/exhaustive-deps -- stable RAF loop
     }, [phase, validationIndex, validationRmse, isDesktop, blaze, viewingDuration, validationPointErrors]);
 
-    /** Mobile/tablet fallback — click to measure validation point. */
     const handleValidationDwellComplete = useCallback(() => {
-        if (phase !== 'validating' || isDesktop) return;
-        // Mobile doesn't have gaze, just advance
+        if (phase !== 'validating') return;
         const newErrors = [...validationPointErrors, 0];
         setValidationPointErrors(newErrors);
         if (validationIndex + 1 >= HYBRID_VALIDATION_POINTS.length) {
@@ -1242,7 +1240,7 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
         } else {
             setValidationIndex(validationIndex + 1);
         }
-    }, [phase, isDesktop, validationIndex, validationPointErrors, viewingDuration]);
+    }, [phase, validationIndex, validationPointErrors, viewingDuration]);
 
     /** Re-calibrate: reset residuals and go back to calibration phase.
      *  Increments recalibrationCount so auto-retry offer stops after 2 attempts. */
