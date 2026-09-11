@@ -54,11 +54,11 @@ export function useFaceApiEmotions({
 }: UseFaceApiEmotionsOptions) {
   const [isLoaded, setIsLoaded] = useState(false);
   const runningRef = useRef(false);
+  const pendingStartRef = useRef(false);
   const lastSampleRef = useRef<number>(0);
   const startTimeRef = useRef<number>(0);
   const samplesRef = useRef<EmotionSample[]>([]);
 
-  // Load models once
   useEffect(() => {
     if (!enabled) return;
     let cancelled = false;
@@ -130,9 +130,8 @@ export function useFaceApiEmotions({
 
   const rafIdRef = useRef(0);
 
-  /** Start continuous emotion sampling via RAF. */
-  const start = useCallback(() => {
-    if (runningRef.current || !isLoaded) return;
+  const startSampling = useCallback(() => {
+    if (runningRef.current) return;
     runningRef.current = true;
     samplesRef.current = [];
     lastSampleRef.current = 0;
@@ -144,11 +143,26 @@ export function useFaceApiEmotions({
       rafIdRef.current = requestAnimationFrame(loop);
     };
     rafIdRef.current = requestAnimationFrame(loop);
-  }, [isLoaded, sampleFrame]);
+  }, [sampleFrame]);
 
-  /** Stop emotion sampling. */
+  const start = useCallback(() => {
+    if (isLoaded) {
+      startSampling();
+    } else {
+      pendingStartRef.current = true;
+    }
+  }, [isLoaded, startSampling]);
+
+  useEffect(() => {
+    if (isLoaded && pendingStartRef.current) {
+      pendingStartRef.current = false;
+      startSampling();
+    }
+  }, [isLoaded, startSampling]);
+
   const stop = useCallback(() => {
     runningRef.current = false;
+    pendingStartRef.current = false;
     cancelAnimationFrame(rafIdRef.current);
   }, []);
 
