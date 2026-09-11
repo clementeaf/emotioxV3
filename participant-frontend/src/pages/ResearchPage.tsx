@@ -442,6 +442,11 @@ export const ResearchPage = () => {
   // Button configuration
   const { getButtonText, shouldShowButton } = useButtonConfig();
 
+  const isSpecialStep = currentStep === 'welcome' || currentStep === 'demographics' || currentStep === 'thank-you';
+  const currentModuleResponses = currentModule ? getResponsesByModule(currentModule.id) : [];
+  const needsResponse = !isSpecialStep && shouldShowButton(currentModule);
+  const buttonDisabled = submitting || (needsResponse && currentModuleResponses.length === 0);
+
   // Handle next step
   const handleNext = useHandleNext({
     isPreviewMode,
@@ -469,7 +474,7 @@ export const ResearchPage = () => {
       if (e.target instanceof HTMLTextAreaElement) return;
       // Only when the footer button is visible and not submitting
       if (!shouldShowButton(currentModule) && !showRestartOption) return;
-      if (submitting) return;
+      if (buttonDisabled) return;
       e.preventDefault();
       handleNext();
     };
@@ -548,7 +553,7 @@ export const ResearchPage = () => {
           shouldShowButton(currentModule) && !showRestartOption ? (
             <Button
               onClick={handleNext}
-              disabled={submitting}
+              disabled={buttonDisabled}
             >
               {submitting
                 ? t('common.saving')

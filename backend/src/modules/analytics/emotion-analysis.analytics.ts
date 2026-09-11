@@ -55,12 +55,11 @@ export async function getEmotionAnalysisResults(researchId: string): Promise<Emo
         `SELECT r.participant_id, r.module_id, r.value, m.name AS module_name
          FROM responses r
          JOIN modules m ON m.id = r.module_id
-         WHERE r.research_id = ? AND r.component_id = 'emotion-analysis'
+         WHERE r.research_id = ? AND r.component_id IN ('emotion-analysis', 'eye-tracking-data')
          ORDER BY r.created_at`,
         [researchId]
     );
 
-    // Group by module
     const moduleMap = new Map<string, { name: string; rows: Array<{ participant_id: string; value: unknown }> }>();
 
     for (const row of result.rows) {
@@ -74,7 +73,6 @@ export async function getEmotionAnalysisResults(researchId: string): Promise<Emo
     const results: EmotionAnalysisResults[] = [];
 
     for (const [moduleId, { name, rows }] of moduleMap) {
-        // Group stimuli data across participants
         const stimuliMap = new Map<number, {
             url: string;
             participants: Set<string>;
@@ -85,21 +83,28 @@ export async function getEmotionAnalysisResults(researchId: string): Promise<Emo
         for (const row of rows) {
             try {
                 const parsed = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
-                const stimuli = (parsed as { stimuli?: Array<{ stimulusIndex: number; stimulusUrl: string; emotionSamples: EmotionSample[]; microExpressions: MicroExpression[] }> })?.stimuli ?? [];
+                const payload = parsed as Record<string, unknown>;
 
-                for (const stim of stimuli) {
-                    if (!stimuliMap.has(stim.stimulusIndex)) {
-                        stimuliMap.set(stim.stimulusIndex, {
-                            url: stim.stimulusUrl,
-                            participants: new Set(),
-                            allSamples: [],
-                            allMicros: [],
-                        });
+                if (Array.isArray(payload.stimuli)) {
+                    const stimuli = payload.stimuli as Array<{ stimulusIndex: number; stimulusUrl: string; emotionSamples?: EmotionSample[]; microExpressions?: MicroExpression[] }>;
+                    for (const stim of stimuli) {
+                        if (!stimuliMap.has(stim.stimulusIndex)) {
+                            stimuliMap.set(stim.stimulusIndex, { url: stim.stimulusUrl, participants: new Set(), allSamples: [], allMicros: [] });
+                        }
+                        const entry = stimuliMap.get(stim.stimulusIndex)!;
+                        entry.participants.add(row.participant_id);
+                        entry.allSamples.push(...(stim.emotionSamples ?? []));
+                        entry.allMicros.push(...(stim.microExpressions ?? []));
                     }
-                    const entry = stimuliMap.get(stim.stimulusIndex)!;
+                } else if (Array.isArray(payload.emotions)) {
+                    const stimIdx = 0;
+                    if (!stimuliMap.has(stimIdx)) {
+                        stimuliMap.set(stimIdx, { url: (payload.stimulusUrl as string) ?? '', participants: new Set(), allSamples: [], allMicros: [] });
+                    }
+                    const entry = stimuliMap.get(stimIdx)!;
                     entry.participants.add(row.participant_id);
-                    entry.allSamples.push(...(stim.emotionSamples ?? []));
-                    entry.allMicros.push(...(stim.microExpressions ?? []));
+                    entry.allSamples.push(...(payload.emotions as EmotionSample[]));
+                    entry.allMicros.push(...((payload.microExpressions as MicroExpression[]) ?? []));
                 }
             } catch { /* skip malformed */ }
         }
