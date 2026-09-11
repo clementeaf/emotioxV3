@@ -87,6 +87,7 @@ const StatusBadge = ({ status, archived }: { status: string; archived: boolean }
 const ResearchTableRow = memo(({
     research,
     participantCount,
+    index,
     onRowClick,
     onDelete,
     onDuplicate,
@@ -94,6 +95,7 @@ const ResearchTableRow = memo(({
 }: {
     research: Research;
     participantCount: number;
+    index: number;
     onRowClick: (id: string) => void;
     onDelete: (research: Research, e: React.MouseEvent) => void;
     onDuplicate: (research: Research, e: React.MouseEvent) => void;
@@ -107,6 +109,9 @@ const ResearchTableRow = memo(({
             onClick={() => onRowClick(research.id)}
             className={`group hover:bg-gray-50/80 cursor-pointer transition-colors ${isArchived ? 'opacity-50' : ''}`}
         >
+            <td className="px-1.5 py-2.5 whitespace-nowrap text-[11px] text-gray-400 w-6 text-center">
+                {index}
+            </td>
             <td className="px-3 py-2.5 whitespace-nowrap">
                 <div className="text-[13px] font-medium text-gray-900">{research.name}</div>
                 <div className="text-[11px] text-gray-400 mt-0.5">{research.research_technique_name || ''}</div>
@@ -504,6 +509,7 @@ export const DashboardPage = () => {
                         <table className="w-full min-w-[600px] table-fixed">
                             <thead className="bg-gray-50/80 border-b border-gray-100 sticky top-0 z-10">
                                 <tr>
+                                    <th className="px-3 py-2 text-center text-[11px] font-medium text-gray-400 uppercase tracking-wider w-6">#</th>
                                     <th className="px-3 py-2 text-left text-[11px] font-medium text-gray-400 uppercase tracking-wider w-[26%]">Name</th>
                                     <th className="px-3 py-2 text-left text-[11px] font-medium text-gray-400 uppercase tracking-wider w-[10%]">Status</th>
                                     <th className="px-3 py-2 text-left text-[11px] font-medium text-gray-400 uppercase tracking-wider hidden md:table-cell w-[12%]">Author</th>
@@ -545,11 +551,12 @@ export const DashboardPage = () => {
                                         </td>
                                     </tr>
                                 ) : (
-                                    filteredResearches.map(research => (
+                                    filteredResearches.map((research, i) => (
                                         <ResearchTableRow
                                             key={research.id}
                                             research={research}
                                             participantCount={metricsMap.get(research.id)?.participants ?? 0}
+                                            index={i + 1}
                                             onRowClick={handleRowClick}
                                             onDelete={handleDeleteClick}
                                             onDuplicate={handleDuplicateClick}

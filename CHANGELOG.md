@@ -1,3 +1,10 @@
+## v0.96.4 — Dashboard row index column (2026-09-11)
+
+### feat: row index in dashboard research table
+- Added `#` column with 1-based index. Compact: `w-6`, `text-[11px]`.
+
+---
+
 ## v0.96.3 — UI polish: results layout, charts, dashboard consistency (2026-09-11)
 
 ### fix: Screener results layout
