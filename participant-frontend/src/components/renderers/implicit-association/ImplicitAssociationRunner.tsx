@@ -261,8 +261,8 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
                             </p>
                         </>
                     )}
-                    <div className="flex items-center gap-3 text-gray-500 text-sm">
-                        <kbd className="inline-flex items-center gap-1 px-4 py-1.5 bg-gray-100 border border-gray-300 rounded-md text-xs font-mono text-gray-600 shadow-[0_1px_0_1px_rgba(0,0,0,0.08)]">
+                    <div className="flex items-center gap-3 text-gray-500 text-sm whitespace-nowrap">
+                        <kbd className="inline-flex items-center gap-1 px-4 py-1.5 bg-gray-100 border border-gray-300 rounded-md text-xs font-mono text-gray-600 shadow-[0_1px_0_1px_rgba(0,0,0,0.08)] shrink-0">
                             ␣ espacio
                         </kbd>
                         <span>{t('iat.takeNoteBegin', 'o presiona uno de los botones para comenzar')}</span>

@@ -152,16 +152,16 @@ export function buildBlocksComparingAttribute(
     return [
         {
             step: 1,
-            leftLabel: `< ${dims.left}`,
-            rightLabel: `${dims.right} >`,
+            leftLabel: dims.left,
+            rightLabel: dims.right,
             leftId: 'dimension-1',
             rightId: 'dimension-2',
             trials: padAndShuffle(practiceTrials, 8),
         },
         {
             step: 2,
-            leftLabel: `< ${dims.left}`,
-            rightLabel: `${dims.right} >`,
+            leftLabel: dims.left,
+            rightLabel: dims.right,
             leftId: 'dimension-1',
             rightId: 'dimension-2',
             trials: shuffleNoConsecutive(repeatTrials(testTrials, TRIAL_REPETITIONS)),

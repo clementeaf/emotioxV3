@@ -27,9 +27,11 @@ export const ScreenerRenderer: React.FC<ScreenerRendererProps> = ({ module }) =>
         const sorted = [...components].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
         const titleComponent = resolveScreenerTitleComponent(sorted);
         const descriptionComponent = resolveScreenerDescriptionComponent(sorted);
+        const rawDescription = getComponentText(descriptionComponent) || module.description || '';
+        const isDefaultPlaceholder = /^screening questions/i.test(rawDescription.trim());
         return {
             titleText: getComponentText(titleComponent) || module.name,
-            descriptionText: getComponentText(descriptionComponent) || module.description,
+            descriptionText: isDefaultPlaceholder ? undefined : rawDescription,
             choices: resolveScreenerChoiceOptions(components),
             isMultiple: resolveScreenerIsMultiple(components),
         };

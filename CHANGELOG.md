@@ -1,3 +1,16 @@
+## v0.96.5 — IAT arrow fix, Screener description filter (2026-09-11)
+
+### fix: IAT Comparing Attribute double arrow in buttons
+- `blockBuilders.ts` added `< ` / ` >` to dimension labels. Runner already prefixed `← = ` or `A = `. Result: `← = < SI`. Removed redundant arrows from labels.
+
+### fix: IAT take-note "␣ espacio" wrapping to two lines
+- Added `whitespace-nowrap` and `shrink-0` to the kbd+text container.
+
+### fix: Screener hides default placeholder description in participant view
+- "Screening questions for participant qualification" no longer shown to participants. Custom descriptions written by researchers still display.
+
+---
+
 ## v0.96.4 — Dashboard row index column (2026-09-11)
 
 ### feat: row index in dashboard research table
