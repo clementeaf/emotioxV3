@@ -1,3 +1,32 @@
+## v0.96.6 — ET emotion fix, button validation, IAT layout stability (2026-09-11)
+
+### fix: Eye Tracking emotion recognition not capturing
+- **Root cause.** `faceEmotions.start()` was called during `phase === 'viewing'` but face-api.js models hadn't loaded yet. `start()` returned silently and was never retried — `emotions: []` in every response.
+- **Fix.** `start()` now queues a pending start. When models finish loading, sampling auto-starts.
+
+### fix: ET emotion analytics reads eye-tracking-data responses
+- Backend query now reads both `emotion-analysis` (legacy) and `eye-tracking-data` (current) component IDs. Parses both `stimuli[].emotionSamples` and flat `emotions[]` formats.
+
+### fix: ET validation point stuck on desktop
+- Click fallback now works on desktop too. Previously `handleValidationDwellComplete` returned early on desktop — if gaze tracking produced no data, validation was stuck forever.
+
+### fix: footer button disabled until response selected
+- "Guardar y continuar" disabled until participant selects an option. Applies to Preference Test, Single/Multiple Choice, Screener, Ranking, etc.
+
+### fix: remove "Opción seleccionada" text from ChoiceQuestion
+- Visual indicator (blue border + check) is sufficient.
+
+### fix: Screener hides default placeholder description
+- "Screening questions for participant qualification" not shown to participants. Custom descriptions written by researchers still display.
+
+### fix: IAT layout stability between priming and trial
+- Both phases use identical top-down layout with fixed `h-[500px]` wrapper and `h-[200px]` stimulus area. Priming includes invisible button spacer matching trial buttons. No layout shift between phases.
+
+### quality
+- **TypeScript strict** — 0 errors, 0 warnings in all 3 subprojects.
+
+---
+
 ## v0.96.5 — IAT arrow fix, Screener description filter (2026-09-11)
 
 ### fix: IAT Comparing Attribute double arrow in buttons
