@@ -40,8 +40,7 @@ let modelsLoaded = false;
 
 async function ensureModelsLoaded(): Promise<void> {
   if (modelsLoaded) return;
-  const base = document.querySelector('base')?.href ?? window.location.origin + '/';
-  const modelPath = new URL('models', base).href;
+  const modelPath = `${window.location.origin}${import.meta.env.BASE_URL}models`;
   await faceapi.nets.tinyFaceDetector.loadFromUri(modelPath);
   await faceapi.nets.faceLandmark68Net.loadFromUri(modelPath);
   await faceapi.nets.faceExpressionNet.loadFromUri(modelPath);
