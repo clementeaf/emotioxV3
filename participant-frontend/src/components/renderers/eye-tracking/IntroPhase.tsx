@@ -21,18 +21,14 @@ export const IntroPhase: React.FC<IntroPhaseProps> = ({ taskDescription, isDeskt
                     <p className="text-gray-600">{taskDescription}</p>
                 )}
                 <p className="text-gray-600">
-                    {isDesktop
-                        ? t('eyeTracking.introDescriptionDesktop', 'Your eye movements will be tracked using your webcam to understand what catches your attention.')
-                        : t('eyeTracking.introDescription', 'You will be presented with images. Tap on the areas that catch your attention.')}
+                    {t('eyeTracking.introDescriptionUnified', 'You will be presented with images. Your eye movements will be tracked to understand what catches your attention.')}
                 </p>
-                {isDesktop && (
-                    <div className="flex items-center gap-2 text-sm text-blue-600 bg-blue-50 rounded-lg px-3 py-2">
-                        <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                        </svg>
-                        <span>{t('eyeTracking.webcamRequired', 'Webcam access will be required')}</span>
-                    </div>
-                )}
+                <div className="flex items-center gap-2 text-sm text-blue-600 bg-blue-50 rounded-lg px-3 py-2">
+                    <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                    <span>{t('eyeTracking.webcamRequired', 'Webcam access will be required')}</span>
+                </div>
                 {isDesktop && !isBlazeLoaded && (
                     <p className="text-amber-600 text-xs">{t('eyeTracking.loadingModel', 'Loading gaze model...')}</p>
                 )}
