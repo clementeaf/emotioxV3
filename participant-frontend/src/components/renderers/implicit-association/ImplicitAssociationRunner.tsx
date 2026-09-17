@@ -221,11 +221,18 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
                     ) : (
                         <>
                             <p className="text-gray-600">
-                                {responseKeys === 'arrows'
-                                    ? t('iat.introDescriptionArrows', 'Se te presentarán palabras o imágenes para clasificar en categorías usando las teclas ← o →.')
-                                    : t('iat.introDescription', 'Se te presentarán palabras o imágenes para clasificar en categorías usando las teclas \'A\' o \'L\'.')}
+                                {isTouchDevice
+                                    ? (responseKeys === 'arrows'
+                                        ? t('iat.introDescriptionArrowsMobile', 'Se te presentarán palabras o imágenes para clasificar en categorías usando los botones ← o →.')
+                                        : t('iat.introDescriptionMobile', 'Se te presentarán palabras o imágenes para clasificar en categorías usando los botones.'))
+                                    : (responseKeys === 'arrows'
+                                        ? t('iat.introDescriptionArrows', 'Se te presentarán palabras o imágenes para clasificar en categorías usando las teclas ← o →.')
+                                        : t('iat.introDescription', 'Se te presentarán palabras o imágenes para clasificar en categorías usando las teclas \'A\' o \'L\'.'))}
                             </p>
-                            <p className="text-gray-600">
+                            <h3 className="text-lg font-semibold text-gray-900 mt-4">
+                                {t('iat.objectiveTitle', 'Objetivo:')}
+                            </h3>
+                            <p className="text-lg text-gray-700">
                                 {t('iat.introSpeed', 'Intenta ir lo más rápido posible cometiendo la menor cantidad de errores.')}
                             </p>
                         </>

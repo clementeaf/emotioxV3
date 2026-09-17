@@ -544,7 +544,7 @@ export const ResearchPage = () => {
       {allowLanguageSwitch && <LanguageSelector />}
 
       {studyLogoEnabled && !isImplicitAssociation && (
-        <div className="fixed top-3 left-0 right-0 z-40 flex justify-center pointer-events-none">
+        <div className="fixed top-5 sm:top-3 left-0 right-0 z-40 flex justify-center pointer-events-none">
           <img
             src={studyLogoUrl || `${import.meta.env.BASE_URL}EmotioCX-logo.svg`}
             alt="Logo"

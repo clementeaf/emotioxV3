@@ -3,7 +3,8 @@ import type { ModuleConfig } from '../../types/module';
 import { NavigationFlow } from '../ui/NavigationFlow';
 import { PreferenceTest } from '../ui/PreferenceTest';
 import { TextQuestion, ChoiceQuestion, LinearScaleQuestion, RankingQuestion } from '../questions';
-import { getComponentText } from '../../utils/moduleComponent';
+import { getComponentText, getFileUploadMediaRef } from '../../utils/moduleComponent';
+import { useResolvedMediaUrl } from '../../hooks/useResolvedMediaUrl';
 
 interface CognitiveTaskRendererProps {
     module: ModuleConfig;
@@ -18,6 +19,11 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
     const descriptionComponent = components.find(c => c.id.includes('description'));
     const titleText = getComponentText(titleComponent) || module.name;
     const descriptionText = getComponentText(descriptionComponent) || module.description;
+
+    const refImageComp = components.find(c => c.id === 'reference-image');
+    const refImageRef = getFileUploadMediaRef(refImageComp);
+    const phoneFrame = refImageComp?.settings?.phoneFrame === true;
+    const refImageUrl = useResolvedMediaUrl(refImageRef?.url, refImageRef?.s3Key);
 
     // Determine task type
     const isShortText = module.name === 'Short Text';
@@ -403,10 +409,39 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
         return <div className="text-gray-400">Task type not implemented yet</div>;
     };
 
+    const content = renderInteractiveComponent();
+
+    if (refImageUrl) {
+        return (
+            <div className="flex flex-col sm:flex-row items-start gap-6 px-4 py-6">
+                <div className="w-full sm:w-1/2 flex-shrink-0 flex justify-center">
+                    {phoneFrame ? (
+                        <div className="relative mx-auto" style={{ maxWidth: 280 }}>
+                            <div className="rounded-[2rem] border-[6px] border-gray-800 bg-black p-1 shadow-xl">
+                                <div className="rounded-[1.5rem] overflow-hidden bg-white">
+                                    <img src={refImageUrl} alt="" className="w-full object-contain" />
+                                </div>
+                            </div>
+                        </div>
+                    ) : (
+                        <img
+                            src={refImageUrl}
+                            alt=""
+                            className="w-full max-h-[400px] object-contain rounded-lg"
+                        />
+                    )}
+                </div>
+                <div className="w-full sm:w-1/2">
+                    {content}
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="flex flex-col items-center justify-center px-4 py-6">
             <div className="w-full max-w-2xl">
-                {renderInteractiveComponent()}
+                {content}
             </div>
         </div>
     );

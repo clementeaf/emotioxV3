@@ -21,6 +21,18 @@
 ### fix: mobile content not overlapped by logo
 - `MainLayout` adds `pt-14` on mobile to clear the fixed logo. Desktop padding unchanged (`sm:p-6`).
 
+### fix: IAT intro screen — "Objetivo:" heading + mobile-adapted text
+- Added `h3` "Objetivo:" heading before the speed instruction (larger `text-lg`).
+- Mobile: "los botones" instead of "las teclas ← o →".
+
+### fix: study logo spacing on mobile
+- `top-5` (20px) on mobile, `top-3` (12px) on desktop.
+
+### feat: reference images in cognitive tasks
+- **DB migration 033**: added `reference-image` (file-upload, single image) component to Ranking, Single/Multiple Choice, Linear Scale, Short/Long Text templates.
+- **Research-frontend**: renders automatically via existing `FileUploadEditorComponent`.
+- **Participant-frontend**: split layout when reference image exists — image left + question right (desktop), image top + question bottom (mobile). Optional phone frame mockup via `settings.phoneFrame`.
+
 ### feat: Preference Test intensity visible in results
 - `preferenceIntensity` (`slight`/`strong`) was saved by participant but never shown in research results.
 - Inline: `NL / NF` (Leve/Fuerte) next to selection count per image.
