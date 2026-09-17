@@ -46,6 +46,11 @@
 ### fix: Preference Test zoom modal not covering full screen on mobile
 - Zoom modal rendered via `createPortal(document.body)` — no longer clipped by `MainLayout` border-radius.
 
+### feat: Emotion Recognition — EmScore + mood states
+- **EmScore**: `2(C+Q) + 1.5E - (W+U) - 2T` — single metric for emotional climate of a design.
+- **Mood States**: Frustración, Interés, Concentración — computed from Ekman emotion distribution.
+- Spanish labels throughout EmotionPanel.
+
 ### feat: Eye Tracking Shelf — group repetitions
 - Research-frontend: "Repeticiones" selector (1x-6x) in shelf config. Each product repeats N columns.
 - Participant-frontend: `ShelfGrid` expands URLs by repetition count before rendering grid.

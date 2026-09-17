@@ -244,6 +244,61 @@ const MicroExpressionsPanel = ({ data }: { data: NonNullable<EmotionAggregation[
   );
 };
 
+const MoodStates = ({ distribution }: { distribution: Record<EkmanEmotion, number> }) => {
+  const d = distribution;
+  const frustration = ((d.neutral + d.sadness + d.disgust) / 3) * 10;
+  const interest = ((d.surprise + d.joy + d.neutral) / 3) * 10;
+  const concentration = ((d.neutral + d.fear + d.sadness) / 3) * 10;
+
+  const moodColor = (val: number) => val >= 50 ? 'text-red-600' : val >= 25 ? 'text-amber-600' : 'text-green-600';
+
+  return (
+    <div>
+      <h4 className="text-sm font-semibold text-gray-700 mb-3">Estados de ánimo</h4>
+      <div className="grid grid-cols-3 gap-3">
+        <div className="rounded-lg border border-gray-200 p-3 text-center">
+          <p className={`text-xl font-bold ${moodColor(frustration)}`}>{frustration.toFixed(1)}%</p>
+          <p className="text-xs text-gray-500 mt-1">Frustración</p>
+        </div>
+        <div className="rounded-lg border border-gray-200 p-3 text-center">
+          <p className={`text-xl font-bold ${interest > 30 ? 'text-blue-600' : 'text-gray-500'}`}>{interest.toFixed(1)}%</p>
+          <p className="text-xs text-gray-500 mt-1">Interés</p>
+        </div>
+        <div className="rounded-lg border border-gray-200 p-3 text-center">
+          <p className={`text-xl font-bold ${concentration > 30 ? 'text-indigo-600' : 'text-gray-500'}`}>{concentration.toFixed(1)}%</p>
+          <p className="text-xs text-gray-500 mt-1">Concentración</p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const EmScoreCard = ({ distribution }: { distribution: Record<EkmanEmotion, number> }) => {
+  const d = distribution;
+  const comfort = d.joy;
+  const curiosity = d.surprise;
+  const engagement = (d.joy + d.surprise) / 2;
+  const worry = d.fear;
+  const uncertainty = d.neutral;
+  const ethical = d.disgust;
+
+  const emScore = 2 * (comfort + curiosity) + 1.5 * engagement - (worry + uncertainty) - 2 * ethical;
+
+  return (
+    <div className="rounded-lg border border-gray-200 p-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h4 className="text-sm font-semibold text-gray-700">EmScore</h4>
+          <p className="text-xs text-gray-400 mt-0.5">Clima emocional del diseño</p>
+        </div>
+        <p className={`text-3xl font-bold ${emScore >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+          {emScore.toFixed(1)}
+        </p>
+      </div>
+    </div>
+  );
+};
+
 export const EmotionPanel = ({ emotions }: { emotions: EmotionAggregation }) => {
   if (!emotions.enabled) {
     return (
@@ -274,13 +329,19 @@ export const EmotionPanel = ({ emotions }: { emotions: EmotionAggregation }) => 
           {EMOTION_LABELS[emotions.dominantEmotion]}
         </div>
         <span className="text-xs text-gray-500">
-          Dominant emotion &middot; {emotions.totalSamples.toLocaleString()} samples &middot; {(emotions.avgConfidence * 100).toFixed(0)}% avg confidence
+          Emoción dominante &middot; {emotions.totalSamples.toLocaleString()} muestras &middot; {(emotions.avgConfidence * 100).toFixed(0)}% confianza promedio
         </span>
       </div>
 
+      {/* EmScore */}
+      <EmScoreCard distribution={emotions.distribution} />
+
+      {/* Mood States */}
+      <MoodStates distribution={emotions.distribution} />
+
       {/* Distribution bars */}
       <div>
-        <h4 className="text-sm font-semibold text-gray-700 mb-3">Emotion Distribution</h4>
+        <h4 className="text-sm font-semibold text-gray-700 mb-3">Distribución de emociones</h4>
         <EmotionDistributionChart distribution={emotions.distribution} />
       </div>
 
