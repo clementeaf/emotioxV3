@@ -22,6 +22,8 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
     const leftKey = responseKeys === 'arrows' ? '←' : 'A';
     const rightKey = responseKeys === 'arrows' ? '→' : 'L';
 
+    const isTouchDevice = typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
+
 
 
     // Resolve S3 images
@@ -67,6 +69,7 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
     const [phase, setPhase] = useState<IATPhase>('intro');
     const [trialIndex, setTrialIndex] = useState(0);
     const [results, setResults] = useState<IATTrialResult[]>([]);
+    const [swipeDir, setSwipeDir] = useState<'left' | 'right' | null>(null);
     const trialStartRef = useRef<number>(0);
     const savedRef = useRef(false);
     const trialIndexRef = useRef(0);
@@ -107,7 +110,7 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
 
     // Handle category selection
     const handleSelect = useCallback((side: 'left' | 'right') => {
-        if (phase !== 'trial' || !currentTrial || !currentBlock) return;
+        if (phase !== 'trial' || !currentTrial || !currentBlock || swipeDir) return;
 
         const rt = Math.round(performance.now() - trialStartRef.current);
         const criterionId = side === 'left' ? currentBlock.leftId : currentBlock.rightId;
@@ -121,22 +124,27 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
         };
 
         setResults(prev => [...prev, result]);
+        setSwipeDir(side);
 
-        const nextIdx = trialIndexRef.current + 1;
-        if (nextIdx >= currentBlock.trials.length) {
-            const nextBlock = blockIndex + 1;
-            if (nextBlock >= blocks.length) {
-                setPhase('complete');
+        const id = setTimeout(() => {
+            setSwipeDir(null);
+            const nextIdx = trialIndexRef.current + 1;
+            if (nextIdx >= currentBlock.trials.length) {
+                const nextBlock = blockIndex + 1;
+                if (nextBlock >= blocks.length) {
+                    setPhase('complete');
+                } else {
+                    setBlockIndex(nextBlock);
+                    setTrialIndex(0);
+                    setPhase('take-note');
+                }
             } else {
-                setBlockIndex(nextBlock);
-                setTrialIndex(0);
-                setPhase('take-note');
+                setTrialIndex(nextIdx);
+                startTrial();
             }
-        } else {
-            setTrialIndex(nextIdx);
-            startTrial();
-        }
-    }, [phase, currentTrial, currentBlock, blockIndex, blocks.length, startTrial]);
+        }, 280);
+        timersRef.current.push(id);
+    }, [phase, currentTrial, currentBlock, blockIndex, blocks.length, startTrial, swipeDir]);
 
     // Keyboard: A (left) / L (right)
     useEffect(() => {
@@ -257,16 +265,20 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
                                 {t('iat.takeNoteCategories', 'Toma nota de las categorías a continuación')}
                             </p>
                             <p className="text-gray-600">
-                                {t('iat.takeNoteFingers', 'Posiciona tus dedos índice')}
+                                {isTouchDevice
+                                    ? t('iat.takeNoteThumbs', 'Posiciona tus dedos pulgares en cada botón')
+                                    : t('iat.takeNoteFingers', 'Posiciona tus dedos índice')}
                             </p>
                         </>
                     )}
-                    <div className="flex items-center gap-3 text-gray-500 text-sm whitespace-nowrap">
-                        <kbd className="inline-flex items-center gap-1 px-4 py-1.5 bg-gray-100 border border-gray-300 rounded-md text-xs font-mono text-gray-600 shadow-[0_1px_0_1px_rgba(0,0,0,0.08)] shrink-0">
-                            ␣ espacio
-                        </kbd>
-                        <span>{t('iat.takeNoteBegin', 'o presiona uno de los botones para comenzar')}</span>
-                    </div>
+                    {!isTouchDevice && (
+                        <div className="flex items-center gap-3 text-gray-500 text-sm whitespace-nowrap">
+                            <kbd className="inline-flex items-center gap-1 px-4 py-1.5 bg-gray-100 border border-gray-300 rounded-md text-xs font-mono text-gray-600 shadow-[0_1px_0_1px_rgba(0,0,0,0.08)] shrink-0">
+                                ␣ espacio
+                            </kbd>
+                            <span>{t('iat.takeNoteBegin', 'o presiona uno de los botones para comenzar')}</span>
+                        </div>
+                    )}
                     <div className="flex gap-4">
                         <button
                             onClick={startTrial}
@@ -281,6 +293,14 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
                             {`${rightKey} = ${currentBlock.rightLabel}`}
                         </button>
                     </div>
+                    {isTouchDevice && (
+                        <button
+                            onClick={startTrial}
+                            className="w-full py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+                        >
+                            {t('iat.ready', 'Listo')}
+                        </button>
+                    )}
                 </div>
             </div>
         );
@@ -341,7 +361,16 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
                     <span className="text-sm font-semibold text-blue-600">{`${rightKey} = ${currentBlock.rightLabel}`}</span>
                 </div>
 
-                <div className="flex flex-col items-center justify-center h-[200px] my-8 gap-2">
+                <div
+                    className="flex flex-col items-center justify-center h-[200px] my-8 gap-2"
+                    style={{
+                        transition: 'transform 250ms ease-out, opacity 250ms ease-out',
+                        transform: swipeDir
+                            ? `translateX(${swipeDir === 'left' ? '-120%' : '120%'}) rotate(${swipeDir === 'left' ? '-12' : '12'}deg)`
+                            : 'none',
+                        opacity: swipeDir ? 0 : 1,
+                    }}
+                >
                     {currentTrial.stimulusImage ? (
                         <img
                             src={currentTrial.stimulusImage}
@@ -362,7 +391,6 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
                             {currentTrial.stimulusLabel}
                         </span>
                     )}
-                    {/* Secondary label (Comparing Attribute: criteria below object name) */}
                     {currentTrial.stimulusSecondaryLabel && (
                         <span className="text-xl text-gray-600">
                             {currentTrial.stimulusSecondaryLabel}

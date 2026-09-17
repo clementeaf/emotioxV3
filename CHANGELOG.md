@@ -1,3 +1,19 @@
+## v0.96.7 — IAT mobile instructions, stimulus swipe animation (2026-09-17)
+
+### fix: IAT take-note instructions adapt to device
+- **Mobile (touch):** "Posiciona tus dedos pulgares en cada botón" + full-width "Listo" button below category buttons. Spacebar hint hidden.
+- **Desktop:** unchanged — "Posiciona tus dedos índice" + `␣ espacio` hint.
+- Detection via `matchMedia('(pointer: coarse)')`.
+
+### feat: IAT Tinder-style stimulus swipe animation
+- Stimulus card swipes left/right with 12° rotation + fade on category selection (250ms CSS transition).
+- `swipeDir` state blocks double-tap during animation. 280ms delay before advancing trial.
+
+### quality
+- **TypeScript strict** — 0 errors, 0 warnings in all 3 subprojects.
+
+---
+
 ## v0.96.6 — ET emotion fix, button validation, IAT layout stability (2026-09-11)
 
 ### fix: Eye Tracking emotion recognition not capturing
