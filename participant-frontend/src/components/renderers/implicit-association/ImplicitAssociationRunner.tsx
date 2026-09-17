@@ -314,15 +314,9 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
         return (
             <div className="flex flex-col items-center h-[500px] px-4 select-none">
                 {currentBlock && (
-                    <>
-                        <StepProgressPill step={currentBlock.step} total={totalBlocks} percent={blockProgress} />
-                        <div className="flex justify-between w-full max-w-lg mt-4 px-4">
-                            <span className="text-sm font-semibold text-blue-600">{`${leftKey} = ${currentBlock.leftLabel}`}</span>
-                            <span className="text-sm font-semibold text-blue-600">{`${rightKey} = ${currentBlock.rightLabel}`}</span>
-                        </div>
-                    </>
+                    <StepProgressPill step={currentBlock.step} total={totalBlocks} percent={blockProgress} />
                 )}
-                <div className="flex flex-col items-center justify-center h-[200px] my-8 gap-2">
+                <div className="flex-1 flex flex-col items-center justify-center gap-2">
                     {currentTrial.primingLabel ? (
                         currentTrial.primingImage ? (
                             <img
@@ -355,14 +349,8 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
         return (
             <div className="flex flex-col items-center h-[500px] px-4 select-none">
                 <StepProgressPill step={currentBlock.step} total={totalBlocks} percent={blockProgress} />
-
-                <div className="flex justify-between w-full max-w-lg mt-4 px-4">
-                    <span className="text-sm font-semibold text-blue-600">{`${leftKey} = ${currentBlock.leftLabel}`}</span>
-                    <span className="text-sm font-semibold text-blue-600">{`${rightKey} = ${currentBlock.rightLabel}`}</span>
-                </div>
-
                 <div
-                    className="flex flex-col items-center justify-center h-[200px] my-8 gap-2"
+                    className="flex-1 flex flex-col items-center justify-center gap-2"
                     style={{
                         transition: 'transform 250ms ease-out, opacity 250ms ease-out',
                         transform: swipeDir

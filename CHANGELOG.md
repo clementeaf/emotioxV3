@@ -9,6 +9,10 @@
 - Stimulus card swipes left/right with 12° rotation + fade on category selection (250ms CSS transition).
 - `swipeDir` state blocks double-tap during animation. 280ms delay before advancing trial.
 
+### fix: IAT remove redundant category labels from trial/priming
+- Removed duplicate `← = Label` / `→ = Label` text above stimulus — buttons already show category names.
+- Stimulus + buttons vertically centered via `flex-1 justify-center` below `StepProgressPill`.
+
 ### quality
 - **TypeScript strict** — 0 errors, 0 warnings in all 3 subprojects.
 
