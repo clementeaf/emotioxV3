@@ -13,6 +13,14 @@
 - Removed duplicate `← = Label` / `→ = Label` text above stimulus — buttons already show category names.
 - Stimulus + buttons vertically centered via `flex-1 justify-center` below `StepProgressPill`.
 
+### fix: study logo centered + hidden during IAT
+- Logo centered horizontally (`flex justify-center`) instead of pinned top-left.
+- Hidden during Implicit Association phases to avoid competing with exercise UI.
+- `pointer-events-none` prevents tap interference on mobile.
+
+### fix: mobile content not overlapped by logo
+- `MainLayout` adds `pt-14` on mobile to clear the fixed logo. Desktop padding unchanged (`sm:p-6`).
+
 ### quality
 - **TypeScript strict** — 0 errors, 0 warnings in all 3 subprojects.
 

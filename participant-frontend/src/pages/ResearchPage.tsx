@@ -443,6 +443,13 @@ export const ResearchPage = () => {
   const { getButtonText, shouldShowButton } = useButtonConfig();
 
   const isSpecialStep = currentStep === 'welcome' || currentStep === 'demographics' || currentStep === 'thank-you';
+  const isImplicitAssociation = useMemo(() => {
+    const lower = (currentModule?.name || '').toLowerCase();
+    return lower.includes('attribute testing') ||
+      lower.includes('comparing attribute') ||
+      lower.includes('objects comparing') ||
+      lower.includes('object comparing');
+  }, [currentModule]);
   const currentModuleResponses = currentModule ? getResponsesByModule(currentModule.id) : [];
   const needsResponse = !isSpecialStep && shouldShowButton(currentModule);
   const buttonDisabled = submitting || (needsResponse && currentModuleResponses.length === 0);
@@ -536,9 +543,8 @@ export const ResearchPage = () => {
 
       {allowLanguageSwitch && <LanguageSelector />}
 
-      {/* Study logo — top-left corner */}
-      {studyLogoEnabled && (
-        <div className="fixed top-3 left-3 z-40">
+      {studyLogoEnabled && !isImplicitAssociation && (
+        <div className="fixed top-3 left-0 right-0 z-40 flex justify-center pointer-events-none">
           <img
             src={studyLogoUrl || `${import.meta.env.BASE_URL}EmotioCX-logo.svg`}
             alt="Logo"
