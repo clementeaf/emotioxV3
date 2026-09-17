@@ -12,6 +12,7 @@ export interface HeatmapSettings {
   blur: number;
   opacity: number;
   threshold: number;
+  darkOverlay: number;
   preset: string;
 }
 
@@ -20,6 +21,7 @@ export const DEFAULT_HEATMAP_SETTINGS: HeatmapSettings = {
   blur: 12,
   opacity: 72,
   threshold: 35,
+  darkOverlay: 0,
   preset: 'Balanced',
 };
 

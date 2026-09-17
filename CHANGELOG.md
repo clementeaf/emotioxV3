@@ -46,6 +46,10 @@
 ### fix: Preference Test zoom modal not covering full screen on mobile
 - Zoom modal rendered via `createPortal(document.body)` — no longer clipped by `MainLayout` border-radius.
 
+### feat: Eye Tracking heatmap — dark overlay control
+- 4th slider "Capa oscura" (0-80) adds black overlay behind heatmap to isolate hot zones.
+- Matches EmotioSMI's "Capa negra / Oscurecer fondo" control.
+
 ### fix: Eye Tracking Shelf — hide inapplicable result tabs
 - Shelf mode hides: Scan Path, First Look, Transparency, Sequence, Image, Prediction.
 - Only shows: Mapa de calor + Emotions (if enabled).

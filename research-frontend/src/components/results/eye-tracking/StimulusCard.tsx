@@ -524,16 +524,21 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
           <div ref={setImageContainerRef} className="w-full relative">
             {viewMode === 'heatmap' && hasHeatData ? (
               filteredHeatmapData.length > 0 ? (
-                <HeatmapRenderer
-                  imageUrl={effectiveStimulusUrl}
-                  data={filteredHeatmapData}
-                  coordSystem="percent"
-                  blur={heatmapSettings.blur}
-                  opacity={heatmapSettings.opacity}
-                  threshold={heatmapSettings.threshold}
-                  className="w-full h-full"
-                  canvasClassName="w-full h-full block object-contain"
-                />
+                <>
+                  <HeatmapRenderer
+                    imageUrl={effectiveStimulusUrl}
+                    data={filteredHeatmapData}
+                    coordSystem="percent"
+                    blur={heatmapSettings.blur}
+                    opacity={heatmapSettings.opacity}
+                    threshold={heatmapSettings.threshold}
+                    className="w-full h-full"
+                    canvasClassName="w-full h-full block object-contain"
+                  />
+                  {heatmapSettings.darkOverlay > 0 && (
+                    <div className="absolute inset-0 bg-black pointer-events-none" style={{ opacity: heatmapSettings.darkOverlay / 100 }} />
+                  )}
+                </>
               ) : hasZoneMass ? (
                 <ZoneHeatmapOverlay imageUrl={effectiveStimulusUrl} zoneMass={stimulus.zoneMass!} />
               ) : null
@@ -599,6 +604,13 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
                 onChange={e => setHeatmapSettings(prev => ({ ...prev, threshold: Number(e.target.value) }))}
                 className="w-24 h-1 accent-blue-500" />
               <span className="w-6 text-right">{heatmapSettings.threshold}</span>
+            </label>
+            <label className="flex items-center gap-2 text-xs text-gray-500">
+              Capa oscura
+              <input type="range" min={0} max={80} value={heatmapSettings.darkOverlay}
+                onChange={e => setHeatmapSettings(prev => ({ ...prev, darkOverlay: Number(e.target.value) }))}
+                className="w-24 h-1 accent-blue-500" />
+              <span className="w-6 text-right">{heatmapSettings.darkOverlay}</span>
             </label>
           </div>
         )}
