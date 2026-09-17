@@ -46,6 +46,11 @@
 ### fix: Preference Test zoom modal not covering full screen on mobile
 - Zoom modal rendered via `createPortal(document.body)` — no longer clipped by `MainLayout` border-radius.
 
+### fix: Eye Tracking results — hide visualizations when 0 responses
+- Tabs (Heatmap, Density, Scan Path, etc.) hidden when `totalResponses === 0`.
+- Only metrics bar + "Sin respuestas aún" message shown.
+- Metrics labels translated to Spanish.
+
 ### fix: Cognitive Task results duplicated across stage tabs
 - `CognitiveTaskResults` now receives `stageId` and filters modules by stage.
 - Each "Cognitive Tasks" / "Cognitive Tasks 2" tab shows only its own modules.

@@ -190,22 +190,22 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
       <div className="grid grid-cols-4 gap-4 p-4 bg-gray-50 border-b border-gray-100">
         <MetricBadge
           icon={<Users className="h-4 w-4" />}
-          label="Participants"
+          label="Participantes"
           value={stimulus.uniqueParticipants}
         />
         <MetricBadge
           icon={<Eye className="h-4 w-4" />}
-          label="Responses"
+          label="Respuestas"
           value={stimulus.totalResponses}
         />
         <MetricBadge
           icon={<Clock className="h-4 w-4" />}
-          label="Avg Dwell Time"
+          label="Tiempo promedio"
           value={stimulus.avgDwellTime > 0 ? `${(stimulus.avgDwellTime / 1000).toFixed(1)}s` : '—'}
         />
         <MetricBadge
           icon={<Crosshair className="h-4 w-4" />}
-          label="Avg Fixations"
+          label="Fijaciones promedio"
           value={stimulus.avgFixationCount || '—'}
         />
       </div>
@@ -319,6 +319,7 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
         </div>
       )}
 
+      {stimulus.totalResponses > 0 && <>
       {/* View mode tabs + Download */}
       <div className="flex items-center justify-between px-4 pt-3 pb-2">
         <div className="flex gap-1 flex-wrap">
@@ -592,14 +593,13 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
         )}
         </div>
       </div>
+      </>}
 
-
-      {/* No data message */}
       {stimulus.totalResponses === 0 && (
         <div className="px-5 pb-5">
           <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 text-center">
-            <p className="text-sm font-semibold text-gray-700 mb-1">No responses yet</p>
-            <p className="text-[13px] text-gray-400">Share the study link with participants or use Live Test to preview results.</p>
+            <p className="text-sm font-semibold text-gray-700 mb-1">Sin respuestas aún</p>
+            <p className="text-[13px] text-gray-400">Comparte el enlace del estudio para comenzar a recopilar datos.</p>
           </div>
         </div>
       )}
