@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
-import { Eye, Users, Clock, Crosshair, Image, Download, SmilePlus, Sparkles, ShieldCheck, Settings, Grid3X3, Film, Signal, PenTool } from 'lucide-react';
+import { Eye, Users, Clock, Crosshair, Image, Download, SmilePlus, Sparkles, ShieldCheck, Film, Signal, PenTool } from 'lucide-react';
 import { toPng } from 'html-to-image';
 import { cn } from '../../../lib/utils';
 import { HeatmapRenderer } from '../cognitive-task/components/HeatmapRenderer';
@@ -327,16 +327,8 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
             active={viewMode === 'heatmap'}
             onClick={() => setViewMode('heatmap')}
             icon={<Eye className="h-4 w-4" />}
-            label="Heat map"
+            label="Mapa de calor"
           />
-          {(hasRealDensity || hasV3) && (
-            <ViewModeTab
-              active={viewMode === 'density'}
-              onClick={() => setViewMode('density')}
-              icon={<Grid3X3 className="h-4 w-4" />}
-              label="Density"
-            />
-          )}
           {/* Image-based overlays — hidden for video stimuli (can't render video in <img>) */}
           {!isVideo && (
             <>
@@ -400,15 +392,6 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
           )}
         </div>
         <div className="flex items-center gap-3">
-          {viewMode === 'heatmap' && hasHeatData && !hasZoneMass && (
-            <button
-              onClick={() => setShowSettings(true)}
-              className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900 transition-colors"
-            >
-              <Settings className="h-4 w-4" />
-              Settings
-            </button>
-          )}
           {stimulus.stimulusUrl && (
             <button
               onClick={() => setShowAoiModal(true)}
@@ -592,6 +575,32 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
           </div>
         )}
         </div>
+
+        {viewMode === 'heatmap' && hasHeatData && (
+          <div className="flex items-center gap-6 mt-3 px-1">
+            <label className="flex items-center gap-2 text-xs text-gray-500">
+              Opacidad
+              <input type="range" min={10} max={100} value={heatmapSettings.opacity}
+                onChange={e => setHeatmapSettings(prev => ({ ...prev, opacity: Number(e.target.value) }))}
+                className="w-24 h-1 accent-blue-500" />
+              <span className="w-6 text-right">{heatmapSettings.opacity}</span>
+            </label>
+            <label className="flex items-center gap-2 text-xs text-gray-500">
+              Blur
+              <input type="range" min={1} max={40} value={heatmapSettings.blur}
+                onChange={e => setHeatmapSettings(prev => ({ ...prev, blur: Number(e.target.value) }))}
+                className="w-24 h-1 accent-blue-500" />
+              <span className="w-6 text-right">{heatmapSettings.blur}</span>
+            </label>
+            <label className="flex items-center gap-2 text-xs text-gray-500">
+              Intensidad
+              <input type="range" min={1} max={80} value={heatmapSettings.threshold}
+                onChange={e => setHeatmapSettings(prev => ({ ...prev, threshold: Number(e.target.value) }))}
+                className="w-24 h-1 accent-blue-500" />
+              <span className="w-6 text-right">{heatmapSettings.threshold}</span>
+            </label>
+          </div>
+        )}
       </div>
       </>}
 

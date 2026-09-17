@@ -46,6 +46,11 @@
 ### fix: Preference Test zoom modal not covering full screen on mobile
 - Zoom modal rendered via `createPortal(document.body)` — no longer clipped by `MainLayout` border-radius.
 
+### feat: Eye Tracking — merge Density into Heatmap with inline controls
+- Removed "Density" tab — single "Mapa de calor" tab replaces both.
+- Inline sliders (Opacidad, Blur, Intensidad) below heatmap for real-time control.
+- Removed Settings modal button — controls are always visible.
+
 ### fix: Eye Tracking results — hide visualizations when 0 responses
 - Tabs (Heatmap, Density, Scan Path, etc.) hidden when `totalResponses === 0`.
 - Only metrics bar + "Sin respuestas aún" message shown.
