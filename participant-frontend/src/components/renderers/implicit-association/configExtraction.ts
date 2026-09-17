@@ -197,6 +197,9 @@ export const extractConfig = (module: ModuleConfig): IATExtractedConfig => {
     const responseKeysRaw = getComponentText(responseKeysComp);
     const responseKeys: 'letters' | 'arrows' = responseKeysRaw === 'arrows' ? 'arrows' : 'letters';
 
+    const trialRepetitionsComp = components.find(c => c.id === 'trial-repetitions');
+    const trialRepetitions = parseInt(getComponentText(trialRepetitionsComp) || '4', 10) || 4;
+
     return {
         testType,
         primingTime,
@@ -208,5 +211,6 @@ export const extractConfig = (module: ModuleConfig): IATExtractedConfig => {
         testInstructions: interpolateTargets(rawTest),
         showResults,
         responseKeys,
+        trialRepetitions,
     };
 };

@@ -22,7 +22,7 @@ export const padAndShuffle = (trials: IATTrial[], min: number): IATTrial[] => {
     return shuffle(padded);
 };
 
-const TRIAL_REPETITIONS = 4;
+const DEFAULT_TRIAL_REPETITIONS = 4;
 
 const repeatTrials = (trials: IATTrial[], times: number): IATTrial[] =>
     Array.from({ length: times }, () => trials).flat();
@@ -58,6 +58,7 @@ export const shuffleNoConsecutive = (trials: IATTrial[]): IATTrial[] => {
 export function buildBlocksAttributeTesting(
     targets: IATTarget[],
     criteria: IATCriteriaItem[],
+    repetitions = DEFAULT_TRIAL_REPETITIONS,
 ): IATBlock[] {
     if (targets.length < 2 || criteria.length === 0) return [];
 
@@ -106,7 +107,7 @@ export function buildBlocksAttributeTesting(
             rightLabel: tRight.name,
             leftId: tLeft.id,
             rightId: tRight.id,
-            trials: shuffleNoConsecutive(repeatTrials(testTrials, TRIAL_REPETITIONS)),
+            trials: shuffleNoConsecutive(repeatTrials(testTrials, repetitions)),
         },
     ];
 }
@@ -123,6 +124,7 @@ export function buildBlocksComparingAttribute(
     targets: IATTarget[],
     criteria: IATCriteriaItem[],
     dims: NonNullable<IATExtractedConfig['dimensions']>,
+    repetitions = DEFAULT_TRIAL_REPETITIONS,
 ): IATBlock[] {
     if (targets.length === 0 || criteria.length === 0) return [];
 
@@ -164,7 +166,7 @@ export function buildBlocksComparingAttribute(
             rightLabel: dims.right,
             leftId: 'dimension-1',
             rightId: 'dimension-2',
-            trials: shuffleNoConsecutive(repeatTrials(testTrials, TRIAL_REPETITIONS)),
+            trials: shuffleNoConsecutive(repeatTrials(testTrials, repetitions)),
         },
     ];
 }
@@ -181,6 +183,7 @@ export function buildBlocksObjectsComparing(
     targets: IATTarget[],
     criteria: IATCriteriaItem[],
     categories: NonNullable<IATExtractedConfig['criteriaCategories']>,
+    repetitions = DEFAULT_TRIAL_REPETITIONS,
 ): IATBlock[] {
     if (targets.length < 2 || criteria.length < 2) return [];
 
@@ -222,23 +225,24 @@ export function buildBlocksObjectsComparing(
             rightLabel: categories.right,
             leftId: categories.leftId,
             rightId: categories.rightId,
-            trials: shuffleNoConsecutive(repeatTrials(testTrials, TRIAL_REPETITIONS)),
+            trials: shuffleNoConsecutive(repeatTrials(testTrials, repetitions)),
         },
     ];
 }
 
 /** Route to the correct block builder */
 export function buildBlocks(config: IATExtractedConfig, targets: IATTarget[], criteria: IATCriteriaItem[]): IATBlock[] {
+    const reps = config.trialRepetitions || DEFAULT_TRIAL_REPETITIONS;
     switch (config.testType) {
         case 'attribute_testing':
-            return buildBlocksAttributeTesting(targets, criteria);
+            return buildBlocksAttributeTesting(targets, criteria, reps);
         case 'comparing_attribute':
             return config.dimensions
-                ? buildBlocksComparingAttribute(targets, criteria, config.dimensions)
+                ? buildBlocksComparingAttribute(targets, criteria, config.dimensions, reps)
                 : [];
         case 'objects_comparing':
             return config.criteriaCategories
-                ? buildBlocksObjectsComparing(targets, criteria, config.criteriaCategories)
+                ? buildBlocksObjectsComparing(targets, criteria, config.criteriaCategories, reps)
                 : [];
         default:
             return [];

@@ -71,4 +71,5 @@ export interface IATExtractedConfig {
     showResults: boolean;
     /** Response key mode: "letters" (A/L) or "arrows" (←/→). Default: "letters" */
     responseKeys: 'letters' | 'arrows';
+    trialRepetitions: number;
 }

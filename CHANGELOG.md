@@ -46,6 +46,11 @@
 ### fix: Preference Test zoom modal not covering full screen on mobile
 - Zoom modal rendered via `createPortal(document.body)` — no longer clipped by `MainLayout` border-radius.
 
+### feat: IAT configurable stimulus repetitions
+- Researcher selects repetition count (1x-8x) per IAT module via "Stimulus repetitions" selector.
+- Default 4x (unchanged behavior). Applies to all 3 paradigms.
+- `trial-repetitions` component added to Attribute Testing, Comparing Attribute, Objects Comparing templates.
+
 ### feat: Eye Tracking Shelf — comparative product view
 - "Comparativa" tab for shelf mode with AOIs — cards per product sorted by % AOI.
 - Winner highlighted in green. 6 metrics: % AOI, fixations, duration, participants, TTFF, notice rate.
