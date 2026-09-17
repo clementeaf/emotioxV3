@@ -225,10 +225,9 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
         mass: number; duration: number; sigma1: number; sigma2: number; theta: number;
     } | null>(null);
 
-    // --- face-api.js emotion recognition (desktop, parallel to BlazeGaze) ---
     const faceEmotions = useFaceApiEmotions({
         videoRef,
-        enabled: isDesktop && hasEmotionRecognition,
+        enabled: hasEmotionRecognition,
         sampleIntervalMs: GAZE_POLL_MS,
     });
 
@@ -511,6 +510,13 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
     // eslint-disable-next-line react-hooks/exhaustive-deps -- stable RAF loop; live gaze.* reads via ref
     }, [phase, isDesktop, hasEmotionRecognition, isVideo]);
 
+    useEffect(() => {
+        if (phase !== 'viewing' || isDesktop || !hasEmotionRecognition) return;
+        faceEmotions.start();
+        return () => { faceEmotions.stop(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [phase, isDesktop, hasEmotionRecognition]);
+
     // Micro-recalibration: periodic drift correction during viewing (desktop only)
     useEffect(() => {
         if (phase !== 'viewing' || !isDesktop) return;
@@ -605,23 +611,21 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
     // eslint-disable-next-line react-hooks/exhaustive-deps -- getStimulusElement reads refs only, stable
     }, [phase, viewingDuration, isDesktop]);
 
-    // Start camera early in setup phase so participant can verify position
     useEffect(() => {
-        if (phase !== 'setup' || !isDesktop) return;
-        void startCamera();
-    }, [phase, isDesktop, startCamera]);
+        if (phase !== 'setup') return;
+        if (isDesktop || hasEmotionRecognition) void startCamera();
+    }, [phase, isDesktop, hasEmotionRecognition, startCamera]);
 
     // "Preparing" phase: start camera + auto-advance
     // If cached calibration exists, skip to viewing; otherwise go to calibration.
     useEffect(() => {
         if (phase !== 'preparing') return;
 
-        if (isDesktop) {
+        if (isDesktop || hasEmotionRecognition) {
             void startCamera();
         }
 
         if (cachedCalibration) {
-            // Consecutive ET — reuse calibration, skip to viewing
             if (isDesktop) gaze.start();
             const timer = setTimeout(() => {
                 gazePointsRef.current = [];
