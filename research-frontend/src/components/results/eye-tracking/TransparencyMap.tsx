@@ -152,14 +152,14 @@ export const TransparencyMap = ({
         </label>
         <span className="text-xs text-gray-400">{includedFixations.length} fixations</span>
       </div>
-      <div className="rounded-lg overflow-hidden border bg-gray-100">
+      <div className="rounded-lg overflow-hidden border bg-gray-100 inline-block max-w-full">
         <canvas
           ref={canvasRef}
-          className="w-full h-full block object-contain"
+          className="block max-h-[60vh] w-auto max-w-full object-contain"
         />
       </div>
       <p className="text-xs text-gray-400 mt-2 text-center">
-        Sharp areas = where participants looked. Blurred = unseen.
+        Zonas nítidas = donde miraron los participantes. Borroso = no visto.
       </p>
     </div>
   );

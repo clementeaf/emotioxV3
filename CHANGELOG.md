@@ -46,6 +46,10 @@
 ### fix: Preference Test zoom modal not covering full screen on mobile
 - Zoom modal rendered via `createPortal(document.body)` — no longer clipped by `MainLayout` border-radius.
 
+### fix: ET Transparency — constrain image size + Spanish text
+- Canvas constrained to `max-h-[60vh]` matching Scan Path sizing.
+- Description translated to Spanish.
+
 ### feat: ET Prediction tab — heatmap sliders + dark overlay
 - Same 4 controls as Heatmap: Opacidad, Blur/suavizado, Exposición/intensidad, Capa negra.
 - Dark overlay layer for prediction visualization.
