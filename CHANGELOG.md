@@ -33,6 +33,11 @@
 - **Research-frontend**: renders automatically via existing `FileUploadEditorComponent`.
 - **Participant-frontend**: split layout when reference image exists — image left + question right (desktop), image top + question bottom (mobile). Optional phone frame mockup via `settings.phoneFrame`.
 
+### feat: per-item images in Ranking
+- **Research-frontend**: `RankingItemsEditor` — image upload button per item (40×40 thumbnail + remove). Uses `mediaService.uploadFile`.
+- **Participant-frontend**: `RankingQuestion` shows 40×40 thumbnail next to each item label. `useResolvedMediaUrl` hook resolves S3 keys.
+- Item data extended: `{ id, label, image?: { s3Key, url } }`.
+
 ### feat: Preference Test intensity visible in results
 - `preferenceIntensity` (`slight`/`strong`) was saved by participant but never shown in research results.
 - Inline: `NL / NF` (Leve/Fuerte) next to selection count per image.

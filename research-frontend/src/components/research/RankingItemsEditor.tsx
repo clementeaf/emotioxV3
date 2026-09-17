@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
 import { Toggle } from '../ui/Toggle';
-import { Trash2, Plus } from 'lucide-react';
+import { Trash2, Plus, ImagePlus, X } from 'lucide-react';
 import type { ComponentConfig } from '../../types/moduleBuilder.types';
 import { CustomSelect } from '../ui/CustomSelect';
+import { mediaService } from '../../services/media.service';
 
 const QUALIFICATION_OPTIONS = [
     { value: 'qualify', label: 'Qualify' },
@@ -17,6 +18,7 @@ export interface RankingItemsEditorProps {
     component: ComponentConfig;
     value: string;
     onChange: (value: string) => void;
+    researchId?: string;
     /** @deprecated No-op, kept for call-site compat. */
     singleChoiceLocked?: boolean;
     /** @deprecated No-op, kept for call-site compat. */
@@ -27,13 +29,16 @@ type RankingItem = {
     id: string;
     label: string;
     qualification?: 'qualify' | 'disqualify';
+    image?: { s3Key: string; url?: string };
 };
 
 export const RankingItemsEditor = ({
     component,
     value,
     onChange,
+    researchId,
 }: RankingItemsEditorProps) => {
+    const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
     const buildInitialState = (): { items: RankingItem[]; randomize: boolean } => {
         if (value) {
             try {
@@ -102,6 +107,29 @@ export const RankingItemsEditor = ({
         persist(updated, randomize);
     };
 
+    const handleImageUpload = async (itemId: string, file: File) => {
+        if (!researchId) return;
+        try {
+            const { s3Key } = await mediaService.uploadFile(researchId, file);
+            const { url } = await mediaService.getMediaUrl(s3Key);
+            const updated = localItems.map(item =>
+                item.id === itemId ? { ...item, image: { s3Key, url } } : item
+            );
+            setLocalItems(updated);
+            persist(updated, randomize);
+        } catch (err) {
+            console.error('Image upload failed:', err);
+        }
+    };
+
+    const handleImageRemove = (itemId: string) => {
+        const updated = localItems.map(item =>
+            item.id === itemId ? { ...item, image: undefined } : item
+        );
+        setLocalItems(updated);
+        persist(updated, randomize);
+    };
+
     const handleRandomizeChange = (checked: boolean) => {
         setRandomize(checked);
         persist(localItems, checked);
@@ -117,6 +145,36 @@ export const RankingItemsEditor = ({
                     const canDelete = localItems.length > MIN_ITEMS;
                     return (
                         <div key={item.id} className="flex items-center gap-3">
+                            {item.image?.url ? (
+                                <div className="relative w-10 h-10 flex-shrink-0">
+                                    <img src={item.image.url} alt="" className="w-10 h-10 rounded object-cover" />
+                                    <button
+                                        onClick={() => handleImageRemove(item.id)}
+                                        className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center"
+                                    >
+                                        <X className="h-2.5 w-2.5" />
+                                    </button>
+                                </div>
+                            ) : (
+                                <button
+                                    onClick={() => fileInputRefs.current[item.id]?.click()}
+                                    className="w-10 h-10 flex-shrink-0 rounded border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400 hover:border-blue-400 hover:text-blue-500 transition-colors"
+                                    title="Add image"
+                                >
+                                    <ImagePlus className="h-4 w-4" />
+                                    <input
+                                        ref={el => { fileInputRefs.current[item.id] = el; }}
+                                        type="file"
+                                        accept="image/*"
+                                        className="hidden"
+                                        onChange={(e) => {
+                                            const f = e.target.files?.[0];
+                                            if (f) handleImageUpload(item.id, f);
+                                            e.target.value = '';
+                                        }}
+                                    />
+                                </button>
+                            )}
                             <div className="flex-1">
                                 <Input
                                     id={`ranking-${item.id}-label`}

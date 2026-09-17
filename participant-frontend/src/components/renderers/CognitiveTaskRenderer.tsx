@@ -148,7 +148,7 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
             // 1. Component with id 'items' - check options, settings.items, or value
             // 2. Component with type 'ranking-list' (any id)
             // 3. Old format: multiple components with isChoice or choice- in id
-            let items: Array<{ id: string; label: string }> = [];
+            let items: Array<{ id: string; label: string; image?: { s3Key?: string; url?: string } }> = [];
             let shouldRandomize = false;
 
             // Try new format first (component with id 'items' or type 'ranking-list')
@@ -184,10 +184,11 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
                         }
                         // New format: { items: [...], randomize: bool }
                         if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && 'items' in parsed && Array.isArray((parsed as { items: unknown[] }).items)) {
-                            const wrapper = parsed as { items: Array<{ id?: string; label?: string; value?: string }>; randomize?: boolean };
+                            const wrapper = parsed as { items: Array<{ id?: string; label?: string; value?: string; image?: { s3Key?: string; url?: string } }>; randomize?: boolean };
                             items = wrapper.items.map((item, index) => ({
                                 id: item.id || item.value || `item-${index}`,
-                                label: item.label || item.value || item.id || `Item ${index + 1}`
+                                label: item.label || item.value || item.id || `Item ${index + 1}`,
+                                ...(item.image ? { image: item.image } : {}),
                             }));
                             shouldRandomize = !!wrapper.randomize;
                         }
@@ -215,9 +216,10 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
                             const parsed = JSON.parse(componentText);
                             // New format: { items: [...], randomize: bool }
                             if (parsed && !Array.isArray(parsed) && parsed.items && Array.isArray(parsed.items)) {
-                                items = parsed.items.map((item: { id?: string; label?: string; value?: string }, index: number) => ({
+                                items = parsed.items.map((item: { id?: string; label?: string; value?: string; image?: { s3Key?: string; url?: string } }, index: number) => ({
                                     id: item.id || item.value || `item-${index}`,
-                                    label: item.label || item.value || item.id || `Item ${index + 1}`
+                                    label: item.label || item.value || item.id || `Item ${index + 1}`,
+                                    ...(item.image ? { image: item.image } : {}),
                                 }));
                                 shouldRandomize = !!parsed.randomize;
                             }

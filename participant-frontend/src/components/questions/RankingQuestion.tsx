@@ -1,10 +1,18 @@
 import { useState, useEffect } from 'react';
 import { useResponse } from '../../hooks/useResponse';
+import { useResolvedMediaUrl } from '../../hooks/useResolvedMediaUrl';
 
 interface RankingItem {
     id: string;
     label: string;
+    image?: { s3Key?: string; url?: string };
 }
+
+const ItemThumbnail = ({ image }: { image: { s3Key?: string; url?: string } }) => {
+    const resolved = useResolvedMediaUrl(image.url, image.s3Key);
+    if (!resolved) return null;
+    return <img src={resolved} alt="" className="w-10 h-10 rounded object-cover flex-shrink-0" />;
+};
 
 interface RankingQuestionProps {
     moduleId: string;
@@ -132,12 +140,12 @@ export const RankingQuestion = ({
                             }
                         `}
                     >
-                        {/* Rank number */}
-                        <div className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-50 text-blue-600 font-bold text-sm">
+                        <div className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-50 text-blue-600 font-bold text-sm flex-shrink-0">
                             {index + 1}
                         </div>
 
-                        {/* Item label */}
+                        {item.image && <ItemThumbnail image={item.image} />}
+
                         <span className="flex-1 text-gray-900">{item.label}</span>
 
                         {/* Arrow buttons */}
