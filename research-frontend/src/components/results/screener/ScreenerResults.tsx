@@ -93,17 +93,17 @@ export const ScreenerResults = ({ researchId, className }: ScreenerResultsProps)
 
               <div className="lg:col-span-2 flex flex-col gap-4">
                 <StatusCard
-                  label="Overquota interviews"
+                  label="Entrevistas con sobrecutoa"
                   count={data.overquota}
                   icon={<AlertTriangle className="h-5 w-5 text-amber-500" />}
                 />
                 <StatusCard
-                  label="Disqualified interviews"
+                  label="Entrevistas descalificadas"
                   count={data.disqualified}
                   icon={<XCircle className="h-5 w-5 text-red-500" />}
                 />
                 <StatusCard
-                  label="Complete interviews"
+                  label="Entrevistas completas"
                   count={data.qualified}
                   icon={<CheckCircle className="h-5 w-5 text-green-500" />}
                 />
@@ -157,8 +157,8 @@ function DistributionChart({ data }: { data: ScreenerResultsType }) {
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h3 className="text-base font-semibold text-gray-900">Distribution of users</h3>
-          <p className="text-xs text-gray-500">Routing by ID</p>
+          <h3 className="text-base font-semibold text-gray-900">Distribución de usuarios</h3>
+          <p className="text-xs text-gray-500">Clasificación por respuesta</p>
         </div>
         <span className="text-3xl font-bold text-blue-500">{totalResponses.toLocaleString()}</span>
       </div>
@@ -179,8 +179,8 @@ function DistributionChart({ data }: { data: ScreenerResultsType }) {
               wrapperStyle={{ fontSize: 12 }}
               formatter={(value: string) => {
                 const choice = choiceDistribution.find(c => c.label === value);
-                const routeIdx = choiceLabels.indexOf(value) + 1;
-                return `Route ${routeIdx} (${choice?.eligibility || value})`;
+                const eligibility = choice?.eligibility === 'Qualify' ? 'clasifica' : choice?.eligibility === 'Disqualify' ? 'descalifica' : choice?.eligibility;
+                return `${value} (${eligibility})`;
               }}
             />
             {choiceLabels.map((label, idx) => (
@@ -196,8 +196,8 @@ function DistributionChart({ data }: { data: ScreenerResultsType }) {
         </ResponsiveContainer>
       ) : (
         <div className="h-[220px] flex flex-col items-center justify-center text-center">
-          <p className="text-sm font-semibold text-gray-700 mb-1">No response data yet</p>
-          <p className="text-[13px] text-gray-400">Responses will appear here once participants complete the screener.</p>
+          <p className="text-sm font-semibold text-gray-700 mb-1">Sin datos de respuesta aún</p>
+          <p className="text-[13px] text-gray-400">Las respuestas aparecerán aquí cuando los participantes completen el screener.</p>
         </div>
       )}
 
@@ -206,7 +206,7 @@ function DistributionChart({ data }: { data: ScreenerResultsType }) {
         {bestDay && (
           <DayRow
             icon={<TrendingUp className="h-5 w-5 text-gray-400" />}
-            title="Best assignment day"
+            title="Mejor día de asignación"
             subtitle={`${bestDay.dayName}, ${bestDay.hour}`}
             count={bestDay.count}
             percentage={bestDay.percentage}
@@ -215,7 +215,7 @@ function DistributionChart({ data }: { data: ScreenerResultsType }) {
         {slowestDay && (
           <DayRow
             icon={<TrendingDown className="h-5 w-5 text-gray-400" />}
-            title="Slowest day"
+            title="Día más lento"
             subtitle={`${slowestDay.dayName}, ${slowestDay.hour}`}
             count={slowestDay.count}
             percentage={slowestDay.percentage}
@@ -237,8 +237,8 @@ function WeeklyChart({ timeSeries }: { timeSeries: ScreenerResultsType['weeklyTi
         <XAxis dataKey="dayName" tick={{ fontSize: 11 }} />
         <YAxis tick={{ fontSize: 10 }} hide />
         <Tooltip
-          formatter={(value: number) => [value, "Users' ID"]}
-          labelFormatter={(label: string) => `Distribution of users — ${label}`}
+          formatter={(value: number) => [value, 'Participantes']}
+          labelFormatter={(label: string) => `Distribución — ${label}`}
         />
         <Line
           type="monotone"

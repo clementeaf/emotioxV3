@@ -46,6 +46,10 @@
 ### fix: Preference Test zoom modal not covering full screen on mobile
 - Zoom modal rendered via `createPortal(document.body)` — no longer clipped by `MainLayout` border-radius.
 
+### fix: Screener results — Spanish translation + real choice labels
+- Legend shows actual choice labels (Hombre, Mujer) with eligibility (clasifica/descalifica) instead of "Route 1/Route 2".
+- All UI text translated: titles, cards, tooltips, day rows, empty state.
+
 ### fix: Eye Tracking viewing phase — white background for all modes
 - Stand Alone and Shelf both use pure white background. Removed gradient.
 - Duration options expanded: 3, 5, 7, 10, 15, 20, 30, 45, 60 seconds.
