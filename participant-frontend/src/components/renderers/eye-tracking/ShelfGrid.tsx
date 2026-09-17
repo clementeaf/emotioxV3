@@ -13,6 +13,7 @@ export interface ShelfGridProps {
     urls: string[];
     shelfCount: number;
     shelfItems: number;
+    repetitions?: number;
     blur?: boolean;
     opacity?: number;
     className?: string;
@@ -26,6 +27,7 @@ export const ShelfGrid: React.FC<ShelfGridProps> = ({
     urls,
     shelfCount,
     shelfItems,
+    repetitions = 1,
     blur = false,
     opacity,
     className = '',
@@ -34,11 +36,20 @@ export const ShelfGrid: React.FC<ShelfGridProps> = ({
     containerRef,
     rotationInterval = 0,
 }) => {
-    const [displayUrls, setDisplayUrls] = useState(urls);
+    const expandedUrls = React.useMemo(() => {
+        if (repetitions <= 1) return urls;
+        const result: string[] = [];
+        for (const url of urls) {
+            for (let i = 0; i < repetitions; i++) result.push(url);
+        }
+        return result;
+    }, [urls, repetitions]);
+
+    const [displayUrls, setDisplayUrls] = useState(expandedUrls);
 
     useEffect(() => {
-        setDisplayUrls(urls);
-    }, [urls]);
+        setDisplayUrls(expandedUrls);
+    }, [expandedUrls]);
 
     useEffect(() => {
         if (rotationInterval < 5 || displayUrls.length < 2) return;

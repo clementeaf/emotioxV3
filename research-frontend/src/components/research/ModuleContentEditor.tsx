@@ -682,7 +682,7 @@ export const ModuleContentEditor = ({
                             <div className="flex gap-4 mt-4">
                                 <div className="flex-1">
                                     <CustomSelect
-                                        label="Number of Shelfs"
+                                        label="Filas"
                                         value={componentValues['shelf-count'] || '2'}
                                         onChange={(val) => {
                                             onValueChange('shelf-count', val);
@@ -693,13 +693,21 @@ export const ModuleContentEditor = ({
                                 </div>
                                 <div className="flex-1">
                                     <CustomSelect
-                                        label="Items per Shelf"
+                                        label="Columnas"
                                         value={componentValues['shelf-items'] || '5'}
                                         onChange={(val) => {
                                             onValueChange('shelf-items', val);
                                             regenerateShelfAois(shelfCount, parseInt(val, 10));
                                         }}
                                         options={[3, 4, 5, 6, 7, 8, 10].map(n => ({ value: String(n), label: String(n) }))}
+                                    />
+                                </div>
+                                <div className="flex-1">
+                                    <CustomSelect
+                                        label="Repeticiones"
+                                        value={componentValues['shelf-repetitions'] || '1'}
+                                        onChange={(val) => onValueChange('shelf-repetitions', val)}
+                                        options={[1, 2, 3, 4, 5, 6].map(n => ({ value: String(n), label: `${n}x` }))}
                                     />
                                 </div>
                             </div>

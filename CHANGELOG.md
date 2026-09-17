@@ -46,6 +46,11 @@
 ### fix: Preference Test zoom modal not covering full screen on mobile
 - Zoom modal rendered via `createPortal(document.body)` — no longer clipped by `MainLayout` border-radius.
 
+### feat: Eye Tracking Shelf — group repetitions
+- Research-frontend: "Repeticiones" selector (1x-6x) in shelf config. Each product repeats N columns.
+- Participant-frontend: `ShelfGrid` expands URLs by repetition count before rendering grid.
+- Config stored as `shelf-repetitions` component value.
+
 ### feat: Vista Cliente — SmartVOC consolidado por enterprise
 - Backend: `GET /analytics/enterprise/:id/smartvoc` aggregates SmartVOC across all researches.
 - Clients page: "SmartVOC Consolidado" section with NPS, CSAT, CES, CV averages.

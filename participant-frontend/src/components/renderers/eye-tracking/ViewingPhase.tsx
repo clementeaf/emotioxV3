@@ -78,6 +78,7 @@ export const ViewingPhase: React.FC<ViewingPhaseProps> = ({
                         urls={shelfConfig.urls}
                         shelfCount={shelfConfig.shelfCount}
                         shelfItems={shelfConfig.shelfItems}
+                        repetitions={shelfConfig.repetitions}
                         containerRef={shelfConfig.containerRef}
                         onAllLoaded={shelfConfig.onAllLoaded}
                         rotationInterval={shelfConfig.rotationInterval}
