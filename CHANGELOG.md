@@ -46,6 +46,12 @@
 ### fix: Preference Test zoom modal not covering full screen on mobile
 - Zoom modal rendered via `createPortal(document.body)` — no longer clipped by `MainLayout` border-radius.
 
+### feat: IAT chart/table toggle + CSV export
+- Toggle switcher (Gráfico/Tabla) at top of each IAT module card.
+- Table view shows clean data grid — selectable, copy-pasteable.
+- "Exportar CSV" button downloads UTF-8 CSV compatible with Excel/Google Sheets.
+- Empty state and response count translated to Spanish.
+
 ### feat: IAT charts unified across paradigms
 - **Attribute Testing**: added vertical bar chart below radar + association strength.
 - **Comparing Attribute**: unchanged (bars + radar + bands).

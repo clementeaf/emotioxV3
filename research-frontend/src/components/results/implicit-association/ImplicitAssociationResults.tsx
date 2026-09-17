@@ -985,11 +985,43 @@ const RTDistributionCard = ({ module: mod, colors }: { module: IATModuleResult; 
 // MODULE CARD WRAPPER
 // ==========================================
 
+function buildIATTableData(mod: IATModuleResult): { headers: string[]; rows: string[][] } {
+  if (mod.testType === 'comparing_attribute' || mod.testType === 'objects_comparing') {
+    const dim1 = mod.attributes[0];
+    const dim2 = mod.attributes[1];
+    const headers = ['Objeto', dim1?.label ?? 'Dim 1', dim2?.label ?? 'Dim 2'];
+    const rows = mod.targets.map(t => [
+      t.name,
+      `${Math.abs(mod.scores.find(s => s.attributeId === dim1?.id)?.targetScores[t.id] ?? 0)}%`,
+      `${Math.abs(mod.scores.find(s => s.attributeId === dim2?.id)?.targetScores[t.id] ?? 0)}%`,
+    ]);
+    return { headers, rows };
+  }
+  const headers = ['Atributo', ...mod.targets.map(t => t.name)];
+  const rows = mod.scores.map(s => [
+    s.attributeLabel,
+    ...mod.targets.map(t => `${s.targetScores[t.id] ?? 0}%`),
+  ]);
+  return { headers, rows };
+}
+
+function downloadCSV(headers: string[], rows: string[][], filename: string) {
+  const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 const IATModuleCard = ({ module: mod }: { module: IATModuleResult }) => {
   const targetLabels = mod.testType === 'objects_comparing'
     ? (mod.attributes.length >= 2 ? [mod.attributes[0].label, mod.attributes[1].label] : mod.targets.map(t => t.name))
     : mod.targets.map(t => t.name);
   const [colors, setColors] = useCustomColors(mod.moduleId, targetLabels.length);
+  const [viewMode, setViewMode] = useState<'chart' | 'table'>('chart');
 
   const handleColorChange = useCallback((i: number, color: string) => {
     setColors(prev => { const next = [...prev]; next[i] = color; return next; });
@@ -1001,30 +1033,82 @@ const IATModuleCard = ({ module: mod }: { module: IATModuleResult }) => {
     objects_comparing: ObjectsComparingChart,
   }[mod.testType];
 
+  const tableData = buildIATTableData(mod);
+
   return (
     <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
       {mod.testTitle && (
         <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-3">{mod.testTitle}</p>
       )}
-      <ColorLegend labels={targetLabels} colors={colors} onChange={handleColorChange} />
-      <ChartComponent module={mod} colors={colors} />
-      {mod.testType !== 'comparing_attribute' && (
+
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex bg-gray-100 rounded-lg p-0.5">
+          <button
+            onClick={() => setViewMode('chart')}
+            className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${viewMode === 'chart' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}
+          >
+            Gráfico
+          </button>
+          <button
+            onClick={() => setViewMode('table')}
+            className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${viewMode === 'table' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}
+          >
+            Tabla
+          </button>
+        </div>
+        <button
+          onClick={() => downloadCSV(tableData.headers, tableData.rows, `${mod.testTitle || mod.testType}.csv`)}
+          className="px-3 py-1 text-xs font-medium text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors"
+        >
+          Exportar CSV
+        </button>
+      </div>
+
+      {viewMode === 'chart' ? (
         <>
-          <DScoreCard module={mod} />
-          <EffectSizeBar module={mod} />
-          <ErrorAnalysisCard module={mod} />
+          <ColorLegend labels={targetLabels} colors={colors} onChange={handleColorChange} />
+          <ChartComponent module={mod} colors={colors} />
+          {mod.testType !== 'comparing_attribute' && (
+            <>
+              <DScoreCard module={mod} />
+              <EffectSizeBar module={mod} />
+              <ErrorAnalysisCard module={mod} />
+            </>
+          )}
+          <RTDistributionCard module={mod} colors={colors} />
         </>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-200">
+                {tableData.headers.map(h => (
+                  <th key={h} className="text-left py-2 px-3 text-xs font-semibold text-gray-500 uppercase">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {tableData.rows.map((row, i) => (
+                <tr key={i} className="border-b border-gray-100 hover:bg-gray-50">
+                  {row.map((cell, j) => (
+                    <td key={j} className="py-2 px-3 text-gray-700">{cell}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
-      <RTDistributionCard module={mod} colors={colors} />
+
       {mod.totalResponses === 0 && (
         <div className="mt-4 bg-gray-50 border border-gray-200 rounded-xl p-4 text-center">
-          <p className="text-sm font-semibold text-gray-700 mb-1">No responses yet</p>
-          <p className="text-[13px] text-gray-400">Share the study link with participants to start collecting data.</p>
+          <p className="text-sm font-semibold text-gray-700 mb-1">Sin respuestas aún</p>
+          <p className="text-[13px] text-gray-400">Comparte el enlace del estudio para comenzar a recopilar datos.</p>
         </div>
       )}
       {mod.totalResponses > 0 && (
         <p className="mt-3 text-xs text-gray-400 text-right">
-          {mod.totalResponses} response{mod.totalResponses !== 1 ? 's' : ''}
+          {mod.totalResponses} respuesta{mod.totalResponses !== 1 ? 's' : ''}
         </p>
       )}
     </div>
