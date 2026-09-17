@@ -252,7 +252,7 @@ export const ResearchResultsPage = () => {
                         <>
                             {activeTab.stageType === 'screener' && <ScreenerResults researchId={id} />}
                             {activeTab.stageType === 'smart-voc' && <SmartVOCResults researchId={id} />}
-                            {activeTab.stageType === 'cognitive-task' && <CognitiveTaskResults researchId={id} />}
+                            {activeTab.stageType === 'cognitive-task' && <CognitiveTaskResults researchId={id} stageId={activeTab.stageId} />}
                             {activeTab.stageType === 'implicit-association' && <ImplicitAssociationResults researchId={id} stageId={activeTab.stageId} />}
                             {activeTab.stageType === 'eye-tracking' && <EyeTrackingResults researchId={id} stageId={activeTab.stageId} />}
                             {activeTab.stageType === 'emotion-analysis' && <EmotionAnalysisResults researchId={id} />}

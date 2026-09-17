@@ -6,6 +6,7 @@ import { VOCComments } from '../smart-voc/components/VOCComments';
 import { cn } from '../../../lib/utils';
 import { useCognitiveTaskResults } from '../../../hooks/useCognitiveTaskResults';
 import { useResultsFilter } from '../../../hooks/useResultsFilter';
+import { useResearch } from '../../../hooks/useResearchQuery';
 import { ResultsStateHandler } from '../shared/ResultsStateHandler';
 import { NavigationFlowResultsWrapper } from './NavigationFlowResultsWrapper';
 import { PreferenceTestResultsWrapper } from './PreferenceTestResultsWrapper';
@@ -15,6 +16,7 @@ import { RankingResultsWrapper } from './RankingResultsWrapper';
 
 interface CognitiveTaskResultsProps {
   researchId: string;
+  stageId?: string;
   className?: string;
 }
 
@@ -39,8 +41,16 @@ interface TextResponseFormatted {
   mood: string;
 }
 
-export const CognitiveTaskResults = ({ researchId, className }: CognitiveTaskResultsProps) => {
+export const CognitiveTaskResults = ({ researchId, stageId, className }: CognitiveTaskResultsProps) => {
   const { data, isLoading, error, refetch } = useCognitiveTaskResults(researchId);
+  const { data: research } = useResearch(researchId);
+
+  const stageModuleIds = useMemo(() => {
+    if (!stageId || !research?.stages) return null;
+    const stage = research.stages.find((s: { id: string }) => s.id === stageId);
+    if (!stage) return null;
+    return new Set(stage.modules.map((m: { id: string }) => m.id));
+  }, [stageId, research]);
   const {
     demographicData,
     demographicFilters,
@@ -56,6 +66,7 @@ export const CognitiveTaskResults = ({ researchId, className }: CognitiveTaskRes
 
   const modulesToRender = useMemo(() => {
     const list = data?.modules?.filter((m) => {
+      if (stageModuleIds && !stageModuleIds.has(m.moduleId)) return false;
       const normalized = m.moduleName.toLowerCase();
       if (normalized.includes('research configuration') || normalized.includes('welcome screen') || normalized.includes('thank you screen') ||
           normalized.includes('csat') || normalized.includes('nps') || normalized.includes('ces') || normalized.includes('voc') ||
@@ -71,7 +82,7 @@ export const CognitiveTaskResults = ({ researchId, className }: CognitiveTaskRes
       responses: module.responses.filter((r) => filteredParticipantIds.has(r.participantId)),
       totalResponses: module.responses.filter((r) => filteredParticipantIds.has(r.participantId)).length,
     }));
-  }, [data?.modules, filteredParticipantIds]);
+  }, [data?.modules, filteredParticipantIds, stageModuleIds]);
 
   // Module visibility filter
   const [selectedModuleIds, setSelectedModuleIds] = useState<Set<string> | null>(null);

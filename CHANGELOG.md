@@ -46,6 +46,11 @@
 ### fix: Preference Test zoom modal not covering full screen on mobile
 - Zoom modal rendered via `createPortal(document.body)` — no longer clipped by `MainLayout` border-radius.
 
+### fix: Cognitive Task results duplicated across stage tabs
+- `CognitiveTaskResults` now receives `stageId` and filters modules by stage.
+- Each "Cognitive Tasks" / "Cognitive Tasks 2" tab shows only its own modules.
+- Uses `useResearch` (cached) to resolve stage → module mapping.
+
 ### feat: IAT chart/table toggle + CSV export
 - Toggle switcher (Gráfico/Tabla) at top of each IAT module card.
 - Table view shows clean data grid — selectable, copy-pasteable.
