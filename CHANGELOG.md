@@ -46,7 +46,11 @@
 ### fix: Preference Test zoom modal not covering full screen on mobile
 - Zoom modal rendered via `createPortal(document.body)` — no longer clipped by `MainLayout` border-radius.
 
-### fix: Eye Tracking shelf — white background, tight spacing
+### fix: Eye Tracking viewing phase — white background for all modes
+- Stand Alone and Shelf both use pure white background. Removed gradient.
+- Duration options expanded: 3, 5, 7, 10, 15, 20, 30, 45, 60 seconds.
+
+### fix: Eye Tracking shelf — tight spacing
 - Shelf viewing phase uses pure white background instead of gradient.
 - Gap reduced from 2/4px to 1/2px (mobile/desktop) — simulates real gondola spacing.
 - `object-cover` instead of `object-contain` — images fill cells without internal gaps.
