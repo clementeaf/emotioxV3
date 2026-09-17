@@ -643,6 +643,7 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
       {showAoiModal && (
         <AoiModal
           stimulus={stimulus}
+          displayImageUrl={effectiveStimulusUrl}
           onClose={() => setShowAoiModal(false)}
           onSave={onRefresh}
         />
@@ -653,8 +654,9 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
 
 // ─── AOI Modal ──────────────────────────────────────────────────
 
-function AoiModal({ stimulus, onClose, onSave }: {
+function AoiModal({ stimulus, displayImageUrl, onClose, onSave }: {
   stimulus: EyeTrackingStimulus & { stimulusUrl: string };
+  displayImageUrl?: string;
   onClose: () => void;
   onSave: () => void;
 }) {
@@ -725,20 +727,22 @@ function AoiModal({ stimulus, onClose, onSave }: {
           </div>
         </div>
         <div className="flex-1 overflow-y-auto p-5">
-          {stimulus.stimulusUrl && (
+          {(displayImageUrl || stimulus.stimulusUrl) && (
             <AOIDrawer
-              imageUrl={stimulus.stimulusUrl}
+              imageUrl={displayImageUrl || stimulus.stimulusUrl}
               aois={aois}
               onChange={setAois}
               maxHeight={400}
             />
           )}
-          {stimulus.aois.length > 0 && (
+          {aois.length > 0 && (
             <div className="mt-4 space-y-2">
-              <h4 className="text-xs font-semibold text-gray-700">Metrics</h4>
-              {stimulus.aois.map((aoi, idx) => (
-                <AOIRow key={aoi.id} aoi={aoi} index={idx} stimulusUrl={stimulus.stimulusUrl} />
-              ))}
+              <h4 className="text-xs font-semibold text-gray-700">Métricas</h4>
+              {aois.map((aoi, idx) => {
+                const original = stimulus.aois.find(a => a.id === aoi.id);
+                const merged = original ? { ...original, ...aoi } : { ...aoi, dwellTimePercent: 0, fixationCount: 0, avgDuration: 0, participantCount: 0 };
+                return <AOIRow key={aoi.id} aoi={merged} index={idx} stimulusUrl={displayImageUrl || stimulus.stimulusUrl} />;
+              })}
             </div>
           )}
         </div>

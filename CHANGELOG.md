@@ -46,6 +46,11 @@
 ### fix: Preference Test zoom modal not covering full screen on mobile
 - Zoom modal rendered via `createPortal(document.body)` — no longer clipped by `MainLayout` border-radius.
 
+### fix: ET AOI modal — correct image + edited metrics
+- AOI drawer uses `effectiveStimulusUrl` (shelf composite for shelf mode) instead of raw URL.
+- Metrics section shows edited AOIs (live state) instead of original saved AOIs.
+- "Métricas" label in Spanish.
+
 ### fix: ET Transparency — constrain image size + Spanish text
 - Canvas constrained to `max-h-[60vh]` matching Scan Path sizing.
 - Description translated to Spanish.
