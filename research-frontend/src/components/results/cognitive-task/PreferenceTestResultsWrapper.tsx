@@ -138,9 +138,22 @@ export const PreferenceTestResultsWrapper = ({
         );
     }
 
+    // Compute intensity breakdown per image
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const intensityByImage: Record<number, { slight: number; strong: number }> = {};
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    data.responses.forEach((r: any) => {
+        const imgId = r.selectedImageId;
+        if (!imgId) return;
+        if (!intensityByImage[imgId]) intensityByImage[imgId] = { slight: 0, strong: 0 };
+        const intensity = r.preferenceIntensity === 'slight' ? 'slight' : 'strong';
+        intensityByImage[imgId][intensity]++;
+    });
+
     // Map selections to steps with images
     const steps = data.selections.map((selection) => {
         const imageData = images.find(img => img.id === String(selection.imageId)) || images[selection.imageId - 1];
+        const intensity = intensityByImage[selection.imageId] || { slight: 0, strong: 0 };
 
         return {
             stepNumber: selection.imageId,
@@ -150,7 +163,9 @@ export const PreferenceTestResultsWrapper = ({
             participantCount: data.totalResponses,
             selectionCount: selection.count,
             progressColor: selection.percentage > 50 ? '#9333EA' : '#6366F1',
-            imageUrl: imageData?.url
+            imageUrl: imageData?.url,
+            intensitySlight: intensity.slight,
+            intensityStrong: intensity.strong,
         };
     });
 

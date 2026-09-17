@@ -21,6 +21,11 @@
 ### fix: mobile content not overlapped by logo
 - `MainLayout` adds `pt-14` on mobile to clear the fixed logo. Desktop padding unchanged (`sm:p-6`).
 
+### feat: Preference Test intensity visible in results
+- `preferenceIntensity` (`slight`/`strong`) was saved by participant but never shown in research results.
+- Inline: `NL / NF` (Leve/Fuerte) next to selection count per image.
+- Expanded: dot badges "Leve: N" / "Fuerte: N" below image detail.
+
 ### quality
 - **TypeScript strict** — 0 errors, 0 warnings in all 3 subprojects.
 

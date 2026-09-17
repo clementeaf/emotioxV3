@@ -12,6 +12,8 @@ interface PreferenceStep {
   selectionCount?: number;
   progressColor?: string;
   imageUrl?: string;
+  intensitySlight?: number;
+  intensityStrong?: number;
 }
 
 interface PreferenceTestCardProps {
@@ -113,6 +115,11 @@ export const PreferenceTestCard = ({
                   <span className="text-xs font-semibold text-blue-600 min-w-[3rem] text-right cursor-help" title="Percentage of participants who made a selection">{step.completionRate}%</span>
                   <span className="text-xs text-gray-500 min-w-[2rem] text-right cursor-help" title="Total participants who attempted this test">👥 {step.participantCount}</span>
                   <span className="text-xs text-gray-500 min-w-[2rem] text-right cursor-help" title="Number of selections made">✓ {step.selectionCount || 0}</span>
+                  {(step.intensitySlight || step.intensityStrong) ? (
+                    <span className="text-xs text-gray-400 min-w-[4rem] text-right cursor-help" title="Preference intensity: Slight / Strong">
+                      {step.intensitySlight || 0}L / {step.intensityStrong || 0}F
+                    </span>
+                  ) : null}
                 </div>
 
                 {/* Show details button */}
@@ -137,6 +144,18 @@ export const PreferenceTestCard = ({
                       <div className="mt-4 text-center">
                         <p className="font-medium text-gray-700">{step.title || `Image ${step.stepNumber}`}</p>
                         <p className="text-sm text-gray-500 mt-1">Selected by {step.completionRate}% of participants</p>
+                        {(step.intensitySlight || step.intensityStrong) ? (
+                          <div className="flex items-center justify-center gap-4 mt-3">
+                            <div className="flex items-center gap-1.5">
+                              <span className="inline-block w-2.5 h-2.5 rounded-full bg-blue-300" />
+                              <span className="text-sm text-gray-600">Leve: <span className="font-semibold">{step.intensitySlight || 0}</span></span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="inline-block w-2.5 h-2.5 rounded-full bg-blue-600" />
+                              <span className="text-sm text-gray-600">Fuerte: <span className="font-semibold">{step.intensityStrong || 0}</span></span>
+                            </div>
+                          </div>
+                        ) : null}
                       </div>
                     </div>
                   ) : (
