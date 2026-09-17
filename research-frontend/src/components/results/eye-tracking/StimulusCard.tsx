@@ -3,7 +3,7 @@ import { Eye, Users, Clock, Crosshair, Image, Download, SmilePlus, Sparkles, Shi
 import { toPng } from 'html-to-image';
 import { cn } from '../../../lib/utils';
 import { HeatmapRenderer } from '../cognitive-task/components/HeatmapRenderer';
-import type { EyeTrackingStimulus } from '../../../services/analytics.service';
+import type { EyeTrackingStimulus, EyeTrackingAOI } from '../../../services/analytics.service';
 import { resolveStimulusUrl, MetricBadge, ViewModeTab, AOIRow } from './shared';
 import type { ViewMode } from './shared';
 import { ZoneHeatmapOverlay } from './ZoneHeatmapOverlay';
@@ -375,6 +375,14 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
               label="Emotions"
             />
           )}
+          {isShelf && stimulus.aois.length > 0 && (
+            <ViewModeTab
+              active={viewMode === 'comparison'}
+              onClick={() => setViewMode('comparison')}
+              icon={<Signal className="h-4 w-4" />}
+              label="Comparativa"
+            />
+          )}
           {!isShelf && (
             <ViewModeTab
               active={viewMode === 'prediction'}
@@ -514,6 +522,8 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
             imageUrl={effectiveStimulusUrl}
             fixations={stimulus.fixations.filter(f => !excludedParticipants.has(f.participantId))}
           />
+        ) : viewMode === 'comparison' && stimulus.aois.length > 0 ? (
+          <ShelfComparison aois={stimulus.aois} shelfUrls={resolvedShelfUrls} />
         ) : viewMode === 'video' && stimulus.gazeTimeline ? (
           <VideoGazePlayer videoUrl={stimulus.stimulusUrl} gazeTimeline={stimulus.gazeTimeline} />
         ) : viewMode === 'emotions' ? (
@@ -746,6 +756,64 @@ function AoiModal({ stimulus, displayImageUrl, onClose, onSave }: {
             </div>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function ShelfComparison({ aois, shelfUrls }: { aois: EyeTrackingAOI[]; shelfUrls: string[] }) {
+  const sorted = [...aois].sort((a, b) => b.dwellTimePercent - a.dwellTimePercent);
+  const maxDwell = Math.max(...sorted.map(a => a.dwellTimePercent), 1);
+
+  return (
+    <div>
+      <h4 className="text-sm font-semibold text-gray-700 mb-3">Comparativa por producto</h4>
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+        {sorted.map((aoi, idx) => {
+          const imgUrl = shelfUrls[idx % shelfUrls.length];
+          const isWinner = idx === 0 && aoi.dwellTimePercent > 0;
+          return (
+            <div key={aoi.id} className={`rounded-lg border p-3 ${isWinner ? 'border-emerald-400 bg-emerald-50' : 'border-gray-200 bg-white'}`}>
+              {imgUrl && (
+                <img src={imgUrl} alt={aoi.label} className="w-full h-20 object-contain rounded mb-2" />
+              )}
+              <p className="text-xs font-semibold text-gray-900 truncate mb-2">{aoi.label}</p>
+              <div className="w-full h-2 bg-gray-100 rounded-full mb-2">
+                <div className={`h-2 rounded-full ${isWinner ? 'bg-emerald-500' : 'bg-blue-500'}`} style={{ width: `${(aoi.dwellTimePercent / maxDwell) * 100}%` }} />
+              </div>
+              <div className="grid grid-cols-2 gap-1.5 text-[11px]">
+                <div>
+                  <span className="text-gray-400">% AOI</span>
+                  <p className="font-semibold text-gray-800">{aoi.dwellTimePercent.toFixed(1)}%</p>
+                </div>
+                <div>
+                  <span className="text-gray-400">Fijaciones</span>
+                  <p className="font-semibold text-gray-800">{aoi.fixationCount}</p>
+                </div>
+                <div>
+                  <span className="text-gray-400">Duración</span>
+                  <p className="font-semibold text-gray-800">{(aoi.avgDuration / 1000).toFixed(1)}s</p>
+                </div>
+                <div>
+                  <span className="text-gray-400">Participantes</span>
+                  <p className="font-semibold text-gray-800">{aoi.participantCount}</p>
+                </div>
+                {aoi.avgTTFF !== undefined && (
+                  <div>
+                    <span className="text-gray-400">1ra fijación</span>
+                    <p className="font-semibold text-gray-800">{(aoi.avgTTFF / 1000).toFixed(1)}s</p>
+                  </div>
+                )}
+                {aoi.noticeRate !== undefined && (
+                  <div>
+                    <span className="text-gray-400">Notado</span>
+                    <p className="font-semibold text-gray-800">{aoi.noticeRate.toFixed(0)}%</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

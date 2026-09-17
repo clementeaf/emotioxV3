@@ -46,6 +46,11 @@
 ### fix: Preference Test zoom modal not covering full screen on mobile
 - Zoom modal rendered via `createPortal(document.body)` — no longer clipped by `MainLayout` border-radius.
 
+### feat: Eye Tracking Shelf — comparative product view
+- "Comparativa" tab for shelf mode with AOIs — cards per product sorted by % AOI.
+- Winner highlighted in green. 6 metrics: % AOI, fixations, duration, participants, TTFF, notice rate.
+- Progress bar relative to max for visual comparison.
+
 ### feat: Emotion Recognition — EmScore + mood states
 - **EmScore**: `2(C+Q) + 1.5E - (W+U) - 2T` — single metric for emotional climate of a design.
 - **Mood States**: Frustración, Interés, Concentración — computed from Ekman emotion distribution.
