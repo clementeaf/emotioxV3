@@ -182,6 +182,28 @@ const AttributeTestingChart = ({ module: mod, colors }: { module: IATModuleResul
           );
         })}
       </div>
+
+      <div className="mt-6">
+        <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Tiempo de reacción por atributo</h4>
+        <div style={{ height: Math.max(300, mod.scores.length * 40 + 100) }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={radarData} barCategoryGap="15%" barGap={2}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="attribute" tick={{ fontSize: 11 }} />
+              <YAxis tick={{ fontSize: 10 }} />
+              <Tooltip formatter={(value: number, name: string) => [`${value}%`, name]} />
+              {mod.targets.map((target, i) => (
+                <Bar
+                  key={target.id}
+                  dataKey={target.name}
+                  fill={colors[i % colors.length]}
+                  radius={[4, 4, 0, 0]}
+                />
+              ))}
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
     </div>
   );
 };
@@ -596,6 +618,43 @@ const ObjectsComparingChart = ({ module: mod, colors }: { module: IATModuleResul
             </div>
           );
         })}
+      </div>
+
+      <div className="mt-6">
+        <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Tiempo de reacción por objeto</h4>
+        <div style={{ height: 300 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={barData.map(d => ({ ...d, [dim1Label]: Math.abs(d[dim1Label] as number) }))} barCategoryGap="15%" barGap={2}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="object" tick={{ fontSize: 11 }} />
+              <YAxis tick={{ fontSize: 10 }} />
+              <Tooltip formatter={(value: number, name: string) => [`${Math.abs(value)}%`, name]} />
+              <Bar dataKey={dim1Label} fill={colors[0]} radius={[4, 4, 0, 0]} />
+              <Bar dataKey={dim2Label} fill={colors[1]} radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      <div className="mt-6">
+        <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Perfil por objeto</h4>
+        <div style={{ height: 350 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <RadarChart data={mod.targets.map(t => ({
+              object: t.name,
+              [dim1Label]: Math.abs(mod.scores.find(s => s.attributeId === dim1?.id)?.targetScores[t.id] ?? 0),
+              [dim2Label]: Math.abs(mod.scores.find(s => s.attributeId === dim2?.id)?.targetScores[t.id] ?? 0),
+            }))} cx="50%" cy="50%" outerRadius="70%">
+              <PolarGrid stroke="#E5E7EB" />
+              <PolarAngleAxis dataKey="object" tick={{ fontSize: 12, fill: '#374151' }} />
+              <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fontSize: 10, fill: '#9CA3AF' }} />
+              <Radar name={dim1Label} dataKey={dim1Label} stroke={colors[0]} fill={colors[0]} fillOpacity={0.2} strokeWidth={2} />
+              <Radar name={dim2Label} dataKey={dim2Label} stroke={colors[1]} fill={colors[1]} fillOpacity={0.2} strokeWidth={2} />
+              <Legend wrapperStyle={{ fontSize: 12 }} iconType="circle" />
+              <Tooltip formatter={(value: number, name: string) => [`${value}%`, name]} />
+            </RadarChart>
+          </ResponsiveContainer>
+        </div>
       </div>
     </div>
   );

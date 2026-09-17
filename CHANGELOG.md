@@ -46,6 +46,11 @@
 ### fix: Preference Test zoom modal not covering full screen on mobile
 - Zoom modal rendered via `createPortal(document.body)` — no longer clipped by `MainLayout` border-radius.
 
+### feat: IAT charts unified across paradigms
+- **Attribute Testing**: added vertical bar chart below radar + association strength.
+- **Comparing Attribute**: unchanged (bars + radar + bands).
+- **Objects Comparing**: added vertical bar chart + radar chart below divergent horizontal bars.
+
 ### fix: Screener results — Spanish translation + real choice labels
 - Legend shows actual choice labels (Hombre, Mujer) with eligibility (clasifica/descalifica) instead of "Route 1/Route 2".
 - All UI text translated: titles, cards, tooltips, day rows, empty state.
