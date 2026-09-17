@@ -1337,6 +1337,7 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
                 onToggleCheck={toggleCheck}
                 onReady={() => setPhase(isDesktop ? 'quality-gate' : 'preparing')}
                 cameraRef={videoRef}
+                hasEmotionRecognition={hasEmotionRecognition}
             />
         );
     } else if (phase === 'quality-gate') {

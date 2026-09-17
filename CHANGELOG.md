@@ -46,6 +46,13 @@
 ### fix: Preference Test zoom modal not covering full screen on mobile
 - Zoom modal rendered via `createPortal(document.body)` — no longer clipped by `MainLayout` border-radius.
 
+### feat: Eye Tracking camera preview + face detection in setup
+- Circular preview (136px) with live camera feed on desktop and mobile (when emotion recognition enabled).
+- Border color: green = position correct, red = face not centered, gray = waiting.
+- Luminance-based presence detection in center zone — no extra dependencies.
+- Camera error state with retry button and help text.
+- Mobile now shows preview instead of static icon.
+
 ### fix: Eye Tracking camera permission on mobile
 - `useFaceApiEmotions` no longer gated by `isDesktop` — emotion recognition works on mobile.
 - Camera starts on mobile during setup/preparing when emotion recognition is enabled.

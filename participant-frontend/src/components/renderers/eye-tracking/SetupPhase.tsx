@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { StepProgressPill } from './StepProgressPill';
 import { TOTAL_STEPS } from './types';
@@ -10,16 +10,36 @@ interface SetupPhaseProps {
     onToggleCheck: (index: number) => void;
     onReady: () => void;
     cameraRef?: React.RefObject<HTMLVideoElement | null>;
+    hasEmotionRecognition?: boolean;
 }
 
-export const SetupPhase: React.FC<SetupPhaseProps> = ({ isDesktop, checks, allChecked, onToggleCheck, onReady, cameraRef }) => {
+export const SetupPhase: React.FC<SetupPhaseProps> = ({ isDesktop, checks, allChecked, onToggleCheck, onReady, cameraRef, hasEmotionRecognition }) => {
     const { t } = useTranslation();
     const [streamReady, setStreamReady] = useState(false);
+    const [faceDetected, setFaceDetected] = useState(false);
+    const [cameraError, setCameraError] = useState(false);
     const previewRef = useRef<HTMLVideoElement>(null);
+    const canvasRef = useRef<HTMLCanvasElement>(null);
 
-    // Poll for camera stream readiness and attach to preview element
+    const needsCamera = isDesktop || !!hasEmotionRecognition;
+
+    const retryCamera = useCallback(async () => {
+        if (!cameraRef?.current) return;
+        try {
+            setCameraError(false);
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 320 }, height: { ideal: 240 } } });
+            if (cameraRef.current) {
+                cameraRef.current.srcObject = stream;
+                await cameraRef.current.play();
+            }
+        } catch {
+            setCameraError(true);
+        }
+    }, [cameraRef]);
+
     useEffect(() => {
-        if (!isDesktop || !cameraRef) return;
+        if (!needsCamera || !cameraRef) return;
+        let attempts = 0;
         const check = setInterval(() => {
             const stream = cameraRef.current?.srcObject as MediaStream | null;
             if (stream && stream.active) {
@@ -28,10 +48,42 @@ export const SetupPhase: React.FC<SetupPhaseProps> = ({ isDesktop, checks, allCh
                     previewRef.current.srcObject = stream;
                 }
                 clearInterval(check);
+            } else {
+                attempts++;
+                if (attempts > 25) { setCameraError(true); clearInterval(check); }
             }
         }, 200);
         return () => clearInterval(check);
-    }, [isDesktop, cameraRef]);
+    }, [needsCamera, cameraRef]);
+
+    useEffect(() => {
+        if (!streamReady || !previewRef.current || !canvasRef.current) return;
+        const video = previewRef.current;
+        const canvas = canvasRef.current;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        let raf = 0;
+        const detect = () => {
+            if (video.readyState < 2) { raf = requestAnimationFrame(detect); return; }
+            canvas.width = video.videoWidth || 320;
+            canvas.height = video.videoHeight || 240;
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const data = ctx.getImageData(
+                Math.floor(canvas.width * 0.25), Math.floor(canvas.height * 0.15),
+                Math.floor(canvas.width * 0.5), Math.floor(canvas.height * 0.7)
+            ).data;
+            let bright = 0;
+            for (let i = 0; i < data.length; i += 16) {
+                const lum = data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114;
+                if (lum > 30 && lum < 230) bright++;
+            }
+            const ratio = bright / (data.length / 16);
+            setFaceDetected(ratio > 0.3);
+            raf = requestAnimationFrame(detect);
+        };
+        raf = requestAnimationFrame(detect);
+        return () => cancelAnimationFrame(raf);
+    }, [streamReady]);
 
     const checkLabelsDesktop = [
         t('eyeTracking.check1', 'I am seated and will not move.'),
@@ -52,21 +104,38 @@ export const SetupPhase: React.FC<SetupPhaseProps> = ({ isDesktop, checks, allCh
             <StepProgressPill step={1} total={TOTAL_STEPS} percent={30} />
 
             <div className="w-full max-w-lg space-y-6 mt-8">
-                {/* Camera preview — live feed on desktop, icon on mobile */}
-                <div className="w-40 h-32 bg-gray-800 rounded-lg mx-auto flex items-center justify-center overflow-hidden">
-                    {isDesktop && streamReady ? (
-                        <video
-                            ref={previewRef}
-                            autoPlay
-                            playsInline
-                            muted
-                            className="w-full h-full object-cover"
-                            style={{ transform: 'scaleX(-1)' }}
-                        />
-                    ) : (
-                        <svg className="w-12 h-12 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                        </svg>
+                <div className="flex flex-col items-center gap-2">
+                    <div className={`w-36 h-36 rounded-full mx-auto flex items-center justify-center overflow-hidden border-4 transition-colors ${
+                        streamReady && faceDetected ? 'border-green-500' : streamReady ? 'border-red-400' : 'border-gray-300'
+                    } bg-gray-800`}>
+                        {needsCamera && streamReady ? (
+                            <video
+                                ref={previewRef}
+                                autoPlay
+                                playsInline
+                                muted
+                                className="w-full h-full object-cover"
+                                style={{ transform: 'scaleX(-1)' }}
+                            />
+                        ) : (
+                            <svg className="w-12 h-12 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                            </svg>
+                        )}
+                    </div>
+                    <canvas ref={canvasRef} className="hidden" />
+                    {needsCamera && streamReady && (
+                        <p className={`text-xs font-medium ${faceDetected ? 'text-green-600' : 'text-red-500'}`}>
+                            {faceDetected
+                                ? t('eyeTracking.faceDetected', 'Position correct')
+                                : t('eyeTracking.faceNotDetected', 'Center your face on screen')}
+                        </p>
+                    )}
+                    {cameraError && (
+                        <div className="flex flex-col items-center gap-1">
+                            <p className="text-xs text-red-500">{t('eyeTracking.cameraError', 'Camera not available. Check permissions in your browser settings.')}</p>
+                            <button onClick={retryCamera} className="text-xs text-blue-600 underline">{t('eyeTracking.retryCamera', 'Retry')}</button>
+                        </div>
                     )}
                 </div>
 
