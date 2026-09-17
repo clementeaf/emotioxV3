@@ -88,10 +88,10 @@ export function measureBrightness(video: HTMLVideoElement): number {
 export function checkBrightness(video: HTMLVideoElement): QualityCheckResult {
     const brightness = measureBrightness(video);
     if (brightness < REJECT_BRIGHTNESS) {
-        return { id: 'brightness', status: 'fail', value: Math.round(brightness), message: 'Too dark — improve lighting' };
+        return { id: 'brightness', status: 'fail', value: Math.round(brightness), message: 'Muy oscuro — mejora la iluminación' };
     }
     if (brightness < MIN_BRIGHTNESS) {
-        return { id: 'brightness', status: 'warn', value: Math.round(brightness), message: 'Low light — accuracy may be reduced' };
+        return { id: 'brightness', status: 'warn', value: Math.round(brightness), message: 'Poca luz — la precisión puede verse reducida' };
     }
     return { id: 'brightness', status: 'pass', value: Math.round(brightness) };
 }
@@ -124,7 +124,7 @@ export function checkBacklight(video: HTMLVideoElement): QualityCheckResult {
     const edgeAvg = edgeCount > 0 ? edgeSum / edgeCount : 128;
 
     if (edgeAvg > centerAvg * 1.8 && centerAvg < 100) {
-        return { id: 'brightness', status: 'warn', value: Math.round(centerAvg), message: 'Backlight detected — face is darker than background' };
+        return { id: 'brightness', status: 'warn', value: Math.round(centerAvg), message: 'Contraluz detectada — tu rostro está más oscuro que el fondo' };
     }
     return { id: 'brightness', status: 'pass', value: Math.round(centerAvg) };
 }
@@ -137,7 +137,7 @@ export function checkResolution(video: HTMLVideoElement): QualityCheckResult {
     const w = video.videoWidth;
     const h = video.videoHeight;
     if (w < MIN_CAMERA_WIDTH || h < MIN_CAMERA_HEIGHT) {
-        return { id: 'resolution', status: 'fail', value: w, message: `Camera resolution too low (${w}×${h})` };
+        return { id: 'resolution', status: 'fail', value: w, message: `Resolución de cámara muy baja (${w}×${h})` };
     }
     return { id: 'resolution', status: 'pass', value: w };
 }
@@ -163,10 +163,10 @@ export function estimateDistanceCm(irisDiameterPx: number, videoWidth: number): 
 
 export function checkDistance(distanceCm: number): QualityCheckResult {
     if (distanceCm < MIN_DISTANCE_CM) {
-        return { id: 'distance', status: 'warn', value: Math.round(distanceCm), message: 'Too close — move back' };
+        return { id: 'distance', status: 'warn', value: Math.round(distanceCm), message: 'Muy cerca — aléjate un poco' };
     }
     if (distanceCm > MAX_DISTANCE_CM) {
-        return { id: 'distance', status: 'warn', value: Math.round(distanceCm), message: 'Too far — move closer' };
+        return { id: 'distance', status: 'warn', value: Math.round(distanceCm), message: 'Muy lejos — acércate un poco' };
     }
     return { id: 'distance', status: 'pass', value: Math.round(distanceCm) };
 }
@@ -194,7 +194,7 @@ export function computePositionVariance(positions: readonly { x: number; y: numb
 
 export function checkHeadStability(variance: number): QualityCheckResult {
     if (variance > MAX_HEAD_VARIANCE_PX) {
-        return { id: 'headStability', status: 'fail', value: Math.round(variance), message: 'Keep your head still' };
+        return { id: 'headStability', status: 'fail', value: Math.round(variance), message: 'Mantén tu cabeza quieta' };
     }
     return { id: 'headStability', status: 'pass', value: Math.round(variance) };
 }
@@ -205,7 +205,7 @@ export function checkHeadStability(variance: number): QualityCheckResult {
 
 export function checkFaceConfidence(confidence: number): QualityCheckResult {
     if (confidence < MIN_FACE_CONFIDENCE) {
-        return { id: 'faceDetection', status: 'fail', value: Math.round(confidence * 100), message: 'Face not clearly detected' };
+        return { id: 'faceDetection', status: 'fail', value: Math.round(confidence * 100), message: 'Rostro no detectado claramente' };
     }
     return { id: 'faceDetection', status: 'pass', value: Math.round(confidence * 100) };
 }
@@ -224,7 +224,7 @@ export function checkFullscreen(): QualityCheckResult {
         || (document as unknown as { webkitFullscreenElement?: Element }).webkitFullscreenElement
     );
     if (!isFullscreen) {
-        return { id: 'fullscreen', status: 'fail', message: 'Fullscreen required for accurate tracking' };
+        return { id: 'fullscreen', status: 'fail', message: 'Pantalla completa requerida para un seguimiento preciso' };
     }
     return { id: 'fullscreen', status: 'pass' };
 }
@@ -236,7 +236,7 @@ export function checkFullscreen(): QualityCheckResult {
 export function checkLandscape(): QualityCheckResult {
     const isLandscape = window.innerWidth > window.innerHeight;
     if (!isLandscape) {
-        return { id: 'orientation', status: 'fail', message: 'Rotate device to landscape' };
+        return { id: 'orientation', status: 'fail', message: 'Gira el dispositivo a horizontal' };
     }
     return { id: 'orientation', status: 'pass' };
 }
@@ -249,7 +249,7 @@ export function checkHeadPose(yawDeg: number, pitchDeg: number): QualityCheckRes
     const maxYaw = 20;
     const maxPitch = 15;
     if (Math.abs(yawDeg) > maxYaw || Math.abs(pitchDeg) > maxPitch) {
-        return { id: 'headPose', status: 'fail', value: Math.round(Math.max(Math.abs(yawDeg), Math.abs(pitchDeg))), message: 'Face the camera directly' };
+        return { id: 'headPose', status: 'fail', value: Math.round(Math.max(Math.abs(yawDeg), Math.abs(pitchDeg))), message: 'Mira directamente a la cámara' };
     }
     return { id: 'headPose', status: 'pass', value: Math.round(Math.max(Math.abs(yawDeg), Math.abs(pitchDeg))) };
 }
@@ -259,6 +259,6 @@ export function checkHeadPose(yawDeg: number, pitchDeg: number): QualityCheckRes
 // ---------------------------------------------------------------------------
 
 export function evaluateGate(checks: QualityCheckResult[]): QualityGateResult {
-    const hasFailure = checks.some(c => c.status === 'fail');
-    return { checks, canProceed: !hasFailure };
+    const allPass = checks.every(c => c.status === 'pass');
+    return { checks, canProceed: allPass };
 }

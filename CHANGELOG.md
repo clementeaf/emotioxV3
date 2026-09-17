@@ -46,6 +46,12 @@
 ### fix: Preference Test zoom modal not covering full screen on mobile
 - Zoom modal rendered via `createPortal(document.body)` — no longer clipped by `MainLayout` border-radius.
 
+### fix: Eye Tracking quality gate — Spanish, blocking validation, action hints
+- All check labels, messages, and buttons translated to Spanish.
+- Warnings now block advancement — only all-pass proceeds to calibration.
+- Each failed/warning check shows actionable hint (e.g. distance: "Mantente a 50-70 cm").
+- Removed "Continue anyway" button — only "Reintentar" until all checks pass.
+
 ### feat: Eye Tracking camera preview + face detection in setup
 - Circular preview (136px) with live camera feed on desktop and mobile (when emotion recognition enabled).
 - Border color: green = position correct, red = face not centered, gray = waiting.

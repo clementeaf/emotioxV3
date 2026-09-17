@@ -36,7 +36,7 @@ interface SessionQualityGateProps {
     /** Frame stats getter from MediaPipe hook. */
     frameStatsGetter?: () => { validGazeFrames: number; noValidGazeFrames: number; captureWidthPx: number | null; captureHeightPx: number | null };
     onPass: () => void;
-    onReject: () => void;
+    onReject?: () => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -71,7 +71,6 @@ export const SessionQualityGate: React.FC<SessionQualityGateProps> = ({
     landmarksRef,
     frameStatsGetter: _frameStatsGetter,
     onPass,
-    onReject,
 }) => {
     const { t } = useTranslation();
 
@@ -190,9 +189,9 @@ export const SessionQualityGate: React.FC<SessionQualityGateProps> = ({
                     const absYaw = Math.abs(pose.yaw);
                     const absPitch = Math.abs(pose.pitch);
                     if (absYaw > 25 || absPitch > 25) {
-                        updateCheck('headPose', { id: 'headPose', status: 'fail', message: 'Face the screen directly' });
+                        updateCheck('headPose', { id: 'headPose', status: 'fail', message: 'Mira directamente a la pantalla' });
                     } else if (absYaw > 15 || absPitch > 15) {
-                        updateCheck('headPose', { id: 'headPose', status: 'warn', message: 'Try to face the screen more directly' });
+                        updateCheck('headPose', { id: 'headPose', status: 'warn', message: 'Intenta mirar más de frente a la pantalla' });
                     } else {
                         updateCheck('headPose', { id: 'headPose', status: 'pass' });
                     }
@@ -228,12 +227,21 @@ export const SessionQualityGate: React.FC<SessionQualityGateProps> = ({
     }, [autoAdvance, onPass]);
 
     const checkLabels: Record<string, string> = {
-        resolution: t('eyeTracking.qg.resolution', 'Camera resolution'),
-        brightness: t('eyeTracking.qg.brightness', 'Lighting conditions'),
-        faceDetection: t('eyeTracking.qg.faceDetection', 'Face detection'),
-        distance: t('eyeTracking.qg.distance', 'Face distance'),
-        headStability: t('eyeTracking.qg.headStability', 'Head stability'),
-        headPose: t('eyeTracking.qg.headPose', 'Head orientation'),
+        resolution: t('eyeTracking.qg.resolution', 'Resolución de cámara'),
+        brightness: t('eyeTracking.qg.brightness', 'Condiciones de iluminación'),
+        faceDetection: t('eyeTracking.qg.faceDetection', 'Detección de rostro'),
+        distance: t('eyeTracking.qg.distance', 'Distancia al rostro'),
+        headStability: t('eyeTracking.qg.headStability', 'Estabilidad de cabeza'),
+        headPose: t('eyeTracking.qg.headPose', 'Orientación de cabeza'),
+    };
+
+    const checkHints: Record<string, string> = {
+        resolution: t('eyeTracking.qg.hintResolution', 'Permite el acceso a la cámara en alta resolución'),
+        brightness: t('eyeTracking.qg.hintBrightness', 'Ubícate en un lugar bien iluminado, sin luz detrás'),
+        faceDetection: t('eyeTracking.qg.hintFace', 'Asegúrate de que tu rostro sea visible para la cámara'),
+        distance: t('eyeTracking.qg.hintDistance', 'Mantente a una distancia de 50-70 cm de la pantalla (un brazo estirado)'),
+        headStability: t('eyeTracking.qg.hintStability', 'Mantén tu cabeza quieta y no te muevas'),
+        headPose: t('eyeTracking.qg.hintPose', 'Mira directamente a la pantalla, de frente'),
     };
 
     return (
@@ -242,25 +250,25 @@ export const SessionQualityGate: React.FC<SessionQualityGateProps> = ({
 
             <div className="w-full max-w-md space-y-4 mt-8">
                 <h2 className="text-xl font-bold text-gray-900 text-center">
-                    {t('eyeTracking.qg.title', 'Checking session quality...')}
+                    {t('eyeTracking.qg.title', 'Verificando calidad de sesión...')}
                 </h2>
                 <p className="text-sm text-gray-500 text-center">
-                    {t('eyeTracking.qg.subtitle', 'Verifying your environment for attention tracking.')}
+                    {t('eyeTracking.qg.subtitle', 'Validando tu entorno para el seguimiento de atención.')}
                 </p>
 
                 <div className="space-y-3 mt-6">
                     {checks.map(check => (
                         <div
                             key={check.id}
-                            className={`flex items-center gap-3 px-4 py-3 rounded-lg border transition-colors ${statusBg(check.status)}`}
+                            className={`flex items-start gap-3 px-4 py-3 rounded-lg border transition-colors ${statusBg(check.status)}`}
                         >
-                            <StatusIcon status={check.status} />
+                            <div className="mt-0.5"><StatusIcon status={check.status} /></div>
                             <div className="flex-1">
                                 <span className="text-sm font-medium text-gray-800">
                                     {checkLabels[check.id] || check.id}
                                 </span>
-                                {check.message && (
-                                    <p className="text-xs text-gray-500 mt-0.5">{check.message}</p>
+                                {(check.status === 'fail' || check.status === 'warn') && checkHints[check.id] && (
+                                    <p className="text-xs text-gray-600 mt-1">{checkHints[check.id]}</p>
                                 )}
                             </div>
                         </div>
@@ -271,27 +279,20 @@ export const SessionQualityGate: React.FC<SessionQualityGateProps> = ({
                     <div className="flex gap-3 justify-center mt-6">
                         <button
                             onClick={() => {
-                                // Retry all checks
                                 setChecks(prev => prev.map(c => ({ ...c, status: 'pending' as const })));
                                 setGateResult(null);
                                 runCountRef.current = 0;
                             }}
                             className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
                         >
-                            {t('eyeTracking.qg.retry', 'Retry')}
-                        </button>
-                        <button
-                            onClick={onReject}
-                            className="px-4 py-2 bg-white/80 text-gray-700 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
-                        >
-                            {t('eyeTracking.qg.skip', 'Continue anyway')}
+                            {t('eyeTracking.qg.retry', 'Reintentar')}
                         </button>
                     </div>
                 )}
 
                 {gateResult?.canProceed && (
                     <p className="text-center text-sm text-green-600 font-medium mt-4">
-                        {t('eyeTracking.qg.passed', 'All checks passed — proceeding to calibration...')}
+                        {t('eyeTracking.qg.passed', 'Todas las verificaciones pasaron — avanzando a calibración...')}
                     </p>
                 )}
             </div>
