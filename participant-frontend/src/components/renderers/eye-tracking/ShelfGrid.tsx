@@ -76,7 +76,7 @@ export const ShelfGrid: React.FC<ShelfGridProps> = ({
                 display: 'grid',
                 gridTemplateColumns: `repeat(${maxCols}, 1fr)`,
                 gridTemplateRows: `repeat(${effectiveRows}, 1fr)`,
-                gap: isMobile ? 2 : 4,
+                gap: isMobile ? 1 : 2,
                 ...(blur ? { filter: 'blur(12px)' } : {}),
                 ...(opacity != null ? { opacity } : {}),
                 ...style,
@@ -89,7 +89,7 @@ export const ShelfGrid: React.FC<ShelfGridProps> = ({
                         key={`${i}-${url}`}
                         src={url}
                         alt={`Shelf item ${i + 1}`}
-                        className="w-full h-full object-contain"
+                        className="w-full h-full object-cover"
                         style={{ minWidth: isMobile ? 60 : 80, minHeight: isMobile ? 60 : 80 }}
                         draggable={false}
                         onLoad={handleImageLoad}

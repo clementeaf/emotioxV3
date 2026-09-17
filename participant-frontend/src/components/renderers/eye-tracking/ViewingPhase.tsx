@@ -49,7 +49,7 @@ export const ViewingPhase: React.FC<ViewingPhaseProps> = ({
     return (
         <div
             className="fixed inset-0 z-50 flex items-center justify-center select-none"
-            style={{ backgroundImage: 'linear-gradient(rgb(235, 239, 251) 0%, rgb(245, 247, 253) 50%, rgb(255, 255, 255) 100%)' }}
+            style={{ background: shelfConfig ? '#ffffff' : 'linear-gradient(rgb(235, 239, 251) 0%, rgb(245, 247, 253) 50%, rgb(255, 255, 255) 100%)' }}
         >
             <div className="pointer-events-none absolute top-4 left-1/2 z-[70] -translate-x-1/2">
                 <StepProgressPill step={4} total={TOTAL_STEPS} percent={viewingPercent} />

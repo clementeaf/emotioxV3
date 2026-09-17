@@ -46,6 +46,11 @@
 ### fix: Preference Test zoom modal not covering full screen on mobile
 - Zoom modal rendered via `createPortal(document.body)` — no longer clipped by `MainLayout` border-radius.
 
+### fix: Eye Tracking shelf — white background, tight spacing
+- Shelf viewing phase uses pure white background instead of gradient.
+- Gap reduced from 2/4px to 1/2px (mobile/desktop) — simulates real gondola spacing.
+- `object-cover` instead of `object-contain` — images fill cells without internal gaps.
+
 ### feat: Eye Tracking calibration redesign — white background, camera preview
 - White background instead of dark blurred stimulus image.
 - Clear instructions: "Mira y toca cada punto" (mobile) / "Mira y haz clic en cada punto" (desktop).
