@@ -329,8 +329,7 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
             icon={<Eye className="h-4 w-4" />}
             label="Mapa de calor"
           />
-          {/* Image-based overlays — hidden for video stimuli (can't render video in <img>) */}
-          {!isVideo && (
+          {!isVideo && !isShelf && (
             <>
               <ViewModeTab
                 active={viewMode === 'scanpath'}
@@ -352,7 +351,7 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
               />
             </>
           )}
-          {stimulus.sequenceAnalysis && (
+          {stimulus.sequenceAnalysis && !isShelf && (
             <ViewModeTab
               active={viewMode === 'sequence'}
               onClick={() => setViewMode('sequence')}
@@ -360,7 +359,7 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
               label="Sequence"
             />
           )}
-          {!isVideo && (
+          {!isVideo && !isShelf && (
             <ViewModeTab
               active={viewMode === 'image'}
               onClick={() => setViewMode('image')}
@@ -376,12 +375,14 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
               label="Emotions"
             />
           )}
-          <ViewModeTab
-            active={viewMode === 'prediction'}
-            onClick={() => setViewMode('prediction')}
-            icon={<Sparkles className="h-4 w-4" />}
-            label="Prediction"
-          />
+          {!isShelf && (
+            <ViewModeTab
+              active={viewMode === 'prediction'}
+              onClick={() => setViewMode('prediction')}
+              icon={<Sparkles className="h-4 w-4" />}
+              label="Prediction"
+            />
+          )}
           {stimulus.stimulusType === 'video' && stimulus.gazeTimeline && stimulus.gazeTimeline.length > 0 && (
             <ViewModeTab
               active={viewMode === 'video'}

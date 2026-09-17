@@ -46,6 +46,10 @@
 ### fix: Preference Test zoom modal not covering full screen on mobile
 - Zoom modal rendered via `createPortal(document.body)` — no longer clipped by `MainLayout` border-radius.
 
+### fix: Eye Tracking Shelf — hide inapplicable result tabs
+- Shelf mode hides: Scan Path, First Look, Transparency, Sequence, Image, Prediction.
+- Only shows: Mapa de calor + Emotions (if enabled).
+
 ### feat: Eye Tracking — merge Density into Heatmap with inline controls
 - Removed "Density" tab — single "Mapa de calor" tab replaces both.
 - Inline sliders (Opacidad, Blur, Intensidad) below heatmap for real-time control.
