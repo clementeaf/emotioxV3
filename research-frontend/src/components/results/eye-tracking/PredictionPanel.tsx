@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { Sparkles, Loader2 } from 'lucide-react';
+import { DEFAULT_HEATMAP_SETTINGS } from './HeatmapSettingsModal';
 import { HeatmapRenderer } from '../cognitive-task/components/HeatmapRenderer';
 import { mediaService } from '../../../services/media.service';
 import type { EyeTrackingStimulus } from '../../../services/analytics.service';
@@ -17,6 +18,7 @@ export const PredictionPanel = ({
 }) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [settings, setSettings] = useState({ ...DEFAULT_HEATMAP_SETTINGS, opacity: 75, blur: 14, threshold: 40, darkOverlay: 0 });
 
   const handleRunPrediction = useCallback(async () => {
     setIsProcessing(true);
@@ -47,11 +49,49 @@ export const PredictionPanel = ({
             {isProcessing ? 'Processing...' : 'Re-run prediction'}
           </button>
         </div>
-        <HeatmapRenderer
-          imageUrl={displayImageUrl || stimulus.stimulusUrl}
-          data={stimulus.predictionHeatmap.map(p => ({ x: p.x, y: p.y, value: p.value }))}
-          className="w-full"
-        />
+        <div className="relative">
+          <HeatmapRenderer
+            imageUrl={displayImageUrl || stimulus.stimulusUrl}
+            data={stimulus.predictionHeatmap.map(p => ({ x: p.x, y: p.y, value: p.value }))}
+            blur={settings.blur}
+            opacity={settings.opacity}
+            threshold={settings.threshold}
+            className="w-full"
+          />
+          {settings.darkOverlay > 0 && (
+            <div className="absolute inset-0 bg-black pointer-events-none" style={{ opacity: settings.darkOverlay / 100 }} />
+          )}
+        </div>
+        <div className="flex items-center gap-6 mt-3">
+          <label className="flex items-center gap-2 text-xs text-gray-500">
+            Opacidad
+            <input type="range" min={10} max={100} value={settings.opacity}
+              onChange={e => setSettings(prev => ({ ...prev, opacity: Number(e.target.value) }))}
+              className="w-20 h-1 accent-red-500" />
+            <span className="w-6 text-right">{settings.opacity}</span>
+          </label>
+          <label className="flex items-center gap-2 text-xs text-gray-500">
+            Blur / suavizado
+            <input type="range" min={1} max={40} value={settings.blur}
+              onChange={e => setSettings(prev => ({ ...prev, blur: Number(e.target.value) }))}
+              className="w-20 h-1 accent-green-500" />
+            <span className="w-6 text-right">{settings.blur}</span>
+          </label>
+          <label className="flex items-center gap-2 text-xs text-gray-500">
+            Exposición / intensidad
+            <input type="range" min={1} max={80} value={settings.threshold}
+              onChange={e => setSettings(prev => ({ ...prev, threshold: Number(e.target.value) }))}
+              className="w-20 h-1 accent-blue-500" />
+            <span className="w-6 text-right">{settings.threshold}</span>
+          </label>
+          <label className="flex items-center gap-2 text-xs text-gray-500">
+            Capa negra
+            <input type="range" min={0} max={80} value={settings.darkOverlay}
+              onChange={e => setSettings(prev => ({ ...prev, darkOverlay: Number(e.target.value) }))}
+              className="w-20 h-1 accent-blue-800" />
+            <span className="w-6 text-right">{settings.darkOverlay}</span>
+          </label>
+        </div>
       </div>
     );
   }

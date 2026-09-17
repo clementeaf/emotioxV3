@@ -46,6 +46,10 @@
 ### fix: Preference Test zoom modal not covering full screen on mobile
 - Zoom modal rendered via `createPortal(document.body)` — no longer clipped by `MainLayout` border-radius.
 
+### feat: ET Prediction tab — heatmap sliders + dark overlay
+- Same 4 controls as Heatmap: Opacidad, Blur/suavizado, Exposición/intensidad, Capa negra.
+- Dark overlay layer for prediction visualization.
+
 ### fix: ET Scanpath reacts to quality gate exclusions
 - Scanpath now filters by `excludedParticipants` — previously showed all fixations regardless.
 
