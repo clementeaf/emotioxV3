@@ -512,7 +512,7 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
         ) : viewMode === 'scanpath' && stimulus.stimulusUrl ? (
           <ScanpathOverlay
             imageUrl={effectiveStimulusUrl}
-            fixations={stimulus.fixations}
+            fixations={stimulus.fixations.filter(f => !excludedParticipants.has(f.participantId))}
           />
         ) : viewMode === 'video' && stimulus.gazeTimeline ? (
           <VideoGazePlayer videoUrl={stimulus.stimulusUrl} gazeTimeline={stimulus.gazeTimeline} />
@@ -588,28 +588,28 @@ export const StimulusCard = ({ stimulus: rawStimulus, researchId, onRefresh }: {
               Opacidad
               <input type="range" min={10} max={100} value={heatmapSettings.opacity}
                 onChange={e => setHeatmapSettings(prev => ({ ...prev, opacity: Number(e.target.value) }))}
-                className="w-24 h-1 accent-blue-500" />
+                className="w-20 h-1 accent-red-500" />
               <span className="w-6 text-right">{heatmapSettings.opacity}</span>
             </label>
             <label className="flex items-center gap-2 text-xs text-gray-500">
-              Blur
+              Blur / suavizado
               <input type="range" min={1} max={40} value={heatmapSettings.blur}
                 onChange={e => setHeatmapSettings(prev => ({ ...prev, blur: Number(e.target.value) }))}
-                className="w-24 h-1 accent-blue-500" />
+                className="w-20 h-1 accent-green-500" />
               <span className="w-6 text-right">{heatmapSettings.blur}</span>
             </label>
             <label className="flex items-center gap-2 text-xs text-gray-500">
-              Intensidad
+              Exposición / intensidad
               <input type="range" min={1} max={80} value={heatmapSettings.threshold}
                 onChange={e => setHeatmapSettings(prev => ({ ...prev, threshold: Number(e.target.value) }))}
-                className="w-24 h-1 accent-blue-500" />
+                className="w-20 h-1 accent-blue-500" />
               <span className="w-6 text-right">{heatmapSettings.threshold}</span>
             </label>
             <label className="flex items-center gap-2 text-xs text-gray-500">
-              Capa oscura
+              Capa negra
               <input type="range" min={0} max={80} value={heatmapSettings.darkOverlay}
                 onChange={e => setHeatmapSettings(prev => ({ ...prev, darkOverlay: Number(e.target.value) }))}
-                className="w-24 h-1 accent-blue-500" />
+                className="w-20 h-1 accent-blue-800" />
               <span className="w-6 text-right">{heatmapSettings.darkOverlay}</span>
             </label>
           </div>

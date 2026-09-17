@@ -46,6 +46,13 @@
 ### fix: Preference Test zoom modal not covering full screen on mobile
 - Zoom modal rendered via `createPortal(document.body)` — no longer clipped by `MainLayout` border-radius.
 
+### fix: ET Scanpath reacts to quality gate exclusions
+- Scanpath now filters by `excludedParticipants` — previously showed all fixations regardless.
+
+### fix: ET heatmap slider labels match EmotioSMI
+- Opacidad (red), Blur/suavizado (green), Exposición/intensidad (blue), Capa negra (dark blue).
+- Color-coded sliders for visual distinction.
+
 ### feat: Eye Tracking heatmap — dark overlay control
 - 4th slider "Capa oscura" (0-80) adds black overlay behind heatmap to isolate hot zones.
 - Matches EmotioSMI's "Capa negra / Oscurecer fondo" control.
