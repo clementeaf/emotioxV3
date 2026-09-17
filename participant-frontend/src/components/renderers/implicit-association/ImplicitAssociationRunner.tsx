@@ -16,7 +16,7 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
     const { saveResponse } = useParticipantStore();
 
     const config = useMemo(() => extractConfig(module), [module]);
-    const { primingTime, exerciseInstructions, testInstructions, showResults, responseKeys } = config;
+    const { primingTime, exerciseInstructions, testInstructions, responseKeys } = config;
 
     // Key labels based on researcher config
     const leftKey = responseKeys === 'arrows' ? '←' : 'A';
@@ -89,8 +89,7 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
         if (phase === 'complete' && !savedRef.current) {
             savedRef.current = true;
             saveResponse(module.id, 'iat-trials', JSON.stringify(results));
-            const timer = setTimeout(() => onCompleteRef.current?.(), 800);
-            timersRef.current.push(timer);
+            onCompleteRef.current?.();
         }
     }, [phase, results, module.id, saveResponse]);
 
@@ -407,52 +406,6 @@ export const ImplicitAssociationRenderer: React.FC<ImplicitAssociationRendererPr
                     >
                         {`${rightKey} = ${currentBlock.rightLabel}`}
                     </button>
-                </div>
-            </div>
-        );
-    }
-
-    // -----------------------------------------------------------------------
-    // Feedback screen (IAT/Priming only, not Yes/No)
-    // -----------------------------------------------------------------------
-
-    // -----------------------------------------------------------------------
-    // Complete screen
-    // -----------------------------------------------------------------------
-
-    if (phase === 'complete') {
-        const correctCount = results.filter(r => r.correct).length;
-        const accuracy = results.length > 0 ? Math.round((correctCount / results.length) * 100) : 0;
-        const avgRT = results.length > 0 ? Math.round(results.reduce((sum, r) => sum + r.rt, 0) / results.length) : 0;
-
-        return (
-            <div className="flex flex-col items-center justify-center h-[500px] px-4">
-                <div className="text-center space-y-4">
-                    <div className="w-16 h-16 rounded-full bg-green-500 flex items-center justify-center mx-auto">
-                        <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                        </svg>
-                    </div>
-                    <p className="text-lg font-medium text-gray-700">
-                        {t('iat.complete', 'Prueba completada. ¡Gracias!')}
-                    </p>
-                    {showResults && results.length > 0 && (
-                        <div className="mt-6 w-full max-w-sm mx-auto bg-gray-50 rounded-xl p-5 space-y-4 text-left">
-                            <h3 className="text-sm font-semibold text-gray-900 text-center">
-                                {t('iat.yourResults', 'Tus resultados')}
-                            </h3>
-                            <div className="grid grid-cols-2 gap-3">
-                                <div className="bg-white rounded-lg p-3 text-center shadow-sm">
-                                    <p className="text-2xl font-bold text-blue-600">{accuracy}%</p>
-                                    <p className="text-xs text-gray-500 mt-1">{t('iat.accuracy', 'Precisión')}</p>
-                                </div>
-                                <div className="bg-white rounded-lg p-3 text-center shadow-sm">
-                                    <p className="text-2xl font-bold text-blue-600">{avgRT}<span className="text-sm font-normal">ms</span></p>
-                                    <p className="text-xs text-gray-500 mt-1">{t('iat.avgResponseTime', 'Tiempo promedio de respuesta')}</p>
-                                </div>
-                            </div>
-                        </div>
-                    )}
                 </div>
             </div>
         );

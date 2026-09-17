@@ -46,6 +46,10 @@
 ### fix: Preference Test zoom modal not covering full screen on mobile
 - Zoom modal rendered via `createPortal(document.body)` — no longer clipped by `MainLayout` border-radius.
 
+### fix: IAT complete screen removed between exercises
+- Removed green checkmark "Prueba completada" screen that appeared between IAT exercises — caused confusion by implying the study was done.
+- IAT now saves and advances immediately to the next module. Completion feedback only at the final Thank You screen.
+
 ### fix: Ranking numbers removed when images present
 - Rank numbers removed from items — images + labels are sufficient.
 
