@@ -46,6 +46,11 @@
 ### fix: Preference Test zoom modal not covering full screen on mobile
 - Zoom modal rendered via `createPortal(document.body)` — no longer clipped by `MainLayout` border-radius.
 
+### feat: Vista Cliente — SmartVOC consolidado por enterprise
+- Backend: `GET /analytics/enterprise/:id/smartvoc` aggregates SmartVOC across all researches.
+- Clients page: "SmartVOC Consolidado" section with NPS, CSAT, CES, CV averages.
+- Only visible when enterprise has SmartVOC data.
+
 ### fix: ET AOI modal — correct image + edited metrics
 - AOI drawer uses `effectiveStimulusUrl` (shelf composite for shelf mode) instead of raw URL.
 - Metrics section shows edited AOIs (live state) instead of original saved AOIs.

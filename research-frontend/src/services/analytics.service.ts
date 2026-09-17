@@ -702,6 +702,13 @@ export const getSmartVOCResults = async (researchId: string): Promise<SmartVOCRe
     return response.results;
 };
 
+export const getEnterpriseSmartVOC = async (enterpriseId: string): Promise<SmartVOCResults[]> => {
+    const response = await apiClient.get<{ results: SmartVOCResults[] }>(
+        `/analytics/enterprise/${enterpriseId}/smartvoc`
+    );
+    return response.results;
+};
+
 // ==========================================
 // TEXT ANALYSIS (LLM themes/keywords)
 // ==========================================

@@ -4,6 +4,7 @@ import { ExternalLink, Trash2, ArrowRight } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { enterprisesService, type Enterprise, type EnterpriseResearch } from '../../services/enterprises.service';
 import { researchService } from '../../services/research.service';
+import * as analyticsService from '../../services/analytics.service';
 import { CustomSelect } from '../../components/ui/CustomSelect';
 import { useToast } from '../../hooks/useToast';
 
@@ -64,6 +65,36 @@ export const ClientsPage = () => {
         }
         return { ...byStatus, total: researches.length, types: Array.from(types) };
     }, [researches]);
+
+    const [smartvocData, setSmartVocData] = useState<analyticsService.SmartVOCResults[]>([]);
+    useEffect(() => {
+        if (!selectedEnterpriseId) return;
+        analyticsService.getEnterpriseSmartVOC(selectedEnterpriseId)
+            .then(setSmartVocData)
+            .catch(() => setSmartVocData([]));
+    }, [selectedEnterpriseId]);
+
+    const consolidatedMetrics = useMemo(() => {
+        if (smartvocData.length === 0) return null;
+        let npsSum = 0, npsCount = 0, csatSum = 0, csatCount = 0, cesSum = 0, cesCount = 0, cvSum = 0, cvCount = 0;
+        for (const r of smartvocData) {
+            const m = r.metrics;
+            if (m.npsScore !== undefined && m.npsScore !== null) { npsSum += m.npsScore; npsCount++; }
+            if (m.satisfaction !== undefined && m.satisfaction !== null) { csatSum += m.satisfaction; csatCount++; }
+            if (m.cesScores && m.cesScores.length > 0) {
+                const avg = m.cesScores.reduce((s, v) => s + v.value, 0) / m.cesScores.length;
+                cesSum += avg; cesCount++;
+            }
+            if (m.cpvValue !== undefined && m.cpvValue !== null) { cvSum += m.cpvValue; cvCount++; }
+        }
+        return {
+            nps: npsCount > 0 ? (npsSum / npsCount).toFixed(1) : null,
+            csat: csatCount > 0 ? (csatSum / csatCount).toFixed(1) : null,
+            ces: cesCount > 0 ? (cesSum / cesCount).toFixed(1) : null,
+            cv: cvCount > 0 ? (cvSum / cvCount).toFixed(1) : null,
+            studies: smartvocData.length,
+        };
+    }, [smartvocData]);
 
     const latestProjects = useMemo(() =>
         [...researches].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 4)
@@ -164,6 +195,42 @@ export const ClientsPage = () => {
                         )}
                     </div>
                 </div>
+
+                {/* SmartVOC Consolidated */}
+                {consolidatedMetrics && (
+                    <div className="rounded-xl border border-gray-100 bg-white p-4">
+                        <div className="flex items-center gap-3 mb-3">
+                            <h2 className="text-[13px] font-semibold text-gray-900">SmartVOC Consolidado</h2>
+                            <span className="text-[11px] text-gray-400">{consolidatedMetrics.studies} estudio{consolidatedMetrics.studies !== 1 ? 's' : ''}</span>
+                        </div>
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                            {consolidatedMetrics.nps && (
+                                <div className="text-center p-3 rounded-lg bg-blue-50">
+                                    <p className="text-2xl font-bold text-blue-700">{consolidatedMetrics.nps}</p>
+                                    <p className="text-[11px] font-medium text-blue-600 uppercase mt-1">NPS Promedio</p>
+                                </div>
+                            )}
+                            {consolidatedMetrics.csat && (
+                                <div className="text-center p-3 rounded-lg bg-emerald-50">
+                                    <p className="text-2xl font-bold text-emerald-700">{consolidatedMetrics.csat}</p>
+                                    <p className="text-[11px] font-medium text-emerald-600 uppercase mt-1">CSAT Promedio</p>
+                                </div>
+                            )}
+                            {consolidatedMetrics.ces && (
+                                <div className="text-center p-3 rounded-lg bg-amber-50">
+                                    <p className="text-2xl font-bold text-amber-700">{consolidatedMetrics.ces}</p>
+                                    <p className="text-[11px] font-medium text-amber-600 uppercase mt-1">CES Promedio</p>
+                                </div>
+                            )}
+                            {consolidatedMetrics.cv && (
+                                <div className="text-center p-3 rounded-lg bg-purple-50">
+                                    <p className="text-2xl font-bold text-purple-700">{consolidatedMetrics.cv}</p>
+                                    <p className="text-[11px] font-medium text-purple-600 uppercase mt-1">CV Promedio</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
 
                 {/* Latest projects */}
                 <div>

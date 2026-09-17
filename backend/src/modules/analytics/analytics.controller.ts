@@ -212,6 +212,24 @@ export const handleAnalyticsRoutes = async (event: APIGatewayProxyEvent): Promis
             return success({ summary }, 201, undefined, origin);
         }
 
+        const enterpriseSmartVocMatch = path.match(/^\/analytics\/enterprise\/([^\/]+)\/smartvoc$/);
+        if (enterpriseSmartVocMatch && httpMethod === 'GET') {
+            const enterpriseId = enterpriseSmartVocMatch[1];
+            const resQuery = `SELECT r.id FROM researches r WHERE r.enterprise_id = ? AND r.deleted_at IS NULL ORDER BY r.created_at DESC`;
+            const { default: pool } = await import('../../config/database');
+            const resResult = await pool.query(resQuery, [enterpriseId]);
+            const allResults = [];
+            for (const row of resResult.rows) {
+                try {
+                    const r = await analyticsService.getSmartVOCResults(row.id);
+                    if (r && r.totalResponses > 0) {
+                        allResults.push({ researchId: row.id, ...r });
+                    }
+                } catch { /* skip */ }
+            }
+            return success({ results: allResults }, 200, undefined, origin);
+        }
+
         return error('Route not found', 404, undefined, origin);
     } catch (err: unknown) {
         const errorMessage = err instanceof Error ? err.message : 'Unknown error';
