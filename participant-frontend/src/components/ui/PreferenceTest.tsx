@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import ReactDOM from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { mediaService } from '../../services/media.service';
 import { LazyImage } from './LazyImage';
@@ -183,6 +184,22 @@ export const PreferenceTest: React.FC<PreferenceTestProps> = ({
 
     const currentZoomImage = images.find(img => img.id === zoomImage);
 
+    const isMobile = typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
+    const [carouselIndex, setCarouselIndex] = useState(0);
+    const carouselImage = images[carouselIndex] ?? null;
+    const touchStartX = useRef<number | null>(null);
+
+    const handleTouchStart = (e: React.TouchEvent) => { touchStartX.current = e.touches[0].clientX; };
+    const handleTouchEnd = (e: React.TouchEvent) => {
+        if (touchStartX.current === null) return;
+        const dx = e.changedTouches[0].clientX - touchStartX.current;
+        if (Math.abs(dx) > 50) {
+            if (dx < 0 && carouselIndex < images.length - 1) setCarouselIndex(carouselIndex + 1);
+            if (dx > 0 && carouselIndex > 0) setCarouselIndex(carouselIndex - 1);
+        }
+        touchStartX.current = null;
+    };
+
     // Save preference response
     const savePreferenceResponse = (imageId: number, intensity?: 'slight' | 'strong' | null) => {
         const responseData = {
@@ -229,7 +246,117 @@ export const PreferenceTest: React.FC<PreferenceTestProps> = ({
                 </div>
             )}
             
-            {!loading && (
+            {!loading && isMobile && carouselImage && (
+                <div className="space-y-4" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
+                    <div className="flex items-center justify-between text-sm text-gray-400">
+                        <span>{carouselIndex + 1} / {images.length}</span>
+                        <span>{carouselImage.label}</span>
+                    </div>
+                    <button
+                        onClick={() => handleImageSelect(carouselImage.id)}
+                        className={`relative aspect-square rounded-lg border-2 transition-all w-full overflow-hidden ${
+                            selectedImage === carouselImage.id
+                                ? 'border-blue-600 ring-4 ring-blue-100 shadow-lg'
+                                : 'border-gray-300'
+                        }`}
+                    >
+                        {carouselImage.url ? (
+                            <LazyImage src={carouselImage.url} alt={carouselImage.label} className="absolute inset-0 w-full h-full object-cover" />
+                        ) : (
+                            <div className={`absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br ${carouselImage.color} rounded-lg`}>
+                                <svg className="w-12 h-12 text-white mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                                <p className="text-sm font-medium text-white">{carouselImage.label}</p>
+                            </div>
+                        )}
+                        {selectedImage === carouselImage.id && (
+                            <div className="absolute top-2 right-2 bg-blue-600 text-white rounded-full p-1.5 shadow-lg">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                </svg>
+                            </div>
+                        )}
+                    </button>
+                    <button
+                        onClick={() => handleZoomOpen(carouselImage.id)}
+                        className="w-full py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium flex items-center justify-center gap-2"
+                    >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7" />
+                        </svg>
+                        {t('preferenceTest.viewDetail')}
+                    </button>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={() => setCarouselIndex(Math.max(0, carouselIndex - 1))}
+                            disabled={carouselIndex === 0}
+                            className="flex-1 py-2 rounded-lg border border-gray-300 text-gray-600 font-medium disabled:opacity-30"
+                        >
+                            ←
+                        </button>
+                        <button
+                            onClick={() => {
+                                handleImageSelect(carouselImage.id);
+                            }}
+                            className={`flex-[2] py-2 rounded-lg font-medium transition-colors ${
+                                selectedImage === carouselImage.id
+                                    ? 'bg-blue-600 text-white'
+                                    : 'bg-gray-200 text-gray-700'
+                            }`}
+                        >
+                            {selectedImage === carouselImage.id ? '✓ Seleccionada' : 'Seleccionar'}
+                        </button>
+                        <button
+                            onClick={() => setCarouselIndex(Math.min(images.length - 1, carouselIndex + 1))}
+                            disabled={carouselIndex === images.length - 1}
+                            className="flex-1 py-2 rounded-lg border border-gray-300 text-gray-600 font-medium disabled:opacity-30"
+                        >
+                            →
+                        </button>
+                    </div>
+                    {selectedImage === carouselImage.id && (
+                        <div className="flex flex-col items-center gap-2">
+                            <span className="text-sm text-gray-500">{t('preferenceTest.howMuch', '¿Qué tan fuerte es tu preferencia?')}</span>
+                            <div className="flex gap-2 w-full">
+                                <button
+                                    onClick={() => handleIntensitySelect('slight')}
+                                    className={`flex-1 py-2 text-sm font-medium rounded-lg border transition-colors ${
+                                        preferenceIntensity === 'slight'
+                                            ? 'bg-blue-100 border-blue-400 text-blue-700'
+                                            : 'bg-white border-gray-200 text-gray-600'
+                                    }`}
+                                >
+                                    {t('preferenceTest.slightPreference', 'Leve')}
+                                </button>
+                                <button
+                                    onClick={() => handleIntensitySelect('strong')}
+                                    className={`flex-1 py-2 text-sm font-medium rounded-lg border transition-colors ${
+                                        preferenceIntensity === 'strong'
+                                            ? 'bg-blue-600 border-blue-600 text-white'
+                                            : 'bg-white border-gray-200 text-gray-600'
+                                    }`}
+                                >
+                                    {t('preferenceTest.strongPreference', 'Fuerte')}
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                    <div className="flex justify-center gap-1.5">
+                        {images.map((img, i) => (
+                            <button
+                                key={img.id}
+                                onClick={() => setCarouselIndex(i)}
+                                className={`w-2 h-2 rounded-full transition-colors ${
+                                    i === carouselIndex ? 'bg-blue-600' : selectedImage === img.id ? 'bg-blue-300' : 'bg-gray-300'
+                                }`}
+                            />
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {!loading && !isMobile && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {images.map((image) => (
                     <div key={image.id} className="space-y-2">
@@ -241,7 +368,6 @@ export const PreferenceTest: React.FC<PreferenceTestProps> = ({
                                     : 'border-gray-300 hover:border-blue-400 hover:shadow-md'
                             }`}
                         >
-                            {/* Render real image or mock */}
                             {image.url ? (
                                 <LazyImage
                                     src={image.url}
@@ -257,7 +383,6 @@ export const PreferenceTest: React.FC<PreferenceTestProps> = ({
                                 </div>
                             )}
 
-                            {/* Selection indicator */}
                             {selectedImage === image.id && (
                                 <div className="absolute top-2 right-2 bg-blue-600 text-white rounded-full p-1.5 shadow-lg">
                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -267,7 +392,6 @@ export const PreferenceTest: React.FC<PreferenceTestProps> = ({
                             )}
                         </button>
 
-                        {/* Zoom button */}
                         <button
                             onClick={() => handleZoomOpen(image.id)}
                             className="w-full py-1.5 px-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-medium transition-colors flex items-center justify-center gap-2"
@@ -280,7 +404,7 @@ export const PreferenceTest: React.FC<PreferenceTestProps> = ({
 
                         {selectedImage === image.id && (
                             <div className="flex flex-col items-center gap-2 pt-1">
-                                <span className="text-sm text-gray-500">{t('preferenceTest.howMuch', 'How strong is your preference?')}</span>
+                                <span className="text-sm text-gray-500">{t('preferenceTest.howMuch', '¿Qué tan fuerte es tu preferencia?')}</span>
                                 <div className="flex gap-2">
                                     <button
                                         onClick={() => handleIntensitySelect('slight')}
@@ -290,7 +414,7 @@ export const PreferenceTest: React.FC<PreferenceTestProps> = ({
                                                 : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
                                         }`}
                                     >
-                                        {t('preferenceTest.slightPreference', 'Slight')}
+                                        {t('preferenceTest.slightPreference', 'Leve')}
                                     </button>
                                     <button
                                         onClick={() => handleIntensitySelect('strong')}
@@ -300,7 +424,7 @@ export const PreferenceTest: React.FC<PreferenceTestProps> = ({
                                                 : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
                                         }`}
                                     >
-                                        {t('preferenceTest.strongPreference', 'Strong')}
+                                        {t('preferenceTest.strongPreference', 'Fuerte')}
                                     </button>
                                 </div>
                             </div>
@@ -311,7 +435,7 @@ export const PreferenceTest: React.FC<PreferenceTestProps> = ({
             )}
 
             {/* Zoom Modal */}
-            {zoomImage !== null && currentZoomImage && (
+            {zoomImage !== null && currentZoomImage && ReactDOM.createPortal(
                 <div
                     role="dialog"
                     className="fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center"
@@ -439,7 +563,8 @@ export const PreferenceTest: React.FC<PreferenceTestProps> = ({
                             </button>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
         </div>

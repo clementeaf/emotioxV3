@@ -1,4 +1,4 @@
-## v0.96.7 — IAT mobile instructions, stimulus swipe animation (2026-09-17)
+## v0.96.7 — IAT UX, reference images, Preference carousel, mobile polish (2026-09-17)
 
 ### fix: IAT take-note instructions adapt to device
 - **Mobile (touch):** "Posiciona tus dedos pulgares en cada botón" + full-width "Listo" button below category buttons. Spacebar hint hidden.
@@ -37,6 +37,17 @@
 - **Research-frontend**: `RankingItemsEditor` — image upload button per item (40×40 thumbnail + remove). Uses `mediaService.uploadFile`.
 - **Participant-frontend**: `RankingQuestion` shows 40×40 thumbnail next to each item label. `useResolvedMediaUrl` hook resolves S3 keys.
 - Item data extended: `{ id, label, image?: { s3Key, url } }`.
+
+### feat: Preference Test mobile carousel
+- Mobile: horizontal carousel — one image at a time, swipe or arrow navigation, dot indicators.
+- "Seleccionar" button per image, intensity (Leve/Fuerte) inline below selected.
+- Desktop: unchanged grid layout.
+
+### fix: Preference Test zoom modal not covering full screen on mobile
+- Zoom modal rendered via `createPortal(document.body)` — no longer clipped by `MainLayout` border-radius.
+
+### fix: Ranking numbers removed when images present
+- Rank numbers removed from items — images + labels are sufficient.
 
 ### feat: Preference Test intensity visible in results
 - `preferenceIntensity` (`slight`/`strong`) was saved by participant but never shown in research results.

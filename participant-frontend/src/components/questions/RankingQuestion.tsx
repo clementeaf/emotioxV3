@@ -140,10 +140,6 @@ export const RankingQuestion = ({
                             }
                         `}
                     >
-                        <div className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-50 text-blue-600 font-bold text-sm flex-shrink-0">
-                            {index + 1}
-                        </div>
-
                         {item.image && <ItemThumbnail image={item.image} />}
 
                         <span className="flex-1 text-gray-900">{item.label}</span>
