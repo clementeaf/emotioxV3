@@ -1374,6 +1374,7 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
                     onCalibrationClick={handleCalibrationClick}
                     onImageLoad={handleImageLoad}
                     shelfConfig={shelfConfig}
+                    cameraRef={videoRef}
                 />
             </>
         );

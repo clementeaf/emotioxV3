@@ -46,6 +46,14 @@
 ### fix: Preference Test zoom modal not covering full screen on mobile
 - Zoom modal rendered via `createPortal(document.body)` — no longer clipped by `MainLayout` border-radius.
 
+### feat: Eye Tracking calibration redesign — white background, camera preview
+- White background instead of dark blurred stimulus image.
+- Clear instructions: "Mira y toca cada punto" (mobile) / "Mira y haz clic en cada punto" (desktop).
+- Progress: "Punto X de 9 — un toque por punto".
+- Larger green dot (40px) with pulsing ring on both devices.
+- Camera preview (80px circle) at bottom during calibration for position awareness.
+- Single click/tap phase — removed confusing two-phase system.
+
 ### fix: Eye Tracking quality gate — Spanish, blocking validation, action hints
 - All check labels, messages, and buttons translated to Spanish.
 - Warnings now block advancement — only all-pass proceeds to calibration.
