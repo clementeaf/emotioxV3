@@ -158,6 +158,14 @@ export const RankingItemsEditor = ({
                             ) : (
                                 <button
                                     onClick={() => fileInputRefs.current[item.id]?.click()}
+                                    onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('border-blue-400', 'text-blue-500'); }}
+                                    onDragLeave={(e) => { e.currentTarget.classList.remove('border-blue-400', 'text-blue-500'); }}
+                                    onDrop={(e) => {
+                                        e.preventDefault();
+                                        e.currentTarget.classList.remove('border-blue-400', 'text-blue-500');
+                                        const f = e.dataTransfer.files?.[0];
+                                        if (f && f.type.startsWith('image/')) handleImageUpload(item.id, f);
+                                    }}
                                     className="w-10 h-10 flex-shrink-0 rounded border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400 hover:border-blue-400 hover:text-blue-500 transition-colors"
                                     title="Add image"
                                 >

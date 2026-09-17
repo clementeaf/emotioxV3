@@ -174,7 +174,7 @@ export const EditableComponent = ({
                     component={component}
                     value={value}
                     onChange={onChange}
-
+                    researchId={researchId}
                 />
             );
 
@@ -209,7 +209,7 @@ export const EditableComponent = ({
                     component={component}
                     value={value}
                     onChange={onChange}
-
+                    researchId={researchId}
                 />
             );
 

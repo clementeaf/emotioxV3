@@ -1,14 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Input } from '../ui/Input';
 import { CustomSelect } from '../ui/CustomSelect';
 import { Button } from '../ui/Button';
-import { Trash2, Plus } from 'lucide-react';
+import { Trash2, Plus, ImagePlus, X } from 'lucide-react';
 import type { ComponentConfig } from '../../types/moduleBuilder.types';
+import { mediaService } from '../../services/media.service';
 
 export interface RadioChoicesEditorProps {
     component: ComponentConfig;
     value: string;
     onChange: (value: string) => void;
+    researchId?: string;
     /** @deprecated No-op, kept for call-site compat. Will be removed. */
     singleChoiceLocked?: boolean;
     /** @deprecated No-op, kept for call-site compat. Will be removed. */
@@ -20,6 +22,7 @@ type ChoiceItem = {
     label: string;
     value?: string;
     eligibility?: 'Qualify' | 'Disqualify';
+    image?: { s3Key: string; url?: string };
 };
 
 const MIN_CHOICES = 2;
@@ -28,7 +31,10 @@ export const RadioChoicesEditor = ({
     component,
     value,
     onChange,
+    researchId,
 }: RadioChoicesEditorProps) => {
+    const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+
     const buildInitialChoices = (): ChoiceItem[] => {
         if (value) {
             try {
@@ -62,12 +68,16 @@ export const RadioChoicesEditor = ({
         }
     }, [value]);
 
+    const persist = (choices: ChoiceItem[]) => {
+        onChange(JSON.stringify(choices));
+    };
+
     const handleChoiceChange = (choiceId: string, field: 'label' | 'eligibility', newValue: string) => {
         const updated = localChoices.map((choice) =>
             choice.id === choiceId ? { ...choice, [field]: newValue } : choice
         );
         setLocalChoices(updated);
-        onChange(JSON.stringify(updated));
+        persist(updated);
     };
 
     const handleAddChoice = () => {
@@ -79,17 +89,37 @@ export const RadioChoicesEditor = ({
         };
         const updated = [...localChoices, newChoice];
         setLocalChoices(updated);
-        onChange(JSON.stringify(updated));
+        persist(updated);
     };
 
     const handleDeleteChoice = (choiceId: string) => {
         const updated = localChoices.filter((choice) => choice.id !== choiceId);
         setLocalChoices(updated);
-        onChange(JSON.stringify(updated));
+        persist(updated);
     };
 
-    const choiceGridClass =
-        'grid grid-cols-[minmax(0,1fr)_minmax(10rem,11rem)_2.5rem] items-center gap-x-3 gap-y-0';
+    const handleImageUpload = async (choiceId: string, file: File) => {
+        if (!researchId) return;
+        try {
+            const { s3Key } = await mediaService.uploadFile(researchId, file);
+            const { url } = await mediaService.getMediaUrl(s3Key);
+            const updated = localChoices.map(choice =>
+                choice.id === choiceId ? { ...choice, image: { s3Key, url } } : choice
+            );
+            setLocalChoices(updated);
+            persist(updated);
+        } catch (err) {
+            console.error('Image upload failed:', err);
+        }
+    };
+
+    const handleImageRemove = (choiceId: string) => {
+        const updated = localChoices.map(choice =>
+            choice.id === choiceId ? { ...choice, image: undefined } : choice
+        );
+        setLocalChoices(updated);
+        persist(updated);
+    };
 
     return (
         <div className="space-y-4">
@@ -97,20 +127,53 @@ export const RadioChoicesEditor = ({
                 {component.label}
             </label>
             <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
-                <div className={choiceGridClass + ' border-b border-gray-200 bg-gray-50/80 px-3 py-2'}>
-                    <span className="text-xs font-semibold uppercase tracking-wide text-gray-600">Option</span>
-                    <span className="text-xs font-semibold uppercase tracking-wide text-gray-600">Eligibility</span>
-                    <span className="sr-only">Actions</span>
-                </div>
                 <div className="divide-y divide-gray-100">
                     {localChoices.map((choice) => {
                     const canDelete = localChoices.length > MIN_CHOICES;
                     return (
                     <div
                         key={choice.id}
-                        className={choiceGridClass + ' min-h-[3rem] px-3 py-2'}
+                        className="flex items-center gap-3 px-3 py-2"
                     >
-                        <div className="min-w-0 self-center">
+                        {choice.image?.url ? (
+                            <div className="relative w-10 h-10 flex-shrink-0">
+                                <img src={choice.image.url} alt="" className="w-10 h-10 rounded object-cover" />
+                                <button
+                                    onClick={() => handleImageRemove(choice.id)}
+                                    className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center"
+                                >
+                                    <X className="h-2.5 w-2.5" />
+                                </button>
+                            </div>
+                        ) : (
+                            <button
+                                onClick={() => fileInputRefs.current[choice.id]?.click()}
+                                onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('border-blue-400', 'text-blue-500'); }}
+                                onDragLeave={(e) => { e.currentTarget.classList.remove('border-blue-400', 'text-blue-500'); }}
+                                onDrop={(e) => {
+                                    e.preventDefault();
+                                    e.currentTarget.classList.remove('border-blue-400', 'text-blue-500');
+                                    const f = e.dataTransfer.files?.[0];
+                                    if (f && f.type.startsWith('image/')) handleImageUpload(choice.id, f);
+                                }}
+                                className="w-10 h-10 flex-shrink-0 rounded border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400 hover:border-blue-400 hover:text-blue-500 transition-colors"
+                                title="Add image"
+                            >
+                                <ImagePlus className="h-4 w-4" />
+                                <input
+                                    ref={el => { fileInputRefs.current[choice.id] = el; }}
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    onChange={(e) => {
+                                        const f = e.target.files?.[0];
+                                        if (f) handleImageUpload(choice.id, f);
+                                        e.target.value = '';
+                                    }}
+                                />
+                            </button>
+                        )}
+                        <div className="flex-1 min-w-0">
                             <Input
                                 id={`choice-${choice.id}-label`}
                                 label=""
@@ -119,7 +182,7 @@ export const RadioChoicesEditor = ({
                                 placeholder="Enter option text..."
                             />
                         </div>
-                        <div className="min-w-0 self-center">
+                        <div className="w-36">
                             <CustomSelect
                                 id={`choice-${choice.id}-eligibility`}
                                 label=""
@@ -131,17 +194,15 @@ export const RadioChoicesEditor = ({
                                 ]}
                             />
                         </div>
-                        <div className="flex justify-end self-center">
                         <button
                             type="button"
                             onClick={() => handleDeleteChoice(choice.id)}
                             disabled={!canDelete}
-                            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded p-2 transition-colors ${canDelete ? 'text-red-600 hover:bg-red-50' : 'cursor-not-allowed text-gray-400 opacity-50'}`}
+                            className={`p-2 rounded transition-colors ${canDelete ? 'text-red-600 hover:bg-red-50' : 'cursor-not-allowed text-gray-400 opacity-50'}`}
                             title={canDelete ? 'Delete option' : 'Minimum 2 options required'}
                         >
                             <Trash2 className="h-4 w-4" />
                         </button>
-                        </div>
                     </div>
                     );
                 })}

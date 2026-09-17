@@ -1,3 +1,20 @@
+## v0.96.8 — Per-option images in Single/Multiple Choice, Ranking drag-drop fix (2026-09-17)
+
+### feat: per-option images in Single Choice and Multiple Choice
+- **Research-frontend**: `RadioChoicesEditor` — 40×40 image upload per option (click + drag-and-drop). Remove via red X button. Uses `mediaService.uploadFile`.
+- **Participant-frontend**: `ChoiceQuestion` shows 40×40 thumbnail next to each option label. `OptionThumbnail` component with `useResolvedMediaUrl`.
+- `CognitiveTaskRenderer` now extracts `image` field from choice JSON data.
+- `EditableComponent` passes `researchId` to `RadioChoicesEditor` for both `radio` and `checkbox-list`/`option-list` types.
+
+### fix: Ranking per-item image upload supports drag-and-drop
+- `RankingItemsEditor` image button now handles `onDragOver`/`onDragLeave`/`onDrop` — previously only click-to-browse worked.
+- Validates `file.type.startsWith('image/')` on drop.
+
+### quality
+- **TypeScript strict** — 0 errors, 0 warnings in all 3 subprojects.
+
+---
+
 ## v0.96.7 — IAT UX, reference images, Preference carousel, mobile polish (2026-09-17)
 
 ### fix: IAT take-note instructions adapt to device

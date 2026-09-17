@@ -1,10 +1,18 @@
 import { useState, useEffect } from 'react';
 import { useResponse } from '../../hooks/useResponse';
+import { useResolvedMediaUrl } from '../../hooks/useResolvedMediaUrl';
 
 interface Option {
     id: string;
     label: string;
+    image?: { s3Key?: string; url?: string };
 }
+
+const OptionThumbnail = ({ image }: { image: { s3Key?: string; url?: string } }) => {
+    const resolved = useResolvedMediaUrl(image.url, image.s3Key);
+    if (!resolved) return null;
+    return <img src={resolved} alt="" className="w-10 h-10 rounded object-cover flex-shrink-0" />;
+};
 
 interface ChoiceQuestionProps {
     moduleId: string;
@@ -105,6 +113,7 @@ export const ChoiceQuestion = ({
                                     )}
                                 </div>
 
+                                {option.image && <OptionThumbnail image={option.image} />}
                                 <span className="flex-1">{option.label}</span>
                             </div>
                         </button>

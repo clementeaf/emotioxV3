@@ -79,9 +79,10 @@ export const CognitiveTaskRenderer: React.FC<CognitiveTaskRendererProps> = ({ mo
                         try {
                             const parsed = JSON.parse(raw);
                             if (Array.isArray(parsed)) {
-                                choices = parsed.map((item: { id?: string; label?: string }, i: number) => ({
+                                choices = parsed.map((item: { id?: string; label?: string; image?: { s3Key?: string; url?: string } }, i: number) => ({
                                     id: item.id || `choice-${i}`,
                                     label: item.label || `Option ${i + 1}`,
+                                    ...(item.image ? { image: item.image } : {}),
                                 }));
                             }
                         } catch { /* not JSON */ }
