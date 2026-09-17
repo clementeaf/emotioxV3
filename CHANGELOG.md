@@ -1,3 +1,16 @@
+## v0.96.9 — Eye Tracking glasses tolerance (2026-09-17)
+
+### fix: face detection tolerates glasses (Eye Tracking)
+- **TinyFaceDetector** (emotion recognition): `scoreThreshold` 0.4 → 0.25, `inputSize` 224 → 320. Glasses with thick frames or reflections no longer drop below detection threshold.
+- **Quality gate faceConfidence**: no longer binary (1.0/0). When MediaPipe detects face landmarks but gaze state is 'closed' (eye glare from lenses), reports 0.85 instead of 0 — passes the 0.8 gate.
+- **SetupPhase camera**: preview resolution 320×240 → 640×480 on mobile for better face detection with glasses.
+- **Setup check text**: "No light-reflecting glasses on" → "If wearing glasses, avoid direct light reflections on lenses" — no longer implies glasses are prohibited.
+
+### quality
+- **TypeScript strict** — 0 errors, 0 warnings in all 3 subprojects.
+
+---
+
 ## v0.96.8 — Per-option images in Single/Multiple Choice, Ranking drag-drop fix (2026-09-17)
 
 ### feat: per-option images in Single Choice and Multiple Choice

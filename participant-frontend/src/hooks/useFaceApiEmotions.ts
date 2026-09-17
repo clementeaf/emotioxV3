@@ -85,7 +85,7 @@ export function useFaceApiEmotions({
 
     try {
       const detection = await faceapi
-        .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.4 }))
+        .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.25 }))
         .withFaceLandmarks()
         .withFaceExpressions();
 

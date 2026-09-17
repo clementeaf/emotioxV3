@@ -1345,7 +1345,7 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
             <SessionQualityGate
                 cameraRef={videoRef}
                 gazeActive={gaze.gazeState === 'open'}
-                faceConfidence={mpGaze.gazeState === 'open' ? 1.0 : 0}
+                faceConfidence={mpGaze.lastLandmarksRef.current ? (mpGaze.gazeState === 'open' ? 1.0 : 0.85) : 0}
                 headPoseRef={mpGaze.headPoseRef}
                 earRef={mpGaze.earRef}
                 landmarksRef={mpGaze.lastLandmarksRef}

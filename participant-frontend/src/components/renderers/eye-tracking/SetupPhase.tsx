@@ -27,7 +27,7 @@ export const SetupPhase: React.FC<SetupPhaseProps> = ({ isDesktop, checks, allCh
         if (!cameraRef?.current) return;
         try {
             setCameraError(false);
-            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 320 }, height: { ideal: 240 } } });
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } } });
             if (cameraRef.current) {
                 cameraRef.current.srcObject = stream;
                 await cameraRef.current.play();
@@ -89,7 +89,7 @@ export const SetupPhase: React.FC<SetupPhaseProps> = ({ isDesktop, checks, allCh
         t('eyeTracking.check1', 'I am seated and will not move.'),
         t('eyeTracking.check2', 'My device is stable and at face level.'),
         t('eyeTracking.check3', 'My face is well lit, no backlight.'),
-        t('eyeTracking.check4', 'No light-reflecting glasses on.'),
+        t('eyeTracking.check4', 'If wearing glasses, avoid direct light reflections on lenses.'),
     ];
     const checkLabelsMobile = [
         t('eyeTracking.checkMobile1', 'I am holding my device comfortably and it is stable.'),
