@@ -71,26 +71,26 @@ export const IATFlowchart = ({
     if (testType === 'attribute_testing') {
         return (
             <div className="space-y-0">
-                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-3">Test flow</p>
-                <Node label="Exercise phase" variant="phase" sub="Practice with targets" />
+                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-3">Flujo del test</p>
+                <Node label="Fase de ejercicio" variant="phase" sub="Práctica con targets" />
                 <Arrow />
-                <Node label={`Show target`} variant="action" sub={targetNames || 'Target 1, Target 2'} />
-                <Arrow />
-                <BranchRow left={targets[0]?.name || 'Target 1'} right={targets[1]?.name || 'Target 2'} />
-                <Arrow />
-                <Node label="Test phase" variant="phase" sub={`${criteriaCount} criteria · ${primingTime}ms`} />
-                <Arrow />
-                <Node label="Priming" variant="action" sub={`Criterion shown for ${primingTime}ms`} />
-                <Arrow />
-                <Node label="Classify to target" variant="decision" sub="A / L keys" />
+                <Node label="Mostrar target" variant="action" sub={targetNames || 'Target 1, Target 2'} />
                 <Arrow />
                 <BranchRow left={targets[0]?.name || 'Target 1'} right={targets[1]?.name || 'Target 2'} />
                 <Arrow />
-                <Node label="Correct / Incorrect" variant="action" sub="Feedback shown" />
+                <Node label="Fase de test" variant="phase" sub={`${criteriaCount} criterios · ${primingTime}ms`} />
+                <Arrow />
+                <Node label="Priming" variant="action" sub={`Criterio mostrado por ${primingTime}ms`} />
+                <Arrow />
+                <Node label="Clasificar al target" variant="decision" sub="Teclas A / L" />
+                <Arrow />
+                <BranchRow left={targets[0]?.name || 'Target 1'} right={targets[1]?.name || 'Target 2'} />
+                <Arrow />
+                <Node label="Correcto / Incorrecto" variant="action" sub="Se muestra feedback" />
                 <div className="mt-3 px-2 py-2 rounded bg-gray-50 border border-gray-100">
                     <p className="text-[10px] text-gray-500">
-                        {criteriaCount} criteria assigned to {targets.length} targets.
-                        Each criterion appears after a {primingTime}ms priming.
+                        {criteriaCount} criterios asignados a {targets.length} targets.
+                        Cada criterio aparece tras un priming de {primingTime}ms.
                     </p>
                 </div>
             </div>
@@ -98,53 +98,52 @@ export const IATFlowchart = ({
     }
 
     if (testType === 'comparing_attribute') {
-        const d1 = dimensions?.left || 'Yes';
+        const d1 = dimensions?.left || 'Sí';
         const d2 = dimensions?.right || 'No';
         return (
             <div className="space-y-0">
-                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-3">Test flow</p>
-                <Node label="Single phase" variant="phase" sub="Reaction time test" />
+                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-3">Flujo del test</p>
+                <Node label="Fase única" variant="phase" sub="Test de tiempo de reacción" />
                 <Arrow />
-                <Node label="Show object + criterion" variant="action" sub={`${targets.length} objects · ${criteriaCount} criteria`} />
+                <Node label="Mostrar objeto + criterio" variant="action" sub={`${targets.length} objetos · ${criteriaCount} criterios`} />
                 <Arrow />
-                <Node label="Respond" variant="decision" sub={`${d1} or ${d2}`} />
+                <Node label="Responder" variant="decision" sub={`${d1} o ${d2}`} />
                 <Arrow />
                 <BranchRow left={d1} right={d2} />
                 <Arrow />
-                <Node label="Record RT" variant="action" sub="No correct/incorrect" />
+                <Node label="Registrar TR" variant="action" sub="Sin correcto/incorrecto" />
                 <div className="mt-3 px-2 py-2 rounded bg-gray-50 border border-gray-100">
                     <p className="text-[10px] text-gray-500">
-                        Each of {targets.length} object{targets.length !== 1 ? 's' : ''} paired with {criteriaCount} criteria.
-                        Participant responds {d1}/{d2}. Only reaction time is measured.
+                        Cada uno de {targets.length} objeto{targets.length !== 1 ? 's' : ''} emparejado con {criteriaCount} criterios.
+                        El participante responde {d1}/{d2}. Solo se mide tiempo de reacción.
                     </p>
                 </div>
             </div>
         );
     }
 
-    // Objects Comparing (IAT classic)
-    const c1 = criteriaCategories?.left || 'Positive';
-    const c2 = criteriaCategories?.right || 'Negative';
+    const c1 = criteriaCategories?.left || 'Positivo';
+    const c2 = criteriaCategories?.right || 'Negativo';
     return (
         <div className="space-y-0">
-            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-3">Test flow</p>
-            <Node label="Step 1: Classify criteria" variant="phase" sub={`${criteriaCount} criteria`} />
+            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-3">Flujo del test</p>
+            <Node label="Paso 1: Clasificar criterios" variant="phase" sub={`${criteriaCount} criterios`} />
             <Arrow />
             <BranchRow left={c1} right={c2} />
             <Arrow />
-            <Node label="Step 2: Classify targets" variant="phase" sub={`${targets.length} targets`} />
+            <Node label="Paso 2: Clasificar targets" variant="phase" sub={`${targets.length} targets`} />
             <Arrow />
             <BranchRow left={targets[0]?.name || 'Target 1'} right={targets[1]?.name || 'Target 2'} />
             <Arrow />
-            <Node label="Step 3: Combined" variant="phase" sub="Criteria + Targets" />
+            <Node label="Paso 3: Combinado" variant="phase" sub="Criterios + Targets" />
             <Arrow />
-            <Node label="Mixed classification" variant="decision" sub="A / L keys" />
+            <Node label="Clasificación mixta" variant="decision" sub="Teclas A / L" />
             <Arrow />
-            <Node label="Record RT + accuracy" variant="action" />
+            <Node label="Registrar TR + precisión" variant="action" />
             <div className="mt-3 px-2 py-2 rounded bg-gray-50 border border-gray-100">
                 <p className="text-[10px] text-gray-500">
-                    Classic IAT: 3 steps. {criteriaCount} criteria ({c1}/{c2}), {targets.length} targets.
-                    D-score computed from reaction times.
+                    IAT clásico: 3 pasos. {criteriaCount} criterios ({c1}/{c2}), {targets.length} targets.
+                    D-score calculado desde tiempos de reacción.
                 </p>
             </div>
         </div>

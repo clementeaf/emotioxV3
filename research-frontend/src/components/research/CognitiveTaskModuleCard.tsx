@@ -80,7 +80,7 @@ export const CognitiveTaskModuleCard = forwardRef<CognitiveTaskModuleCardRef, Co
             id: m.id,
             type: 'input' as const,
             label: m.label,
-            settings: { hidden: true },
+            hidden: true,
             order: 9998 + i,
         }));
         setComponents(prev => [...prev, ...newComps]);
@@ -234,7 +234,7 @@ export const CognitiveTaskModuleCard = forwardRef<CognitiveTaskModuleCardRef, Co
                                     className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-md hover:bg-emerald-100 transition-colors"
                                 >
                                     <Eye className="h-3.5 w-3.5" />
-                                    Live Test
+                                    Prueba en vivo
                                 </button>
                                 <button
                                     type="button"
@@ -242,7 +242,7 @@ export const CognitiveTaskModuleCard = forwardRef<CognitiveTaskModuleCardRef, Co
                                     className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 transition-colors"
                                 >
                                     <Play className="h-3.5 w-3.5" />
-                                    Preview
+                                    Vista previa
                                 </button>
                             </>
                         )}
@@ -270,24 +270,24 @@ export const CognitiveTaskModuleCard = forwardRef<CognitiveTaskModuleCardRef, Co
                                     className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 transition-colors"
                                 >
                                     <Play className="h-3.5 w-3.5" />
-                                    Preview
+                                    Vista previa
                                 </button>
                             </>
                         )}
                         <Toggle
                             checked={isRequired}
                             onChange={(e) => handleRequiredChange(Boolean(e.target.checked))}
-                            label="Required"
+                            label="Requerido"
                         />
                         <Toggle
                             checked={isHidden}
                             onChange={(e) => handleHiddenChange(Boolean(e.target.checked))}
-                            label="Hide"
+                            label="Ocultar"
                         />
                         <Toggle
                             checked={isConditionality}
                             onChange={(e) => handleConditionalityChange(Boolean(e.target.checked))}
-                            label="Show conditionality"
+                            label="Condicionalidad"
                             disabled={conditionalityDisabled}
                         />
                         {onDelete && (
@@ -295,7 +295,7 @@ export const CognitiveTaskModuleCard = forwardRef<CognitiveTaskModuleCardRef, Co
                                 type="button"
                                 onClick={() => setIsDeleteConfirmOpen(true)}
                                 className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                                title="Delete module"
+                                title="Eliminar módulo"
                             >
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -358,9 +358,9 @@ export const CognitiveTaskModuleCard = forwardRef<CognitiveTaskModuleCardRef, Co
             {isDeleteConfirmOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
                     <div className="bg-white rounded-lg shadow-lg p-6 max-w-sm w-full mx-4">
-                        <h3 className="text-lg font-semibold text-gray-900 mb-2">Delete module</h3>
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2">Eliminar módulo</h3>
                         <p className="text-sm text-gray-600 mb-4">
-                            Are you sure you want to delete <strong>{module.name}</strong>? This action cannot be undone and all responses for this module will be lost.
+                            ¿Estás seguro de eliminar <strong>{module.name}</strong>? Esta acción no se puede deshacer y todas las respuestas de este módulo se perderán.
                         </p>
                         <div className="flex justify-end gap-3">
                             <button
@@ -368,7 +368,7 @@ export const CognitiveTaskModuleCard = forwardRef<CognitiveTaskModuleCardRef, Co
                                 onClick={() => setIsDeleteConfirmOpen(false)}
                                 className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
                             >
-                                Cancel
+                                Cancelar
                             </button>
                             <button
                                 type="button"
@@ -378,7 +378,7 @@ export const CognitiveTaskModuleCard = forwardRef<CognitiveTaskModuleCardRef, Co
                                 }}
                                 className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700"
                             >
-                                Delete
+                                Eliminar
                             </button>
                         </div>
                     </div>

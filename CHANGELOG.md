@@ -1,5 +1,11 @@
 ## v0.96.10 — Eye Tracking mobile Safari fixes + IAT repetitions config (2026-09-25)
 
+### fix: IAT builder translated to Spanish
+- `ModuleContentEditor`: "Test title" → "Título del test", "Stimulus repetitions" → "Repeticiones del estímulo", "Add target/object" → "Agregar target/objeto", "Add another choice" → "Agregar otra opción", "Remove" → "Eliminar".
+- `CognitiveTaskModuleCard`: "Preview" → "Vista previa", "Live Test" → "Prueba en vivo", "Required/Hide/Show conditionality" → "Requerido/Ocultar/Condicionalidad", "Delete module" dialog fully translated.
+- `IATFlowchart`: all phase labels, node descriptions, and summary text translated to Spanish.
+- `response-keys` and `trial-repetitions` components hidden from editor body (were rendering as visible inputs). Filter now checks both `c.hidden` and `c.settings?.hidden`.
+
 ### feat: IAT stimulus repetitions configurable in research builder
 - **Research-frontend**: `ModuleContentEditor` — "Stimulus repetitions" selector (2x, 3x, 4x default, 5x) below test title for all IAT paradigms.
 - `CognitiveTaskModuleCard` auto-creates `trial-repetitions` component if missing (same pattern as `response-keys`).

@@ -160,7 +160,7 @@ export const ModuleContentEditor = ({
     }, [aoiModalOpen, closeAoiModal]);
 
     const visibleComponents = components
-        .filter(c => !c.hidden)
+        .filter(c => !c.hidden && !c.settings?.hidden)
         .sort((a, b) => {
             const orderA = a.order ?? 0;
             const orderB = b.order ?? 0;
@@ -232,20 +232,20 @@ export const ModuleContentEditor = ({
                 <div className="space-y-4">
                     <div className="space-y-1">
                         <label htmlFor="iat-test-title" className="block text-sm font-medium text-gray-700">
-                            Test title <span className="font-normal text-gray-400">(internal, visible in reports only)</span>
+                            Título del test <span className="font-normal text-gray-400">(interno, visible solo en reportes)</span>
                         </label>
                         <input
                             id="iat-test-title"
                             type="text"
                             value={componentValues['test-title'] || ''}
                             onChange={(e) => onValueChange('test-title', e.target.value)}
-                            placeholder="e.g. Brand Perception Q2 2026"
+                            placeholder="ej. Percepción de Marca Q2 2026"
                             className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                         />
                     </div>
                     <div className="space-y-1">
                         <label htmlFor="iat-trial-repetitions" className="block text-sm font-medium text-gray-700">
-                            Stimulus repetitions <span className="font-normal text-gray-400">(each stimulus shown N times, results averaged)</span>
+                            Repeticiones del estímulo <span className="font-normal text-gray-400">(cada estímulo se muestra N veces, se promedian los resultados)</span>
                         </label>
                         <select
                             id="iat-trial-repetitions"
@@ -255,7 +255,7 @@ export const ModuleContentEditor = ({
                         >
                             <option value="2">2x</option>
                             <option value="3">3x</option>
-                            <option value="4">4x (default)</option>
+                            <option value="4">4x (por defecto)</option>
                             <option value="5">5x</option>
                         </select>
                     </div>
@@ -282,7 +282,7 @@ export const ModuleContentEditor = ({
                                     const heading =
                                         col.components[0]?.settings?.groupLabel != null
                                             ? String(col.components[0].settings.groupLabel)
-                                            : `${isComparingAttribute ? 'Object' : 'Target'} ${col.index}`;
+                                            : `${isComparingAttribute ? 'Objeto' : 'Target'} ${col.index}`;
                                     return (
                                         <div
                                             key={col.index}
@@ -297,7 +297,7 @@ export const ModuleContentEditor = ({
                                                         type="button"
                                                         onClick={() => onRemoveIatTarget!(col.components.map(c => c.id))}
                                                         className="text-gray-400 hover:text-red-500 transition-colors"
-                                                        title={`Remove ${heading}`}
+                                                        title={`Eliminar ${heading}`}
                                                     >
                                                         <Trash2 className="h-3.5 w-3.5" />
                                                     </button>
@@ -324,7 +324,7 @@ export const ModuleContentEditor = ({
                                     className="w-full py-2 px-4 text-sm font-medium text-gray-600 bg-gray-50 border border-dashed border-gray-300 rounded-lg hover:bg-gray-100 hover:text-gray-800 transition-colors"
                                 >
                                     <Plus className="h-4 w-4 inline mr-1.5 -mt-0.5" />
-                                    Add {isComparingAttribute ? 'object' : 'target'}
+                                    Agregar {isComparingAttribute ? 'objeto' : 'target'}
                                 </button>
                             )}
                         </div>
@@ -358,7 +358,7 @@ export const ModuleContentEditor = ({
                                                 <button
                                                     onClick={() => onRemoveChoiceComponent(component.id)}
                                                     className="mt-1 p-2 text-red-500 hover:bg-red-50 rounded transition-colors"
-                                                    title="Remove option"
+                                                    title="Eliminar opción"
                                                 >
                                                     <Trash2 className="h-4 w-4" />
                                                 </button>
@@ -372,7 +372,7 @@ export const ModuleContentEditor = ({
                                         className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm text-gray-600 border border-dashed border-gray-300 rounded-lg hover:border-gray-400 hover:text-gray-700 transition-colors"
                                     >
                                         <Plus className="h-4 w-4" />
-                                        Add another choice
+                                        Agregar otra opción
                                     </button>
                                 )}
                             </div>
