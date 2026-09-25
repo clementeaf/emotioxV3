@@ -1439,7 +1439,7 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
     return (
         <>
             {/* Persistent hidden video — never unmounts across phases */}
-            {isDesktop && <video ref={videoRef} autoPlay playsInline muted style={{ display: 'none' }} />}
+            {(isDesktop || hasEmotionRecognition) && <video ref={videoRef} autoPlay playsInline muted style={{ display: 'none' }} />}
             {phaseContent}
         </>
     );

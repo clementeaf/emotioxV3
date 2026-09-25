@@ -1,3 +1,19 @@
+## v0.96.10 — Eye Tracking camera fix on mobile Safari (2026-09-25)
+
+### fix: camera not activating on mobile despite permission granted (Eye Tracking)
+- **Root cause.** Hidden `<video>` element only mounted when `isDesktop` — on mobile with emotion recognition enabled, `getUserMedia` obtained the stream but `videoRef.current` was `null`, so the stream was silently discarded. Safari showed the permission prompt, user accepted, but camera never connected.
+- **Fix.** `<video>` now mounts when `isDesktop || hasEmotionRecognition` — same condition `startCamera()` uses.
+
+### fix: sessionQualityChecks tests aligned with Spanish messages
+- 4 tests asserted English substrings (`close`, `far`, `still`, `landscape`) — implementation uses Spanish (`cerca`, `lejos`, `quieta`, `horizontal`).
+- 1 test expected `canProceed: true` for warnings — `evaluateGate` was intentionally changed to strict mode in v0.96.7 (warnings block advancement).
+
+### quality
+- **TypeScript strict** — 0 errors, 0 warnings in all 3 subprojects.
+- **Tests** — 1123 pass, 0 fail (was 1118 pass, 5 fail).
+
+---
+
 ## v0.96.9 — Eye Tracking glasses tolerance (2026-09-17)
 
 ### fix: face detection tolerates glasses (Eye Tracking)

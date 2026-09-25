@@ -146,13 +146,13 @@ describe('checkDistance', () => {
   it('warns when too close (30cm)', () => {
     const result = checkDistance(30);
     expect(result.status).toBe('warn');
-    expect(result.message).toContain('close');
+    expect(result.message).toContain('cerca');
   });
 
   it('warns when too far (90cm)', () => {
     const result = checkDistance(90);
     expect(result.status).toBe('warn');
-    expect(result.message).toContain('far');
+    expect(result.message).toContain('lejos');
   });
 
   it('passes at exact MIN_DISTANCE_CM boundary', () => {
@@ -233,7 +233,7 @@ describe('checkHeadStability', () => {
   it('fails for high variance (25px)', () => {
     const result = checkHeadStability(25);
     expect(result.status).toBe('fail');
-    expect(result.message).toContain('still');
+    expect(result.message).toContain('quieta');
   });
 
   it('passes at exact threshold', () => {
@@ -325,9 +325,9 @@ describe('evaluateGate', () => {
     expect(result.canProceed).toBe(false);
   });
 
-  it('warnings only → canProceed true', () => {
+  it('warnings block → canProceed false', () => {
     const result = evaluateGate([pass('a'), warn('b'), pass('c')]);
-    expect(result.canProceed).toBe(true);
+    expect(result.canProceed).toBe(false);
   });
 
   it('multiple fails → canProceed false', () => {
@@ -394,7 +394,7 @@ describe('checkLandscape', () => {
     const result = checkLandscape();
     expect(result.id).toBe('orientation');
     expect(result.status).toBe('fail');
-    expect(result.message).toContain('landscape');
+    expect(result.message).toContain('horizontal');
   });
 
   it('returns pass when innerWidth > innerHeight (landscape)', () => {
