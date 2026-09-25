@@ -14,6 +14,7 @@ interface CalibrationPhaseProps {
     onImageLoad: () => void;
     shelfConfig: ShelfConfig | null;
     cameraRef?: React.RefObject<HTMLVideoElement | null>;
+    calibrationAreaRef?: React.RefObject<HTMLDivElement | null>;
 }
 
 export const CalibrationPhase: React.FC<CalibrationPhaseProps> = ({
@@ -25,6 +26,7 @@ export const CalibrationPhase: React.FC<CalibrationPhaseProps> = ({
     onImageLoad: _onImageLoad,
     shelfConfig: _shelfConfig,
     cameraRef,
+    calibrationAreaRef,
 }) => {
     const { t } = useTranslation();
     const previewRef = useRef<HTMLVideoElement>(null);
@@ -91,7 +93,7 @@ export const CalibrationPhase: React.FC<CalibrationPhaseProps> = ({
                 </p>
             </div>
 
-            <div className="flex-1 relative">
+            <div ref={calibrationAreaRef} className="flex-1 relative">
                 {calDotImagePct && (
                     <div
                         className="absolute z-10 w-10 h-10 -translate-x-1/2 -translate-y-1/2 rounded-full bg-green-500 shadow-lg shadow-green-500/30 cursor-pointer"

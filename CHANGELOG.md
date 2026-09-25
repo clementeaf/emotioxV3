@@ -4,6 +4,16 @@
 - **Root cause.** Hidden `<video>` element only mounted when `isDesktop` — on mobile with emotion recognition enabled, `getUserMedia` obtained the stream but `videoRef.current` was `null`, so the stream was silently discarded. Safari showed the permission prompt, user accepted, but camera never connected.
 - **Fix.** `<video>` now mounts when `isDesktop || hasEmotionRecognition` — same condition `startCamera()` uses.
 
+### fix: desktop dwell calibration broken — uncalibrated gaze data (Eye Tracking)
+- **Root cause.** CalibrationPhase redesign (white background) removed the stimulus image. Desktop dwell loop called `getStimulusElement()` → `null` → RAF spun infinitely. `gaze.calibrate()` never called. All desktop gaze data was uncalibrated.
+- **Fix.** Added `calibrationAreaRef` to CalibrationPhase (the `flex-1 relative` container where dots are positioned). Dwell loop now uses `calibrationAreaRef` instead of `getStimulusElement()`.
+
+### fix: mobile skips validation phase after calibration (Eye Tracking)
+- `handleCalibrationClick` went directly to `'viewing'`. Desktop dwell path went to `'validating'`. Now click handler also goes to `'validating'` on desktop (matching dwell), and to `'viewing'` on mobile (no gaze validation possible).
+
+### fix: camera LED stays on after ET completes on mobile (Eye Tracking)
+- `faceEmotions.stop()` and `stopCamera()` were gated by `isDesktop`. Changed to `isDesktop || hasEmotionRecognition` in both `complete` phase and `handleRejectSession`.
+
 ### fix: quality gate "Reintentar" hangs with infinite spinners (Eye Tracking)
 - **Root cause.** Retry button reset check statuses to `pending` but the effect that runs checks depended on `[cameraRef, gazeActive]` — neither changed on retry, so checks never re-executed. Also, if camera stream was never obtained (`video.srcObject === null`), the effect returned silently — spinners stayed forever.
 - **Fix.** Added `retryTrigger` state to force effect re-run on retry. When `srcObject` is null, all checks immediately show `fail` with "Cámara no disponible" instead of spinning indefinitely.

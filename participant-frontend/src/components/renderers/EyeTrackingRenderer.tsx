@@ -137,6 +137,7 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
     const videoEndedRef = useRef(false);
     const containerRef = useRef<HTMLDivElement>(null);
     const shelfContainerRef = useRef<HTMLDivElement>(null);
+    const calibrationAreaRef = useRef<HTMLDivElement>(null);
     const lastClickRef = useRef<{ time: number } | null>(null);
     const savedRef = useRef(false);
     const fixationsRef = useRef<Fixation[]>([]);
@@ -675,9 +676,8 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
         if (phase === 'complete' && !savedRef.current) {
             savedRef.current = true;
 
-            // Stop gaze tracking, face-api emotions, and camera on desktop
-            if (isDesktop) {
-                gaze.stop();
+            if (isDesktop) gaze.stop();
+            if (isDesktop || hasEmotionRecognition) {
                 faceEmotions.stop();
                 stopCamera();
             }
@@ -986,7 +986,7 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
         dwellExitTimeRef.current = null;
 
         const loop = () => {
-            const el = getStimulusElement();
+            const el = calibrationAreaRef.current;
             if (!el) { dwellTimerRef.current = requestAnimationFrame(loop); return; }
             const rect = el.getBoundingClientRect();
             if (rect.width <= 0) { dwellTimerRef.current = requestAnimationFrame(loop); return; }
@@ -1107,13 +1107,17 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
         if (idx + 1 >= pts.length) {
             calibrationRmsePxRef.current = null;
             saveCalibrationToSession(calibrationResidualsRef.current, calibrationRmsePxRef.current);
-            gazePointsRef.current = [];
-            setTimeLeft(Math.ceil(viewingDuration / 1000));
-            setTimeout(() => setPhase('viewing'), 600);
+            if (isDesktop && !isPreviewMode) {
+                setTimeout(() => setPhase('validating'), 400);
+            } else {
+                gazePointsRef.current = [];
+                setTimeLeft(Math.ceil(viewingDuration / 1000));
+                setTimeout(() => setPhase('viewing'), 600);
+            }
         } else {
             setCalibrationIndex(idx + 1);
         }
-    }, [phase, calibrationIndex, viewingDuration]);
+    }, [phase, calibrationIndex, viewingDuration, isDesktop, isPreviewMode]);
 
     // Toggle a setup checkbox
     const toggleCheck = useCallback((index: number) => {
@@ -1268,13 +1272,14 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
 
     /** Reject session — session quality too low after max attempts. */
     const handleRejectSession = useCallback(() => {
-        if (isDesktop) {
-            gaze.stop();
+        if (isDesktop) gaze.stop();
+        if (isDesktop || hasEmotionRecognition) {
+            faceEmotions.stop();
             stopCamera();
         }
         onComplete?.();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- gaze is unstable object literal
-    }, [isDesktop, blaze, stopCamera, onComplete]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- gaze/faceEmotions are unstable object literals
+    }, [isDesktop, hasEmotionRecognition, blaze, stopCamera, onComplete]);
 
     // -----------------------------------------------------------------------
     // Unconfigured
@@ -1369,6 +1374,7 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
                     onImageLoad={handleImageLoad}
                     shelfConfig={shelfConfig}
                     cameraRef={videoRef}
+                    calibrationAreaRef={calibrationAreaRef}
                 />
             </>
         );
