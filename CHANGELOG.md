@@ -1,4 +1,9 @@
-## v0.96.10 — Eye Tracking camera fix on mobile Safari (2026-09-25)
+## v0.96.10 — Eye Tracking mobile Safari fixes + IAT repetitions config (2026-09-25)
+
+### feat: IAT stimulus repetitions configurable in research builder
+- **Research-frontend**: `ModuleContentEditor` — "Stimulus repetitions" selector (2x, 3x, 4x default, 5x) below test title for all IAT paradigms.
+- `CognitiveTaskModuleCard` auto-creates `trial-repetitions` component if missing (same pattern as `response-keys`).
+- Participant-frontend already reads `trial-repetitions` (added in v0.96.7) — now configurable instead of hardcoded 4x.
 
 ### fix: camera not activating on mobile despite permission granted (Eye Tracking)
 - **Root cause.** Hidden `<video>` element only mounted when `isDesktop` — on mobile with emotion recognition enabled, `getUserMedia` obtained the stream but `videoRef.current` was `null`, so the stream was silently discarded. Safari showed the permission prompt, user accepted, but camera never connected.

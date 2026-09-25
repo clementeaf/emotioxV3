@@ -229,18 +229,36 @@ export const ModuleContentEditor = ({
         <div className="space-y-6">
             {/* IAT internal title — hidden from participants, used in reports */}
             {isIatModule && (
-                <div className="space-y-1">
-                    <label htmlFor="iat-test-title" className="block text-sm font-medium text-gray-700">
-                        Test title <span className="font-normal text-gray-400">(internal, visible in reports only)</span>
-                    </label>
-                    <input
-                        id="iat-test-title"
-                        type="text"
-                        value={componentValues['test-title'] || ''}
-                        onChange={(e) => onValueChange('test-title', e.target.value)}
-                        placeholder="e.g. Brand Perception Q2 2026"
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                    />
+                <div className="space-y-4">
+                    <div className="space-y-1">
+                        <label htmlFor="iat-test-title" className="block text-sm font-medium text-gray-700">
+                            Test title <span className="font-normal text-gray-400">(internal, visible in reports only)</span>
+                        </label>
+                        <input
+                            id="iat-test-title"
+                            type="text"
+                            value={componentValues['test-title'] || ''}
+                            onChange={(e) => onValueChange('test-title', e.target.value)}
+                            placeholder="e.g. Brand Perception Q2 2026"
+                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                        />
+                    </div>
+                    <div className="space-y-1">
+                        <label htmlFor="iat-trial-repetitions" className="block text-sm font-medium text-gray-700">
+                            Stimulus repetitions <span className="font-normal text-gray-400">(each stimulus shown N times, results averaged)</span>
+                        </label>
+                        <select
+                            id="iat-trial-repetitions"
+                            value={componentValues['trial-repetitions'] || '4'}
+                            onChange={(e) => onValueChange('trial-repetitions', e.target.value)}
+                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                        >
+                            <option value="2">2x</option>
+                            <option value="3">3x</option>
+                            <option value="4">4x (default)</option>
+                            <option value="5">5x</option>
+                        </select>
+                    </div>
                 </div>
             )}
             {displayItems.map((item, index) => {

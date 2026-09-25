@@ -66,21 +66,29 @@ export const CognitiveTaskModuleCard = forwardRef<CognitiveTaskModuleCardRef, Co
     const isIatModule = isImplicitAssociationModuleName(module.name);
     const isEtModule = module.name.trim().toLowerCase() === 'eye tracking';
 
-    // Ensure IAT modules have a response-keys component
     useEffect(() => {
-        if (!isIatModule) return;
-        const hasResponseKeys = components.some(c => c.id === 'response-keys');
-        if (!hasResponseKeys && components.length > 0) {
-            const comp: ComponentConfig = {
-                id: 'response-keys',
-                type: 'input',
-                label: 'Response Keys',
-                settings: { hidden: true },
-                order: 9999,
-            };
-            setComponents(prev => [...prev, comp]);
-            setComponentValues(prev => ({ ...prev, 'response-keys': prev['response-keys'] || 'letters' }));
+        if (!isIatModule || components.length === 0) return;
+        const missing: { id: string; label: string; defaultValue: string }[] = [];
+        if (!components.some(c => c.id === 'response-keys')) {
+            missing.push({ id: 'response-keys', label: 'Response Keys', defaultValue: 'letters' });
         }
+        if (!components.some(c => c.id === 'trial-repetitions')) {
+            missing.push({ id: 'trial-repetitions', label: 'Trial Repetitions', defaultValue: '4' });
+        }
+        if (missing.length === 0) return;
+        const newComps = missing.map((m, i) => ({
+            id: m.id,
+            type: 'input' as const,
+            label: m.label,
+            settings: { hidden: true },
+            order: 9998 + i,
+        }));
+        setComponents(prev => [...prev, ...newComps]);
+        setComponentValues(prev => {
+            const next = { ...prev };
+            for (const m of missing) { next[m.id] = prev[m.id] || m.defaultValue; }
+            return next;
+        });
     }, [isIatModule, components, setComponents, setComponentValues]);
 
     // Reset state when config changes
