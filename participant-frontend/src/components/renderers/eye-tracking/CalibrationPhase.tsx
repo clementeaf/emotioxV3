@@ -76,7 +76,7 @@ export const CalibrationPhase: React.FC<CalibrationPhaseProps> = ({
             onClickCapture={handleClick}
             onTouchEnd={handleTouch}
         >
-            <div className="flex flex-col items-center pt-4 gap-2">
+            <div className="flex flex-col items-center gap-2" style={{ paddingTop: 'max(16px, env(safe-area-inset-top, 16px))' }}>
                 <StepProgressPill step={2} total={TOTAL_STEPS} percent={calibrationPercent} />
                 <h2 className="text-lg font-bold text-gray-900 mt-2">
                     {isDesktop

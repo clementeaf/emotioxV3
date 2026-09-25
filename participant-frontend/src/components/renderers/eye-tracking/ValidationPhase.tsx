@@ -80,11 +80,11 @@ export const ValidationPhase: React.FC<ValidationPhaseProps> = ({
             onTouchEnd={handleTouch}
             style={{ cursor: !allMeasured ? 'crosshair' : 'default' }}
         >
-            <div className="pointer-events-none absolute top-4 left-1/2 z-[70] -translate-x-1/2">
+            <div className="pointer-events-none absolute left-1/2 z-[70] -translate-x-1/2" style={{ top: 'max(16px, env(safe-area-inset-top, 16px))' }}>
                 <StepProgressPill step={3} total={TOTAL_STEPS} percent={validationPercent} />
             </div>
 
-            <div className="pointer-events-none absolute left-1/2 top-20 z-[70] max-w-lg -translate-x-1/2 px-4 text-center">
+            <div className="pointer-events-none absolute left-1/2 z-[70] max-w-lg -translate-x-1/2 px-4 text-center" style={{ top: 'max(80px, calc(env(safe-area-inset-top, 16px) + 64px))' }}>
                 {!allMeasured ? (
                     <>
                         <p className="text-sm text-white/80">

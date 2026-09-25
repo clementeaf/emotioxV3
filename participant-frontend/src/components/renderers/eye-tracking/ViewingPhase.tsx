@@ -51,12 +51,12 @@ export const ViewingPhase: React.FC<ViewingPhaseProps> = ({
             className="fixed inset-0 z-50 flex items-center justify-center select-none"
             style={{ background: '#ffffff' }}
         >
-            <div className="pointer-events-none absolute top-4 left-1/2 z-[70] -translate-x-1/2">
+            <div className="pointer-events-none absolute left-1/2 z-[70] -translate-x-1/2" style={{ top: 'max(16px, env(safe-area-inset-top, 16px))' }}>
                 <StepProgressPill step={4} total={TOTAL_STEPS} percent={viewingPercent} />
             </div>
 
             {/* Timer */}
-            <div className="pointer-events-none absolute top-16 left-1/2 z-[70] -translate-x-1/2">
+            <div className="pointer-events-none absolute left-1/2 z-[70] -translate-x-1/2" style={{ top: 'max(64px, calc(env(safe-area-inset-top, 16px) + 48px))' }}>
                 <span className={`text-lg font-mono font-bold ${
                     timeLeft <= 3 ? 'text-red-500' : 'text-gray-400'
                 }`}>
@@ -139,7 +139,7 @@ export const ViewingPhase: React.FC<ViewingPhaseProps> = ({
             </div>
 
             {!isDesktop && (
-                <p className="pointer-events-none absolute bottom-6 left-1/2 z-[70] -translate-x-1/2 text-xs text-gray-400">
+                <p className="pointer-events-none absolute left-1/2 z-[70] -translate-x-1/2 text-xs text-gray-400" style={{ bottom: 'max(24px, env(safe-area-inset-bottom, 24px))' }}>
                     {t('eyeTracking.clicks', '{{count}} points recorded', {
                         count: fixations.length,
                     })}

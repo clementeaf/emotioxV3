@@ -27,6 +27,10 @@
 - **Root cause.** `retryCamera` obtained a new stream but the polling interval (that sets `streamReady`) had already expired — preview never activated. Also, Safari's `NotAllowedError` on retry (permission denied is sticky) showed generic "Camera not available" with a Retry button that could never succeed.
 - **Fix.** `retryCamera` now sets `streamReady` and wires preview directly on success. On `NotAllowedError`, shows "Permiso de cámara denegado" with "Recargar página" button instead of futile retry.
 
+### fix: ET phases respect safe-area insets on notch/Dynamic Island devices
+- CalibrationPhase header, ValidationPhase progress pill + hint text, ViewingPhase progress pill + timer + click count: all use `env(safe-area-inset-top/bottom)` with `max()` fallback.
+- `viewport-fit=cover` added to `index.html` (required for `env()` to return non-zero values).
+
 ### fix: sessionQualityChecks tests aligned with Spanish messages
 - 4 tests asserted English substrings (`close`, `far`, `still`, `landscape`) — implementation uses Spanish (`cerca`, `lejos`, `quieta`, `horizontal`).
 - 1 test expected `canProceed: true` for warnings — `evaluateGate` was intentionally changed to strict mode in v0.96.7 (warnings block advancement).
