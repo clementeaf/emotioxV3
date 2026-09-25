@@ -48,16 +48,31 @@ export const CalibrationPhase: React.FC<CalibrationPhaseProps> = ({
         return () => clearInterval(check);
     }, [cameraRef]);
 
+    const lastAdvanceRef = useRef(0);
+
+    const advance = () => {
+        const now = Date.now();
+        if (now - lastAdvanceRef.current < 300) return;
+        lastAdvanceRef.current = now;
+        onCalibrationClick();
+    };
+
     const handleClick = (e: React.MouseEvent) => {
         e.stopPropagation();
         e.nativeEvent.stopImmediatePropagation();
-        onCalibrationClick();
+        advance();
+    };
+
+    const handleTouch = (e: React.TouchEvent) => {
+        e.stopPropagation();
+        advance();
     };
 
     return (
         <div
             className="fixed inset-0 z-50 flex flex-col bg-white"
             onClickCapture={handleClick}
+            onTouchEnd={handleTouch}
         >
             <div className="flex flex-col items-center pt-4 gap-2">
                 <StepProgressPill step={2} total={TOTAL_STEPS} percent={calibrationPercent} />

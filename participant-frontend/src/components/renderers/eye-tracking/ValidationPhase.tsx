@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { StepProgressPill } from './StepProgressPill';
 import { TOTAL_STEPS } from './types';
@@ -52,18 +52,32 @@ export const ValidationPhase: React.FC<ValidationPhaseProps> = ({
     const currentPoint = !allMeasured ? HYBRID_VALIDATION_POINTS[validationIndex] : null;
     const validationPercent = allMeasured ? 68 : Math.round(65 + (validationIndex / HYBRID_VALIDATION_POINTS.length) * 3);
 
-    /** Stop propagation on desktop to prevent WebEyeTrack click interference. */
+    const lastAdvanceRef = useRef(0);
+
+    const advance = () => {
+        if (allMeasured) return;
+        const now = Date.now();
+        if (now - lastAdvanceRef.current < 300) return;
+        lastAdvanceRef.current = now;
+        onValidationDwellComplete();
+    };
+
     const handleClick = !allMeasured ? (e: React.MouseEvent) => {
         e.stopPropagation();
         e.nativeEvent.stopImmediatePropagation();
-        // Dwell-based on desktop; this click is for mobile fallback
-        onValidationDwellComplete();
+        advance();
+    } : undefined;
+
+    const handleTouch = !allMeasured ? (e: React.TouchEvent) => {
+        e.stopPropagation();
+        advance();
     } : undefined;
 
     return (
         <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-black"
             onClickCapture={handleClick}
+            onTouchEnd={handleTouch}
             style={{ cursor: !allMeasured ? 'crosshair' : 'default' }}
         >
             <div className="pointer-events-none absolute top-4 left-1/2 z-[70] -translate-x-1/2">

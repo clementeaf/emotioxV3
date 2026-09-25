@@ -1100,14 +1100,9 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
      */
     const handleCalibrationClick = useCallback(() => {
         if (phase !== 'calibration') return;
-        const el = getStimulusElement();
-        if (!el) return;
         const pts = HYBRID_IMAGE_CALIBRATION_POINTS;
         const idx = calibrationIndex;
         if (idx >= pts.length) return;
-
-        const rect = el.getBoundingClientRect();
-        if (rect.width <= 0 || rect.height <= 0) return;
 
         if (idx + 1 >= pts.length) {
             calibrationRmsePxRef.current = null;
@@ -1118,7 +1113,6 @@ export const EyeTrackingRenderer: React.FC<EyeTrackingRendererProps> = ({ module
         } else {
             setCalibrationIndex(idx + 1);
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- getStimulusElement reads refs only, stable
     }, [phase, calibrationIndex, viewingDuration]);
 
     // Toggle a setup checkbox

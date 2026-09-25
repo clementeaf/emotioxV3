@@ -4,6 +4,11 @@
 - **Root cause.** Hidden `<video>` element only mounted when `isDesktop` — on mobile with emotion recognition enabled, `getUserMedia` obtained the stream but `videoRef.current` was `null`, so the stream was silently discarded. Safari showed the permission prompt, user accepted, but camera never connected.
 - **Fix.** `<video>` now mounts when `isDesktop || hasEmotionRecognition` — same condition `startCamera()` uses.
 
+### fix: calibration/validation points not responding to tap on mobile Safari (Eye Tracking)
+- **Root cause (calibration).** `handleCalibrationClick` required `getStimulusElement()` to return a valid element — but the redesigned CalibrationPhase (white background) no longer mounts the stimulus image during calibration. `getStimulusElement()` returned `null` → handler exited silently.
+- **Root cause (both).** Only `onClickCapture` was registered. Safari mobile can suppress synthetic `click` events from `touchend`. Added `onTouchEnd` handler with 300ms dedupe guard to prevent double-advance.
+- **Fix.** Removed stimulus element dependency from `handleCalibrationClick` (not needed for point advancement). Added `onTouchEnd` + dedupe to both `CalibrationPhase` and `ValidationPhase`.
+
 ### fix: camera retry dead on SetupPhase after initial failure (Eye Tracking)
 - **Root cause.** `retryCamera` obtained a new stream but the polling interval (that sets `streamReady`) had already expired — preview never activated. Also, Safari's `NotAllowedError` on retry (permission denied is sticky) showed generic "Camera not available" with a Retry button that could never succeed.
 - **Fix.** `retryCamera` now sets `streamReady` and wires preview directly on success. On `NotAllowedError`, shows "Permiso de cámara denegado" with "Recargar página" button instead of futile retry.
