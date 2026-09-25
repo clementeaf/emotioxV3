@@ -4,6 +4,10 @@
 - **Root cause.** Hidden `<video>` element only mounted when `isDesktop` — on mobile with emotion recognition enabled, `getUserMedia` obtained the stream but `videoRef.current` was `null`, so the stream was silently discarded. Safari showed the permission prompt, user accepted, but camera never connected.
 - **Fix.** `<video>` now mounts when `isDesktop || hasEmotionRecognition` — same condition `startCamera()` uses.
 
+### fix: camera retry dead on SetupPhase after initial failure (Eye Tracking)
+- **Root cause.** `retryCamera` obtained a new stream but the polling interval (that sets `streamReady`) had already expired — preview never activated. Also, Safari's `NotAllowedError` on retry (permission denied is sticky) showed generic "Camera not available" with a Retry button that could never succeed.
+- **Fix.** `retryCamera` now sets `streamReady` and wires preview directly on success. On `NotAllowedError`, shows "Permiso de cámara denegado" with "Recargar página" button instead of futile retry.
+
 ### fix: sessionQualityChecks tests aligned with Spanish messages
 - 4 tests asserted English substrings (`close`, `far`, `still`, `landscape`) — implementation uses Spanish (`cerca`, `lejos`, `quieta`, `horizontal`).
 - 1 test expected `canProceed: true` for warnings — `evaluateGate` was intentionally changed to strict mode in v0.96.7 (warnings block advancement).

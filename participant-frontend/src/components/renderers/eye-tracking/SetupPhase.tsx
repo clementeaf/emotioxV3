@@ -18,6 +18,7 @@ export const SetupPhase: React.FC<SetupPhaseProps> = ({ isDesktop, checks, allCh
     const [streamReady, setStreamReady] = useState(false);
     const [faceDetected, setFaceDetected] = useState(false);
     const [cameraError, setCameraError] = useState(false);
+    const [permissionBlocked, setPermissionBlocked] = useState(false);
     const previewRef = useRef<HTMLVideoElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -31,8 +32,16 @@ export const SetupPhase: React.FC<SetupPhaseProps> = ({ isDesktop, checks, allCh
             if (cameraRef.current) {
                 cameraRef.current.srcObject = stream;
                 await cameraRef.current.play();
+                setStreamReady(true);
+                if (previewRef.current) {
+                    previewRef.current.srcObject = stream;
+                }
             }
-        } catch {
+        } catch (err) {
+            const name = err instanceof DOMException ? err.name : '';
+            if (name === 'NotAllowedError') {
+                setPermissionBlocked(true);
+            }
             setCameraError(true);
         }
     }, [cameraRef]);
@@ -133,8 +142,14 @@ export const SetupPhase: React.FC<SetupPhaseProps> = ({ isDesktop, checks, allCh
                     )}
                     {cameraError && (
                         <div className="flex flex-col items-center gap-1">
-                            <p className="text-xs text-red-500">{t('eyeTracking.cameraError', 'Camera not available. Check permissions in your browser settings.')}</p>
-                            <button onClick={retryCamera} className="text-xs text-blue-600 underline">{t('eyeTracking.retryCamera', 'Retry')}</button>
+                            <p className="text-xs text-red-500">
+                                {permissionBlocked
+                                    ? t('eyeTracking.cameraBlocked', 'Permiso de cámara denegado. Recarga la página para volver a intentarlo.')
+                                    : t('eyeTracking.cameraError', 'Cámara no disponible. Verifica los permisos en la configuración del navegador.')}
+                            </p>
+                            {permissionBlocked
+                                ? <button onClick={() => window.location.reload()} className="text-xs text-blue-600 underline">{t('eyeTracking.reloadPage', 'Recargar página')}</button>
+                                : <button onClick={retryCamera} className="text-xs text-blue-600 underline">{t('eyeTracking.retryCamera', 'Reintentar')}</button>}
                         </div>
                     )}
                 </div>
