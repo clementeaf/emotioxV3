@@ -86,15 +86,19 @@ export const SessionQualityGate: React.FC<SessionQualityGateProps> = ({
     const [autoAdvance, setAutoAdvance] = useState(false);
     const headPositionsRef = useRef<{ x: number; y: number }[]>([]);
     const runCountRef = useRef(0);
+    const [retryTrigger, setRetryTrigger] = useState(0);
 
     const updateCheck = useCallback((id: string, result: QualityCheckResult) => {
         setChecks(prev => prev.map(c => c.id === id ? result : c));
     }, []);
 
-    // Run quality checks in sequence with a short delay
     useEffect(() => {
         const video = cameraRef.current;
-        if (!video || !video.srcObject) return;
+        if (!video || !video.srcObject) {
+            setChecks(prev => prev.map(c => ({ ...c, status: 'fail' as const, message: 'Cámara no disponible' })));
+            setGateResult({ canProceed: false });
+            return;
+        }
 
         // Wait for video to have dimensions
         const startChecks = () => {
@@ -205,7 +209,7 @@ export const SessionQualityGate: React.FC<SessionQualityGateProps> = ({
 
         startChecks();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- refs are stable, faceConfidence changes with gazeActive
-    }, [cameraRef, gazeActive, updateCheck]);
+    }, [cameraRef, gazeActive, updateCheck, retryTrigger]);
 
     // Evaluate gate when all checks complete
     useEffect(() => {
@@ -279,9 +283,10 @@ export const SessionQualityGate: React.FC<SessionQualityGateProps> = ({
                     <div className="flex gap-3 justify-center mt-6">
                         <button
                             onClick={() => {
-                                setChecks(prev => prev.map(c => ({ ...c, status: 'pending' as const })));
+                                setChecks(prev => prev.map(c => ({ ...c, status: 'pending' as const, message: undefined })));
                                 setGateResult(null);
                                 runCountRef.current = 0;
+                                setRetryTrigger(n => n + 1);
                             }}
                             className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
                         >

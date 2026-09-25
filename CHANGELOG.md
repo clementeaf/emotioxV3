@@ -4,6 +4,10 @@
 - **Root cause.** Hidden `<video>` element only mounted when `isDesktop` — on mobile with emotion recognition enabled, `getUserMedia` obtained the stream but `videoRef.current` was `null`, so the stream was silently discarded. Safari showed the permission prompt, user accepted, but camera never connected.
 - **Fix.** `<video>` now mounts when `isDesktop || hasEmotionRecognition` — same condition `startCamera()` uses.
 
+### fix: quality gate "Reintentar" hangs with infinite spinners (Eye Tracking)
+- **Root cause.** Retry button reset check statuses to `pending` but the effect that runs checks depended on `[cameraRef, gazeActive]` — neither changed on retry, so checks never re-executed. Also, if camera stream was never obtained (`video.srcObject === null`), the effect returned silently — spinners stayed forever.
+- **Fix.** Added `retryTrigger` state to force effect re-run on retry. When `srcObject` is null, all checks immediately show `fail` with "Cámara no disponible" instead of spinning indefinitely.
+
 ### fix: calibration/validation points not responding to tap on mobile Safari (Eye Tracking)
 - **Root cause (calibration).** `handleCalibrationClick` required `getStimulusElement()` to return a valid element — but the redesigned CalibrationPhase (white background) no longer mounts the stimulus image during calibration. `getStimulusElement()` returned `null` → handler exited silently.
 - **Root cause (both).** Only `onClickCapture` was registered. Safari mobile can suppress synthetic `click` events from `touchend`. Added `onTouchEnd` handler with 300ms dedupe guard to prevent double-advance.
